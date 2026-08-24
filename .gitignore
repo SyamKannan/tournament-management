@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build output
+dist/
+build/
+client/dist/
+
+# Environment — never commit real secrets
+.env
+.env.*
+!.env.example
+
+# Laravel runtime
+backend/storage/*.key
+backend/storage/framework/cache/data/*
+backend/storage/framework/sessions/*
+backend/storage/framework/testing/*
+backend/storage/framework/views/*
+backend/storage/logs/*
+backend/bootstrap/cache/*
+backend/public/storage
+backend/public/hot
+
+# Local database
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+
+# Logs and runtime artefacts
+*.log
+workerman.log
+.workerman/
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+.phpunit.result.cache
+.phpunit.cache/
