@@ -17,6 +17,11 @@ class Team extends BaseModel
         return $this->hasMany(Player::class);
     }
 
+    public function manager(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'manager_user_id');
+    }
+
     public function payment()
     {
         return $this->hasOne(RegistrationPayment::class);

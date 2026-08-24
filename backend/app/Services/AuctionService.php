@@ -79,6 +79,25 @@ class AuctionService
     }
 
     /**
+     * The team a given user is allowed to bid for in this auction.
+     *
+     * Only team managers are bound to a single team; organizers and super
+     * admins run the auction rather than bid in it, so they get null.
+     */
+    public function biddableTeamFor(Auction $auction, ?\App\Models\User $user): ?Team
+    {
+        if (! $user || $user->role !== 'TEAM_MANAGER') {
+            return null;
+        }
+
+        return Team::query()
+            ->where('manager_user_id', $user->id)
+            ->where('tournament_id', $auction->tournament_id)
+            ->first()
+            ?? Team::query()->where('manager_user_id', $user->id)->first();
+    }
+
+    /**
      * How much each competing team has spent and has left.
      *
      * Falls back progressively — tournament teams, then any team in the

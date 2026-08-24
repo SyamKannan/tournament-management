@@ -276,7 +276,8 @@
       "role": "TEAM_MANAGER",
       "avatar": "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=100&auto=format&fit=crop&q=80",
       "created_at": "2026-07-25T02:47:55.948Z",
-      "updated_at": "2026-07-25T02:47:55.948Z"
+      "updated_at": "2026-07-25T02:47:55.948Z",
+      "organization_id": "org-green-valley"
     },
     {
       "id": "user-player-shameer",
@@ -574,6 +575,17 @@
       "current_registrations": 4,
       "deadline": "2026-09-08T02:47:55.949Z",
       "created_at": "2026-07-25T02:47:55.948Z"
+    },
+    {
+      "id": "link-highland-7s",
+      "tournament_id": "tourney-highland-7s",
+      "organization_id": "org-green-valley",
+      "token": "wayanad-monsoon-sevens-2026-reg",
+      "status": "active",
+      "max_teams": 16,
+      "current_registrations": 0,
+      "deadline": "2026-08-27",
+      "created_at": "2026-07-25T02:47:55.948Z"
     }
   ],
   "venues": [
@@ -622,7 +634,8 @@
       "status": "approved",
       "group_name": "Group A",
       "created_at": "2026-07-25T02:47:55.948Z",
-      "updated_at": "2026-07-25T02:47:55.948Z"
+      "updated_at": "2026-07-25T02:47:55.948Z",
+      "manager_user_id": "user-manager-blasters"
     },
     {
       "id": "team-green-valley-strikers",
@@ -1578,7 +1591,7 @@
   "auctions": [
     {
       "id": "auction-football-1",
-      "tournament_id": "tourney-fb-malappuram",
+      "tournament_id": "tourney-football-sevens",
       "organization_id": "org-green-valley",
       "title": "Malappuram 7s Village Championship Official Player Auction 2026",
       "token": "malappuram-7s-auction-2026",
@@ -1641,7 +1654,7 @@
     },
     {
       "id": "auction-cricket-1",
-      "tournament_id": "tourney-crick-calicut",
+      "tournament_id": "tourney-cricket-t20",
       "organization_id": "org-malabar-cricket",
       "title": "Calicut Premier T20 Cup Player Auction 2026",
       "token": "calicut-t20-auction-2026",
@@ -1688,7 +1701,7 @@
     {
       "id": "ap-fb-1",
       "auction_id": "auction-football-1",
-      "tournament_id": "tourney-fb-malappuram",
+      "tournament_id": "tourney-football-sevens",
       "organization_id": "org-green-valley",
       "player_id": "player-mb-1",
       "user_id": "user-player-shameer",
@@ -1711,7 +1724,7 @@
     {
       "id": "ap-fb-2",
       "auction_id": "auction-football-1",
-      "tournament_id": "tourney-fb-malappuram",
+      "tournament_id": "tourney-football-sevens",
       "organization_id": "org-green-valley",
       "full_name": "Midhun Joy",
       "mobile": "+91 98471 55552",
@@ -1734,7 +1747,7 @@
     {
       "id": "ap-fb-3",
       "auction_id": "auction-football-1",
-      "tournament_id": "tourney-fb-malappuram",
+      "tournament_id": "tourney-football-sevens",
       "organization_id": "org-green-valley",
       "full_name": "Faizal Rahman",
       "mobile": "+91 94470 44443",
@@ -1754,7 +1767,7 @@
     {
       "id": "ap-crick-1",
       "auction_id": "auction-cricket-1",
-      "tournament_id": "tourney-crick-calicut",
+      "tournament_id": "tourney-cricket-t20",
       "organization_id": "org-malabar-cricket",
       "player_id": "player-crick-1",
       "user_id": "user-player-rahul",

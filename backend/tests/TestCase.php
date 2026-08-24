@@ -19,9 +19,13 @@ abstract class TestCase extends BaseTestCase
 
     protected string $seeder = DatabaseSeeder::class;
 
+    /** The user the test is currently acting as. */
+    protected ?User $actingUser = null;
+
     protected function actingAsUser(string $email): User
     {
         $user = User::query()->where('email', $email)->firstOrFail();
+        $this->actingUser = $user;
 
         return tap($user, fn () => $this->actingAs($user));
     }

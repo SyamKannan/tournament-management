@@ -156,6 +156,12 @@ Route::prefix('auctions')->group(function () {
 
     Route::get('tournament/{tournamentId}', [AuctionController::class, 'forTournament']);
 
+    // A team manager's own view of the room: their purse, squad and bid state.
+    Route::middleware(['auth.required', 'role:TEAM_MANAGER,ORG_ADMIN,SUPER_ADMIN'])->group(function () {
+        Route::get('mine', [AuctionController::class, 'myAuctions']);
+        Route::get('{id}/my-team', [AuctionController::class, 'myTeam']);
+    });
+
     Route::post('/', [AuctionController::class, 'store'])->middleware('auth.required');
     Route::put('players/{playerId}/status', [AuctionController::class, 'updatePlayerStatus'])->middleware('auth.required');
 

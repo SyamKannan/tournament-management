@@ -38,6 +38,10 @@ import { OrgLiveScorerPage } from './pages/organization/OrgLiveScorerPage';
 import { OrgSponsorsAdsPage } from './pages/organization/OrgSponsorsAdsPage';
 import { OrgAnnouncementsPage } from './pages/organization/OrgAnnouncementsPage';
 import { OrgReportsPage } from './pages/organization/OrgReportsPage';
+import { OrgTournamentAuctionManagePage } from './pages/organization/OrgTournamentAuctionManagePage';
+
+// Team Manager Workspace
+import { TeamAuctionPage, TeamAuctionsListPage } from './pages/team/TeamAuctionPage';
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
@@ -168,7 +172,12 @@ export const App: React.FC = () => {
                     <LiveAuctionArenaPage />
                   </ProtectedRoute>
                 } />
-                <Route path="/organization/teams" element={
+                <Route path="/organization/tournaments/:tournamentId/auction" element={
+              <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                <OrgTournamentAuctionManagePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/organization/teams" element={
                   <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
                     <OrgTeamsPage />
                   </ProtectedRoute>
@@ -204,7 +213,20 @@ export const App: React.FC = () => {
                   </ProtectedRoute>
                 } />
 
-                {/* Fallback */}
+                {/* Team Manager Workspace (Protected) */}
+            <Route path="/team" element={<Navigate to="/team/auctions" replace />} />
+            <Route path="/team/auctions" element={
+              <ProtectedRoute allowedRoles={['TEAM_MANAGER', 'ORG_ADMIN', 'SUPER_ADMIN']}>
+                <TeamAuctionsListPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/team/auction/:id" element={
+              <ProtectedRoute allowedRoles={['TEAM_MANAGER', 'ORG_ADMIN', 'SUPER_ADMIN']}>
+                <TeamAuctionPage />
+              </ProtectedRoute>
+            } />
+
+            {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </AppLayout>

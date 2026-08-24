@@ -122,6 +122,110 @@ class AuctionController extends Controller
         ]);
     }
 
+    /**
+     * Everything a team manager's auction page needs, from their own side of
+     * the room: their purse, their squad so far, who is on the hammer, whether
+     * they currently hold the top bid, and what it would cost to raise it.
+     */
+    public function myTeam(Request $request, string $id): JsonResponse
+    {
+        $auction = Auction::find($id);
+
+        if (! $auction) {
+            return response()->json(['error' => 'Auction not found'], 404);
+        }
+
+        $team = $this->auctions->biddableTeamFor($auction, $request->user());
+
+        if (! $team) {
+            return response()->json([
+                'error' => 'Your account is not linked to a team in this tournament.',
+            ], 403);
+        }
+
+        $purse = collect($this->auctions->teamPurses($auction))->firstWhere('team_id', $team->id);
+        $currentPlayer = $auction->current_player_id ? AuctionPlayer::find($auction->current_player_id) : null;
+
+        $leading = $auction->current_bid_team_id === $team->id;
+        $biddingOpen = $auction->status === 'live'
+            && ! in_array($auction->hammer_state, ['sold', 'unsold'], true)
+            && $currentPlayer !== null;
+
+        // What the next valid bid costs: the base price if nobody has bid yet,
+        // otherwise the standing bid plus the increment.
+        $nextBid = $currentPlayer
+            ? ($auction->current_bid_team_id
+                ? (float) $auction->current_bid_amount + (float) $auction->min_bid_increment
+                : (float) ($auction->current_bid_amount ?: $currentPlayer->base_price))
+            : 0.0;
+
+        $remaining = (float) ($purse['remaining_purse'] ?? 0);
+        $squadFull = ($purse['players_bought_count'] ?? 0) >= $auction->max_players_per_team;
+
+        return response()->json([
+            'auction' => $auction,
+            'tournament' => Tournament::find($auction->tournament_id),
+            'team' => $team,
+            'purse' => $purse,
+            'current_player' => $currentPlayer,
+            'squad' => AuctionPlayer::query()
+                ->where('auction_id', $auction->id)
+                ->where('sold_to_team_id', $team->id)
+                ->where('status', 'sold')
+                ->get(),
+            'bidding' => [
+                'open' => $biddingOpen,
+                'is_leading' => $leading,
+                'leading_team_name' => $auction->current_bid_team_name,
+                'current_bid' => (float) $auction->current_bid_amount,
+                'next_bid' => $nextBid,
+                'can_afford' => $nextBid <= $remaining,
+                'squad_full' => $squadFull,
+                'blocked_reason' => match (true) {
+                    ! $biddingOpen => 'Waiting for the auctioneer to call a player.',
+                    $squadFull => 'Your squad is full.',
+                    $nextBid > $remaining => 'Not enough purse left for the next bid.',
+                    $leading => 'You already hold the top bid.',
+                    default => null,
+                },
+            ],
+            'my_bids' => AuctionBid::query()
+                ->where('auction_id', $auction->id)
+                ->where('team_id', $team->id)
+                ->orderByDesc('sequence')
+                ->limit(25)
+                ->get(),
+            'bid_history' => $auction->bidHistory,
+        ]);
+    }
+
+    /**
+     * The auctions a team manager is entitled to join.
+     */
+    public function myAuctions(Request $request): JsonResponse
+    {
+        $teams = Team::query()->where('manager_user_id', $request->user()->id)->get();
+
+        if ($teams->isEmpty()) {
+            return response()->json([]);
+        }
+
+        $auctions = Auction::query()->whereIn('tournament_id', $teams->pluck('tournament_id'))->get();
+        $tournaments = Tournament::query()->whereIn('id', $teams->pluck('tournament_id'))->get()->keyBy('id');
+
+        return response()->json($auctions->map(function (Auction $auction) use ($teams, $tournaments) {
+            $team = $teams->firstWhere('tournament_id', $auction->tournament_id);
+            $purse = collect($this->auctions->teamPurses($auction))->firstWhere('team_id', $team?->id);
+
+            return [
+                'auction' => $auction,
+                'tournament' => $tournaments->get($auction->tournament_id),
+                'team' => $team,
+                'purse' => $purse,
+            ];
+        })->values());
+    }
+
     /* --------------------------------------------------------- Player pool */
 
     public function publicRegistrationPage(string $token): JsonResponse
@@ -326,6 +430,10 @@ class AuctionController extends Controller
             return response()->json(['error' => 'Auction not found'], 404);
         }
 
+        if ($denied = $this->denyNonAuctioneer($request, $auction)) {
+            return $denied;
+        }
+
         $data = $request->validate(['player_id' => ['required', 'string']]);
 
         $player = AuctionPlayer::query()->whereKey($data['player_id'])->where('auction_id', $auction->id)->first();
@@ -384,14 +492,28 @@ class AuctionController extends Controller
         }
 
         $data = $request->validate([
-            'team_id' => ['required', 'string'],
+            'team_id' => ['nullable', 'string'],
             'amount' => ['required', 'numeric', 'min:0'],
         ]);
 
-        $team = Team::find($data['team_id']);
+        // A team manager always bids for their own team. Trusting `team_id`
+        // from the request would let one manager spend a rival's purse.
+        $ownTeam = $this->auctions->biddableTeamFor($auction, $request->user());
+
+        if ($request->user()->role === 'TEAM_MANAGER' && ! $ownTeam) {
+            return response()->json([
+                'error' => 'Your account is not linked to a team in this tournament.',
+            ], 403);
+        }
+
+        $team = $ownTeam ?? Team::find($data['team_id']);
 
         if (! $team) {
             return response()->json(['error' => 'Team not found'], 404);
+        }
+
+        if ($team->tournament_id !== $auction->tournament_id) {
+            return response()->json(['error' => 'That team is not entered in this tournament.'], 403);
         }
 
         $player = AuctionPlayer::find($auction->current_player_id);
@@ -473,12 +595,16 @@ class AuctionController extends Controller
      * Hammer down. Marks the player sold at the standing bid and adds them
      * straight into the buying team's tournament squad.
      */
-    public function sellPlayer(string $id): JsonResponse
+    public function sellPlayer(Request $request, string $id): JsonResponse
     {
         $auction = Auction::find($id);
 
         if (! $auction) {
             return response()->json(['error' => 'Auction not found'], 404);
+        }
+
+        if ($denied = $this->denyNonAuctioneer($request, $auction)) {
+            return $denied;
         }
 
         if (! $auction->current_player_id) {
@@ -552,12 +678,16 @@ class AuctionController extends Controller
         ]);
     }
 
-    public function unsoldPlayer(string $id): JsonResponse
+    public function unsoldPlayer(Request $request, string $id): JsonResponse
     {
         $auction = Auction::find($id);
 
         if (! $auction) {
             return response()->json(['error' => 'Auction not found'], 404);
+        }
+
+        if ($denied = $this->denyNonAuctioneer($request, $auction)) {
+            return $denied;
         }
 
         if (! $auction->current_player_id) {
@@ -590,12 +720,16 @@ class AuctionController extends Controller
      * Return every unsold player to the pool at a 25% discount for a second,
      * faster round.
      */
-    public function acceleratedRound(string $id): JsonResponse
+    public function acceleratedRound(Request $request, string $id): JsonResponse
     {
         $auction = Auction::find($id);
 
         if (! $auction) {
             return response()->json(['error' => 'Auction not found'], 404);
+        }
+
+        if ($denied = $this->denyNonAuctioneer($request, $auction)) {
+            return $denied;
         }
 
         $unsold = AuctionPlayer::query()
@@ -640,7 +774,10 @@ class AuctionController extends Controller
             return response()->json(['error' => 'Auction not found'], 404);
         }
 
-        if ($denied = $this->denyForeignTenant($request, $auction->organization_id)) {
+        // Changing an auction's status is an auctioneer action, so the role
+        // matters as well as the tenant — a team manager shares the
+        // organization but must not be able to cancel the auction.
+        if ($denied = $this->denyNonAuctioneer($request, $auction)) {
             return $denied;
         }
 
@@ -670,6 +807,27 @@ class AuctionController extends Controller
             'message' => "Auction status updated to {$data['status']}",
             'auction' => $auction,
         ]);
+    }
+
+    /**
+     * Auctioneer controls belong to whoever runs the tournament. Team managers
+     * take part in the auction; they do not conduct it.
+     */
+    private function denyNonAuctioneer(Request $request, Auction $auction): ?JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->role === 'SUPER_ADMIN') {
+            return null;
+        }
+
+        if ($user->role !== 'ORG_ADMIN' || $auction->organization_id !== $user->organization_id) {
+            return response()->json([
+                'error' => 'Only the tournament organizer can run the auction.',
+            ], 403);
+        }
+
+        return null;
     }
 
     private function setPoolStatus(string $auctionId, string $playerId, string $status, string $event, string $message): JsonResponse

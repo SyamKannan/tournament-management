@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   Trophy, ShieldCheck, Building2, UserCircle,
-  LogOut, ChevronDown, LogIn, Plus, Menu, X, Wifi, WifiOff
+  LogOut, ChevronDown, LogIn, Plus, Menu, X, Wifi, WifiOff, Gavel
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -60,9 +60,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
     navigate('/login');
   };
 
-  const workspace = role === 'SUPER_ADMIN'
-    ? { to: '/admin/dashboard', label: 'Admin Console', icon: ShieldCheck, classes: 'from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/20' }
-    : { to: '/organization/dashboard', label: 'Club Dashboard', icon: Building2, classes: 'from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-cyan-600/20' };
+  // Each role lands in the workspace it actually owns.
+  const WORKSPACES = {
+    SUPER_ADMIN:  { to: '/admin/dashboard',        label: 'Admin Console',  icon: ShieldCheck, classes: 'from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/20' },
+    ORG_ADMIN:    { to: '/organization/dashboard', label: 'Club Dashboard', icon: Building2,   classes: 'from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-cyan-600/20' },
+    TEAM_MANAGER: { to: '/team/auctions',          label: 'My Team',        icon: Gavel,       classes: 'from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-600/20' },
+    PLAYER:       { to: '/player/dashboard',       label: 'My Profile',     icon: UserCircle,  classes: 'from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-violet-600/20' },
+  } as const;
+
+  const workspace = WORKSPACES[role as keyof typeof WORKSPACES] ?? WORKSPACES.ORG_ADMIN;
 
   const WorkspaceIcon = workspace.icon;
 
