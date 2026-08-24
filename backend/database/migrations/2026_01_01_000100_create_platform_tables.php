@@ -37,7 +37,7 @@ return new class extends Migration
         Schema::create('plans', function (Blueprint $table) {
             $table->string('id')->primary();
             $table->string('name');
-            $table->text('description')->default('');
+            $table->text('description')->nullable();
             $table->decimal('price', 12, 2)->default(0);
             $table->string('currency', 8)->default('₹');
             $table->string('billing_type', 16);
@@ -57,15 +57,15 @@ return new class extends Migration
             $table->string('id')->primary();
             $table->string('name');
             $table->string('slug')->unique();
-            $table->text('logo')->default('');
-            $table->text('banner')->default('');
+            $table->text('logo')->nullable();
+            $table->text('banner')->nullable();
             $table->string('type');
-            $table->text('description')->default('');
+            $table->text('description')->nullable();
             $table->string('contact_person')->default('');
             $table->string('phone')->default('');
             $table->string('whatsapp')->default('');
             $table->string('email')->index();
-            $table->text('address')->default('');
+            $table->text('address')->nullable();
             $table->string('village')->default('');
             $table->string('panchayat')->default('');
             $table->string('municipality')->default('');
@@ -85,7 +85,7 @@ return new class extends Migration
             $table->string('password_hash');
             $table->string('phone')->default('');
             $table->string('role', 32)->index();
-            $table->text('avatar')->default('');
+            $table->text('avatar')->nullable();
             $table->string('organization_id')->nullable()->index();
             $table->timestamps();
 
@@ -121,7 +121,7 @@ return new class extends Migration
             $table->string('transaction_reference')->default('');
             $table->string('billing_name')->default('');
             $table->string('billing_email')->default('');
-            $table->text('billing_address')->default('');
+            $table->text('billing_address')->nullable();
             $table->timestamp('created_at')->nullable();
 
             $table->foreign('organization_id')->references('id')->on('organizations')->cascadeOnDelete();
@@ -136,7 +136,7 @@ return new class extends Migration
             $table->string('action')->index();
             $table->string('entity_type', 64)->default('');
             $table->string('entity_id')->default('');
-            $table->text('details')->default('');
+            $table->text('details')->nullable();
             $table->string('ip_address', 64)->nullable();
             $table->timestamp('created_at')->nullable()->index();
         });

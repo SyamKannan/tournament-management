@@ -1,0 +1,118 @@
+# Production-shaped stack.
+#
+#   web  — nginx: serves the SPA, proxies /api and /ws so everything is one origin
+#   api  — Laravel HTTP API
+#   ws   — the real-time gateway (same image, different role)
+#   db   — MySQL
+#
+# Copy .env.docker.example to .env and set the secrets before bringing this up.
+
+name: sports-saas
+
+services:
+  web:
+    build:
+      context: ./client
+      args:
+        # Same-origin: the browser reaches the gateway through nginx, so no
+        # separate hostname or port is exposed.
+        VITE_WS_URL: "${PUBLIC_WS_URL:-}"
+        VITE_SHOW_DEMO_ACCOUNTS: "${SHOW_DEMO_ACCOUNTS:-false}"
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+      ws:
+        condition: service_started
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+    command: ["api"]
+    environment:
+      APP_NAME: "Antigravity Sports SaaS"
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: "${APP_KEY:?set APP_KEY in .env}"
+      APP_URL: "${APP_URL:-http://localhost:8080}"
+
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_DATABASE: "${DB_DATABASE:-sports_saas}"
+      DB_USERNAME: "${DB_USERNAME:-sports}"
+      DB_PASSWORD: "${DB_PASSWORD:?set DB_PASSWORD in .env}"
+
+      JWT_SECRET: "${JWT_SECRET:?set JWT_SECRET in .env}"
+      JWT_TTL_SECONDS: "${JWT_TTL_SECONDS:-604800}"
+
+      # The API pushes live events to the gateway over the private network.
+      WEBSOCKET_BRIDGE_URL: http://ws:4100
+
+      # nginx is the only public origin, so same-origin requests need no CORS.
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-}"
+
+      LOG_CHANNEL: stderr
+      RUN_MIGRATIONS: "true"
+      RUN_SEED: "${RUN_SEED:-false}"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ws:
+    build:
+      context: ./backend
+    command: ["ws"]
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: "${APP_KEY:?set APP_KEY in .env}"
+      APP_URL: "${APP_URL:-http://localhost:8080}"
+
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_DATABASE: "${DB_DATABASE:-sports_saas}"
+      DB_USERNAME: "${DB_USERNAME:-sports}"
+      DB_PASSWORD: "${DB_PASSWORD:?set DB_PASSWORD in .env}"
+
+      JWT_SECRET: "${JWT_SECRET:?set JWT_SECRET in .env}"
+
+      WEBSOCKET_HOST: 0.0.0.0
+      WEBSOCKET_PORT: "4000"
+      # Bound to the compose network only — anything that can reach the bridge
+      # can broadcast to every connected screen, so it is never published.
+      WEBSOCKET_BRIDGE_HOST: 0.0.0.0
+      WEBSOCKET_BRIDGE_PORT: "4100"
+
+      LOG_CHANNEL: stderr
+      # The API container owns the schema.
+      RUN_MIGRATIONS: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.4
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_DATABASE: "${DB_DATABASE:-sports_saas}"
+      MYSQL_USER: "${DB_USERNAME:-sports}"
+      MYSQL_PASSWORD: "${DB_PASSWORD:?set DB_PASSWORD in .env}"
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  db-data:

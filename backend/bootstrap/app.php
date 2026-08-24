@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\RequireAuth;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\RequireRole;
 use App\Http\Middleware\RequireTenantAccess;
 use App\Http\Middleware\ResolveApiUser;
@@ -19,8 +20,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Identify the caller on every API request; enforcement is per-route.
         $middleware->api(prepend: [
+            SecurityHeaders::class,
             ResolveApiUser::class,
         ]);
+
+        // Sign-in and public registration are the endpoints worth rate limiting:
+        // one guards credentials, the others accept unauthenticated writes.
+        $middleware->throttleApi('120,1');
 
         $middleware->alias([
             'auth.required' => RequireAuth::class,

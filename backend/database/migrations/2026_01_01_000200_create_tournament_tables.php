@@ -19,9 +19,9 @@ return new class extends Migration
             $table->string('sport_code', 16)->index();
             $table->string('name');
             $table->string('slug')->unique();
-            $table->text('logo')->default('');
-            $table->text('banner')->default('');
-            $table->text('description')->default('');
+            $table->text('logo')->nullable();
+            $table->text('banner')->nullable();
+            $table->text('description')->nullable();
             $table->string('location')->default('');
             $table->string('village')->default('');
             $table->string('panchayat')->default('');
@@ -71,7 +71,7 @@ return new class extends Migration
             $table->string('id')->primary();
             $table->string('organization_id')->index();
             $table->string('name');
-            $table->text('address')->default('');
+            $table->text('address')->nullable();
             $table->string('village')->default('');
             $table->string('panchayat')->default('');
             $table->string('district')->default('');
@@ -87,7 +87,7 @@ return new class extends Migration
             $table->string('organization_id')->index();
             $table->string('name');
             $table->string('short_name', 32)->default('');
-            $table->text('logo')->default('');
+            $table->text('logo')->nullable();
             $table->string('village')->default('');
             $table->string('panchayat')->default('');
             $table->string('district')->default('');
@@ -98,7 +98,7 @@ return new class extends Migration
             $table->string('manager_phone')->default('');
             $table->string('manager_whatsapp')->default('');
             $table->string('manager_email')->default('');
-            $table->text('manager_address')->default('');
+            $table->text('manager_address')->nullable();
             $table->string('status', 32)->default('pending')->index();
             $table->text('approval_notes')->nullable();
             $table->string('group_name', 64)->nullable();

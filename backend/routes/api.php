@@ -49,9 +49,10 @@ Route::post('dev/reset-seed', function () {
 /* ---------------------------------------------------------------------- Auth */
 
 Route::prefix('auth')->group(function () {
-    Route::post('login', [AuthController::class, 'login']);
-    Route::post('switch-demo-role', [AuthController::class, 'switchDemoRole']);
-    Route::post('register-org', [AuthController::class, 'registerOrganization']);
+    // Tighter limits on credential and signup endpoints than the API default.
+    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+    Route::post('switch-demo-role', [AuthController::class, 'switchDemoRole'])->middleware('throttle:20,1');
+    Route::post('register-org', [AuthController::class, 'registerOrganization'])->middleware('throttle:5,1');
     Route::get('me', [AuthController::class, 'me']);
 });
 
@@ -111,7 +112,7 @@ Route::prefix('tournaments')->group(function () {
 
 Route::prefix('teams')->group(function () {
     Route::get('public/registration/{token}', [TeamController::class, 'registrationPage']);
-    Route::post('public/registration/{token}', [TeamController::class, 'register']);
+    Route::post('public/registration/{token}', [TeamController::class, 'register'])->middleware('throttle:10,1');
 
     Route::get('tournament/{tournamentId}', [TeamController::class, 'forTournament'])->middleware('auth.required');
 
@@ -152,7 +153,7 @@ Route::prefix('matches')->group(function () {
 
 Route::prefix('auctions')->group(function () {
     Route::get('public/registration/{token}', [AuctionController::class, 'publicRegistrationPage']);
-    Route::post('public/registration/{token}', [AuctionController::class, 'publicRegister']);
+    Route::post('public/registration/{token}', [AuctionController::class, 'publicRegister'])->middleware('throttle:10,1');
 
     Route::get('tournament/{tournamentId}', [AuctionController::class, 'forTournament']);
 

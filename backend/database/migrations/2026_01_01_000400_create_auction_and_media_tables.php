@@ -47,7 +47,7 @@ return new class extends Migration
             $table->string('full_name');
             $table->string('mobile')->default('');
             $table->string('email')->nullable();
-            $table->text('photo')->default('');
+            $table->text('photo')->nullable();
             $table->unsignedInteger('age')->default(0);
             $table->string('village')->default('');
             $table->string('district')->default('');
@@ -87,7 +87,7 @@ return new class extends Migration
             $table->string('id')->primary();
             $table->string('organization_id')->index();
             $table->string('name');
-            $table->text('logo')->default('');
+            $table->text('logo')->nullable();
             $table->text('website')->nullable();
             $table->string('tier', 16)->default('gold');
             $table->text('description')->nullable();
@@ -105,7 +105,7 @@ return new class extends Migration
             $table->string('business_name')->default('');
             $table->string('media_type', 32)->default('image');
             $table->string('display_placement', 32)->nullable();
-            $table->text('media_url')->default('');
+            $table->text('media_url')->nullable();
             $table->text('logo_url')->nullable();
             $table->text('description')->nullable();
             $table->string('phone')->nullable();

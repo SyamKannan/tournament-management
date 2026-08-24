@@ -23,6 +23,9 @@ class DatabaseSeeder extends Seeder
     /** The instant the bundled fixture was captured. */
     private const FIXTURE_ANCHOR = '2026-08-24T02:47:55.943Z';
 
+    /** Columns that are real timestamps rather than ISO strings. */
+    private const TIMESTAMP_COLUMNS = ['created_at', 'updated_at'];
+
     private int $shiftSeconds = 0;
 
     public function run(): void
@@ -233,12 +236,29 @@ class DatabaseSeeder extends Seeder
 
             $normalised = [];
             foreach ($columns as $column) {
-                if (array_key_exists($column, $row)) {
-                    $value = $row[$column];
-                    $normalised[$column] = is_array($value)
-                        ? json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-                        : $value;
+                if (! array_key_exists($column, $row)) {
+                    continue;
                 }
+
+                $value = $row[$column];
+
+                if (is_array($value)) {
+                    $normalised[$column] = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+                    continue;
+                }
+
+                // The fixture stores ISO-8601 throughout. SQLite accepts that in
+                // a timestamp column; MySQL does not, so real timestamp columns
+                // get converted while the many string date columns keep their
+                // ISO form.
+                if (in_array($column, self::TIMESTAMP_COLUMNS, true) && is_string($value) && $value !== '') {
+                    $normalised[$column] = Carbon::parse($value)->format('Y-m-d H:i:s');
+
+                    continue;
+                }
+
+                $normalised[$column] = $value;
             }
 
             return $normalised;

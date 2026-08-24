@@ -8,6 +8,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class User extends BaseModel implements AuthenticatableContract
 {
+    /**
+     * These columns are TEXT and therefore nullable in the schema — MySQL
+     * rejects a DEFAULT on TEXT. Defaulting them here keeps the API
+     * emitting empty strings rather than nulls.
+     */
+    protected $attributes = [
+        'avatar' => '',
+    ];
+
     use Authenticatable;
 
     protected $hidden = ['password_hash'];
