@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { Team } from '../types';
 import { api } from '../services/api';
-import { X, CheckCircle, IndianRupee, ShieldCheck } from 'lucide-react';
+import { X, CheckCircle, IndianRupee } from 'lucide-react';
 
 interface OfflinePaymentModalProps {
   team: Team | null;

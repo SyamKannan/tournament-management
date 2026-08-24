@@ -4,8 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import type { Plan } from '../../types';
 import { 
-  Building2, Trophy, ArrowRight, ArrowLeft, Check, 
-  ShieldCheck, Sparkles, AlertCircle, Phone, Mail, User, CheckCircle2
+  Building2, ArrowRight, ArrowLeft, AlertCircle
 } from 'lucide-react';
 
 export const RegisterClubPage: React.FC = () => {
@@ -101,12 +100,12 @@ export const RegisterClubPage: React.FC = () => {
         {/* Step indicator */}
         <div className="flex items-center justify-center gap-3 mt-6">
           <div className={`flex items-center gap-1.5 text-xs font-bold ${step >= 1 ? 'text-cyan-400' : 'text-slate-500'}`}>
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step >= 1 ? 'bg-cyan-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'}`}>1</span>
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ${step >= 1 ? 'bg-cyan-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'}`}>1</span>
             <span>Club Details</span>
           </div>
           <div className="w-8 h-0.5 bg-slate-800" />
           <div className={`flex items-center gap-1.5 text-xs font-bold ${step >= 2 ? 'text-cyan-400' : 'text-slate-500'}`}>
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step >= 2 ? 'bg-cyan-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'}`}>2</span>
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ${step >= 2 ? 'bg-cyan-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'}`}>2</span>
             <span>Select Plan</span>
           </div>
         </div>
@@ -306,7 +305,7 @@ export const RegisterClubPage: React.FC = () => {
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-white text-sm">{p.name}</span>
                               {p.trial_days > 0 && (
-                                <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 text-[10px] font-bold uppercase">
+                                <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 text-[11px] font-bold uppercase">
                                   {p.trial_days}-Day Free Trial
                                 </span>
                               )}
@@ -323,7 +322,7 @@ export const RegisterClubPage: React.FC = () => {
                               </span>
                             </div>
                             {p.trial_days > 0 && (
-                              <div className="text-[10px] text-slate-500 font-medium">Free during trial</div>
+                              <div className="text-[11px] text-slate-500 font-medium">Free during trial</div>
                             )}
                           </div>
                         </div>

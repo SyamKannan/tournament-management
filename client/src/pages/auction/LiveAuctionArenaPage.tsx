@@ -2,18 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../components/ui/Toast';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { websocketUrl } from '../../config';
 import type { 
   Auction, AuctionPlayer, AuctionBid, TeamAuctionPurse, 
   Tournament, Organization 
 } from '../../types';
 import { 
-  Gavel, Trophy, DollarSign, Users, Clock, ShieldCheck, 
-  Sparkles, Play, Square, Check, X, ArrowUpRight, Tv, 
-  Search, RefreshCw, Zap, Volume2, UserCheck, ChevronRight,
-  AlertTriangle, CheckCircle2, Flame, ArrowRight
+  Gavel, Clock, Check, X, Tv, 
+  Search, Zap, AlertTriangle, CheckCircle2
 } from 'lucide-react';
 
 export const LiveAuctionArenaPage: React.FC = () => {
+  const confirm = useConfirm();
+  const toast = useToast();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
 
@@ -62,8 +65,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
     fetchAuctionState();
 
     // WebSocket connection for real-time live bidding
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname}:4000/ws`;
+    const wsUrl = websocketUrl();
     let ws: WebSocket | null = null;
 
     try {
@@ -104,7 +106,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
   // Place Bid
   const handlePlaceBid = async (amount: number) => {
     if (!selectedBiddingTeamId) {
-      alert('Please select a team to bid for');
+      toast.warning('Please select a team to bid for');
       return;
     }
     try {
@@ -113,7 +115,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
         amount
       });
     } catch (err: any) {
-      alert(err.message || 'Bid failed');
+      toast.error(err.message || 'Bid failed');
     }
   };
 
@@ -122,7 +124,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
     try {
       await api.post(`/auctions/${data?.auction.id}/call-player`, { player_id: playerId });
     } catch (err: any) {
-      alert(err.message || 'Failed to call player');
+      toast.error(err.message || 'Failed to call player');
     }
   };
 
@@ -131,7 +133,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
     try {
       await api.post(`/auctions/${data?.auction.id}/sell-player`, {});
     } catch (err: any) {
-      alert(err.message || 'Failed to finalize sale');
+      toast.error(err.message || 'Failed to finalize sale');
     }
   };
 
@@ -140,18 +142,23 @@ export const LiveAuctionArenaPage: React.FC = () => {
     try {
       await api.post(`/auctions/${data?.auction.id}/unsold-player`, {});
     } catch (err: any) {
-      alert(err.message || 'Failed to mark unsold');
+      toast.error(err.message || 'Failed to mark unsold');
     }
   };
 
   // Accelerated Round
   const handleAcceleratedRound = async () => {
-    if (!confirm('Start accelerated round? Unsold players will be re-entered with a 25% base price discount.')) return;
+    const proceed = await confirm({
+      title: 'Start the accelerated round?',
+      message: 'Every unsold player returns to the pool with their base price reduced by 25%.',
+      confirmLabel: 'Start round',
+    });
+    if (!proceed) return;
     try {
       await api.post(`/auctions/${data?.auction.id}/accelerated-round`, {});
-      alert('Accelerated re-auction round started!');
+      toast.success('Accelerated re-auction round started!');
     } catch (err: any) {
-      alert(err.message || 'Failed to start accelerated round');
+      toast.error(err.message || 'Failed to start accelerated round');
     }
   };
 
@@ -183,7 +190,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
     );
   }
 
-  const { auction, tournament, organization, current_player, team_purses = [], players = [], bid_history = [] } = data;
+  const { auction, tournament, current_player, team_purses = [], players = [], bid_history = [] } = data;
   const currentBid = auction.current_bid_amount || (current_player ? current_player.base_price : 0);
   const minIncrement = auction.min_bid_increment || 500;
   const nextMinBid = auction.current_bid_team_id ? currentBid + minIncrement : currentBid;
@@ -217,7 +224,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
 
           <div>
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-black uppercase tracking-widest">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] font-black uppercase tracking-widest">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
                 <span>LIVE AUCTION ARENA</span>
               </span>
@@ -390,12 +397,12 @@ export const LiveAuctionArenaPage: React.FC = () => {
                 </div>
 
                 <div className="text-center sm:text-right">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Leading Bidder</span>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Leading Bidder</span>
                   <div className="text-base sm:text-lg font-black text-white font-heading mt-0.5">
                     {auction.current_bid_team_name || 'Awaiting Opening Bid'}
                   </div>
                   {auction.current_bid_team_name && (
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase inline-block mt-1">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold uppercase inline-block mt-1">
                       Highest Bidder 🏆
                     </span>
                   )}
@@ -583,7 +590,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
                   >
                     <div>
                       <span className="font-bold text-white">{bid.team_name}</span>
-                      <span className="text-[10px] text-slate-500 block">
+                      <span className="text-[11px] text-slate-500 block">
                         {new Date(bid.timestamp).toLocaleTimeString()}
                       </span>
                     </div>
@@ -609,7 +616,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
               {isAuctioneer && (
                 <button
                   onClick={handleAcceleratedRound}
-                  className="text-[10px] text-amber-400 hover:text-amber-300 font-bold underline"
+                  className="text-[11px] text-amber-400 hover:text-amber-300 font-bold underline"
                   title="Re-auction unsold players with 25% discount"
                 >
                   ⚡ Accelerated Round
@@ -655,7 +662,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
                     <img src={p.photo} alt={p.full_name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
                     <div className="min-w-0">
                       <div className="font-bold text-white truncate">{p.full_name}</div>
-                      <div className="text-[10px] text-slate-400 truncate">
+                      <div className="text-[11px] text-slate-400 truncate">
                         {p.football_position || p.cricket_role} • {p.category}
                       </div>
                     </div>
@@ -664,7 +671,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
                   <div className="flex items-center gap-2 shrink-0">
                     <div className="text-right">
                       <span className="font-mono text-amber-400 font-bold">₹{(p.sold_price || p.base_price).toLocaleString()}</span>
-                      <span className={`block text-[9px] font-bold uppercase ${
+                      <span className={`block text-[11px] font-bold uppercase ${
                         p.status === 'sold' ? 'text-emerald-400' : p.status === 'unsold' ? 'text-rose-400' : 'text-cyan-400'
                       }`}>
                         {p.status}
@@ -674,7 +681,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
                     {isAuctioneer && (p.status === 'registered' || p.status === 'approved' || p.status === 'unsold') && (
                       <button
                         onClick={() => handleCallPlayer(p.id)}
-                        className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-400 hover:text-slate-950 font-bold text-[10px] transition-all"
+                        className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-400 hover:text-slate-950 font-bold text-[11px] transition-all"
                       >
                         Call
                       </button>

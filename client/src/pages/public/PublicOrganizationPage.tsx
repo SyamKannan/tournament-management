@@ -3,8 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Organization, Tournament, Sponsor } from '../../types';
 import { 
-  Building2, MapPin, Phone, Mail, Globe, 
-  Trophy, ExternalLink, Calendar, Users, Award
+  Trophy
 } from 'lucide-react';
 
 export const PublicOrganizationPage: React.FC = () => {
@@ -44,7 +43,7 @@ export const PublicOrganizationPage: React.FC = () => {
     );
   }
 
-  const { organization, active_tournaments, past_tournaments, sponsors } = data;
+  const { organization, active_tournaments } = data;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-20">
@@ -64,7 +63,7 @@ export const PublicOrganizationPage: React.FC = () => {
             />
             <div>
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
                   {organization.type}
                 </span>
                 <span className="text-xs text-slate-400 font-semibold">{organization.district}, {organization.state}</span>
@@ -88,7 +87,7 @@ export const PublicOrganizationPage: React.FC = () => {
                 <div key={t.id} className="p-6 rounded-3xl glass-card border border-slate-800 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase">
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
                         {t.sport_code.toUpperCase()} • {t.format}
                       </span>
                       <span className="font-mono text-xs font-bold text-emerald-400">Fee: ₹{t.ground_fee}</span>

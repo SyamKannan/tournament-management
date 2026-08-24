@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import type { Subscription, Invoice } from '../../types';
-import { FileText, CreditCard, ShieldCheck, CheckCircle2, Download } from 'lucide-react';
+import { Skeleton, SkeletonTable } from '../../components/ui/Feedback';
 
 export const AdminSubscriptionsPage: React.FC = () => {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -27,6 +27,15 @@ export const AdminSubscriptionsPage: React.FC = () => {
     };
     fetchData();
   }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-72" />
+        <SkeletonTable rows={6} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -60,7 +69,7 @@ export const AdminSubscriptionsPage: React.FC = () => {
         <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
-              <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[10px] font-bold tracking-wider">
+              <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
                 <tr>
                   <th className="px-5 py-3.5">Organization</th>
                   <th className="px-4 py-3.5">Subscribed Plan</th>
@@ -91,7 +100,7 @@ export const AdminSubscriptionsPage: React.FC = () => {
                       {sub.next_billing_date ? new Date(sub.next_billing_date).toLocaleDateString() : 'One-Time'}
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase">
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
                         {sub.status}
                       </span>
                     </td>
@@ -105,7 +114,7 @@ export const AdminSubscriptionsPage: React.FC = () => {
         <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
-              <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[10px] font-bold tracking-wider">
+              <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
                 <tr>
                   <th className="px-5 py-3.5">Invoice #</th>
                   <th className="px-4 py-3.5">Billed To</th>
@@ -123,7 +132,7 @@ export const AdminSubscriptionsPage: React.FC = () => {
                     </td>
                     <td className="px-4 py-4">
                       <div className="font-semibold text-white">{inv.billing_name}</div>
-                      <div className="text-[10px] text-slate-500">{inv.billing_email}</div>
+                      <div className="text-[11px] text-slate-500">{inv.billing_email}</div>
                     </td>
                     <td className="px-4 py-4 font-mono font-bold text-emerald-400">
                       ₹{inv.amount.toLocaleString()}
@@ -135,7 +144,7 @@ export const AdminSubscriptionsPage: React.FC = () => {
                       {new Date(inv.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase">
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
                         {inv.status}
                       </span>
                     </td>

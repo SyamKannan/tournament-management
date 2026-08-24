@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
-import type { Tournament, RegistrationLink } from '../../types';
 import { 
-  Trophy, Plus, Users, Share2, Copy, Check, 
-  ExternalLink, Calendar, DollarSign, X, Radio, 
-  Gavel, Clock, ArrowRight, ShieldCheck, Sparkles
+  Plus, Share2, Copy, Check, 
+  X, Gavel
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useToast } from '../../components/ui/Toast';
+import { Skeleton, SkeletonCard } from '../../components/ui/Feedback';
 
 export const OrgTournamentsPage: React.FC = () => {
-  const { organization } = useAuth();
+  const toast = useToast();
+  const { } = useAuth();
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -20,7 +21,7 @@ export const OrgTournamentsPage: React.FC = () => {
   const [name, setName] = useState('');
   const [sportCode, setSportCode] = useState<'football' | 'cricket'>('football');
   const [location, setLocation] = useState('');
-  const [district, setDistrict] = useState('Malappuram');
+  const [district, _setDistrict] = useState('Malappuram');
   const [format, setFormat] = useState('league_knockout');
   const [maxTeams, setMaxTeams] = useState<number>(8);
   const [groundFee, setGroundFee] = useState<number>(5000);
@@ -34,7 +35,7 @@ export const OrgTournamentsPage: React.FC = () => {
   // Auction specific toggle & config
   const [hasAuction, setHasAuction] = useState<boolean>(true);
   const [auctionStartTime, setAuctionStartTime] = useState('');
-  const [auctionEndTime, setAuctionEndTime] = useState('');
+  const [auctionEndTime, _setAuctionEndTime] = useState('');
   const [teamPurse, setTeamPurse] = useState<number>(100000);
   const [minBidIncrement, setMinBidIncrement] = useState<number>(500);
 
@@ -101,9 +102,18 @@ export const OrgTournamentsPage: React.FC = () => {
       setShowCreateModal(false);
       fetchTournaments();
     } catch (err: any) {
-      alert(err.message || 'Failed to create tournament. Plan limit may have been reached.');
+      toast.error(err.message || 'Failed to create tournament. Plan limit may have been reached.');
     }
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-72" />
+        <SkeletonCard lines={4} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -122,30 +132,30 @@ export const OrgTournamentsPage: React.FC = () => {
       </div>
 
       {/* Tournaments Grid */}
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 gap-4 sm:gap-6 min-w-0">
         {tournaments.map(t => {
           const isFb = t.sport_code === 'football';
           const regToken = t.registration_link_token || 'sevens-cup-2026-reg';
           const hasAuctionEnabled = Boolean(t.has_auction);
 
           return (
-            <div key={t.id} className="p-6 rounded-3xl glass-card border border-slate-800 flex flex-col justify-between hover:border-slate-700 transition-all">
+            <div key={t.id} className="p-4 sm:p-6 rounded-3xl glass-card border border-slate-800 flex flex-col justify-between min-w-0 hover:border-slate-700 transition-all">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
                       isFb ? 'bg-emerald-500/20 text-emerald-400' : 'bg-cyan-500/20 text-cyan-400'
                     }`}>
                       {isFb ? '⚽ Football' : '🏏 Cricket'} • {t.format}
                     </span>
 
                     {hasAuctionEnabled ? (
-                      <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-black uppercase tracking-wider flex items-center gap-1">
                         <Gavel className="w-3 h-3" />
                         <span>Auction: {t.auction_status || 'upcoming'}</span>
                       </span>
                     ) : (
-                      <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[10px] font-semibold uppercase tracking-wider">
+                      <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[11px] font-semibold uppercase tracking-wider">
                         Direct Team Registration
                       </span>
                     )}
@@ -165,12 +175,12 @@ export const OrgTournamentsPage: React.FC = () => {
                     </span>
                     <span className="text-[11px] text-emerald-400 font-bold">{t.teams_count || 4}/{t.max_teams} Teams</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
                     <input
                       type="text"
                       readOnly
                       value={`${window.location.origin}/register/team/${regToken}`}
-                      className="flex-1 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-[11px] font-mono text-slate-300 truncate"
+                      className="flex-1 min-w-0 basis-full sm:basis-auto px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-[11px] font-mono text-slate-300 truncate"
                     />
                     <button
                       onClick={() => handleCopyLink(regToken)}
@@ -327,7 +337,7 @@ export const OrgTournamentsPage: React.FC = () => {
                 {hasAuction && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80">
                     <div>
-                      <label className="block text-slate-400 text-[10px] uppercase font-bold mb-1">Auction Date & Time</label>
+                      <label className="block text-slate-400 text-[11px] uppercase font-bold mb-1">Auction Date & Time</label>
                       <input
                         type="datetime-local"
                         value={auctionStartTime}
@@ -337,7 +347,7 @@ export const OrgTournamentsPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-slate-400 text-[10px] uppercase font-bold mb-1">Team Purse (₹)</label>
+                      <label className="block text-slate-400 text-[11px] uppercase font-bold mb-1">Team Purse (₹)</label>
                       <input
                         type="number"
                         value={teamPurse}
@@ -347,7 +357,7 @@ export const OrgTournamentsPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-slate-400 text-[10px] uppercase font-bold mb-1">Min Bid Inc (₹)</label>
+                      <label className="block text-slate-400 text-[11px] uppercase font-bold mb-1">Min Bid Inc (₹)</label>
                       <input
                         type="number"
                         value={minBidIncrement}

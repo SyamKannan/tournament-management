@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import type { Sponsor, Advertisement, Match } from '../../types';
+import { useToast } from '../../components/ui/Toast';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { Skeleton, SkeletonStats } from '../../components/ui/Feedback';
 import { 
   Megaphone, Plus, Award, Tv, Play, Square, 
-  Trash2, ExternalLink, Image as ImageIcon, Sparkles,
-  Radio, Clock, Eye, ToggleLeft, ToggleRight, Check,
-  Phone, Globe, Zap, AlertCircle
+  Trash2, ExternalLink, Image as ToggleLeft, ToggleRight, Check,
+  Zap
 } from 'lucide-react';
 
 export const OrgSponsorsAdsPage: React.FC = () => {
+  const confirm = useConfirm();
+  const toast = useToast();
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [ads, setAds] = useState<Advertisement[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
@@ -75,9 +79,9 @@ export const OrgSponsorsAdsPage: React.FC = () => {
         ticker_interval_seconds: tickerIntervalSeconds,
         goal_popup_enabled: goalPopupEnabled
       });
-      alert('Scoreboard advertisement settings updated & broadcasted in real-time!');
+      toast.success('Scoreboard advertisement settings updated & broadcasted in real-time!');
     } catch (err: any) {
-      alert(err.message || 'Failed to update settings');
+      toast.error(err.message || 'Failed to update settings');
     }
   };
 
@@ -90,9 +94,9 @@ export const OrgSponsorsAdsPage: React.FC = () => {
         countdown_seconds: countdownMinutes * 60
       });
       setIsBreakActive(action === 'start');
-      alert(`Scoreboard break commercial ${action === 'start' ? 'STARTED' : 'STOPPED'}!`);
+      toast.success(`Scoreboard break commercial ${action === 'start' ? 'STARTED' : 'STOPPED'}!`);
     } catch (err: any) {
-      alert(err.message || 'Failed to control break mode');
+      toast.error(err.message || 'Failed to control break mode');
     }
   };
 
@@ -104,19 +108,25 @@ export const OrgSponsorsAdsPage: React.FC = () => {
         custom_title: `FEATURED SPONSOR • ${ad.business_name.toUpperCase()}`,
         duration_seconds: 8
       });
-      alert(`Pushed [${ad.business_name}] live pop-up to stadium scoreboard!`);
+      toast.success(`Pushed [${ad.business_name}] live pop-up to stadium scoreboard!`);
     } catch (err: any) {
-      alert(err.message || 'Failed to push instant ad');
+      toast.error(err.message || 'Failed to push instant ad');
     }
   };
 
   const handleDeleteAd = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this advertisement?')) return;
+    const proceed = await confirm({
+      title: 'Delete this advertisement?',
+      message: 'It will stop appearing on scoreboards immediately. This cannot be undone.',
+      confirmLabel: 'Delete advertisement',
+      tone: 'danger',
+    });
+    if (!proceed) return;
     try {
       await api.delete(`/sponsors/ads/${id}`);
       fetchData();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete advertisement');
+      toast.error(err.message || 'Failed to delete advertisement');
     }
   };
 
@@ -170,11 +180,20 @@ export const OrgSponsorsAdsPage: React.FC = () => {
       setDescription('');
       fetchData();
     } catch (err: any) {
-      alert(err.message || 'Failed to add advertisement');
+      toast.error(err.message || 'Failed to add advertisement');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-72" />
+        <SkeletonStats count={3} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -240,7 +259,7 @@ export const OrgSponsorsAdsPage: React.FC = () => {
           <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-cyan-400">Main Scoreboard Configuration</span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-cyan-400">Main Scoreboard Configuration</span>
                 <h2 className="text-lg font-bold text-white font-heading mt-0.5">When & How Ads Appear on Screen</h2>
                 <p className="text-xs text-slate-400">Control live banner rotation intervals and event triggers</p>
               </div>
@@ -335,7 +354,7 @@ export const OrgSponsorsAdsPage: React.FC = () => {
           {/* Full-Screen Break Controller (Half-time / Innings Break) */}
           <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-5">
             <div className="border-b border-slate-800 pb-3">
-              <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Match Break Takeover</span>
+              <span className="text-[11px] font-black uppercase tracking-widest text-amber-400">Match Break Takeover</span>
               <h3 className="text-base font-bold text-white font-heading mt-0.5">Full-Screen Commercial Break with Countdown</h3>
               <p className="text-xs text-slate-400">Take over the scoreboard during Half-Time or Drinks Break to display full-screen sponsor commercials</p>
             </div>
@@ -433,10 +452,10 @@ export const OrgSponsorsAdsPage: React.FC = () => {
               <div key={ad.id} className="rounded-2xl bg-slate-900/90 border border-slate-800 overflow-hidden flex flex-col justify-between shadow-sm group hover:border-slate-700 transition-all">
                 <div className="relative h-44 bg-slate-950 overflow-hidden">
                   <img src={ad.media_url} alt={ad.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                  <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md text-[10px] font-mono text-cyan-400 font-bold border border-slate-700/60">
+                  <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md text-[11px] font-mono text-cyan-400 font-bold border border-slate-700/60">
                     {ad.duration_seconds}s
                   </div>
-                  <div className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md text-[10px] font-bold text-amber-400 border border-slate-700/60 uppercase">
+                  <div className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md text-[11px] font-bold text-amber-400 border border-slate-700/60 uppercase">
                     {ad.display_placement === 'all' ? 'All Placements' : ad.display_placement === 'ticker_banner' ? 'Live Banner' : 'Break Screen'}
                   </div>
                 </div>
@@ -451,7 +470,7 @@ export const OrgSponsorsAdsPage: React.FC = () => {
                   <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
                     <button
                       onClick={() => handlePushInstantAd(ad)}
-                      className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold flex items-center gap-1 transition-colors"
+                      className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-bold flex items-center gap-1 transition-colors"
                       title="Trigger 8s pop-up on live scoreboard"
                     >
                       <Zap className="w-3 h-3" />
@@ -481,7 +500,7 @@ export const OrgSponsorsAdsPage: React.FC = () => {
               <div>
                 <img src={sp.logo} alt={sp.name} className="w-16 h-16 rounded-2xl object-cover mx-auto mb-3 border border-slate-700 shadow-md" />
                 <div className="font-bold text-white text-xs font-heading">{sp.name}</div>
-                <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-bold uppercase mt-1 inline-block border border-amber-500/20">
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[11px] font-bold uppercase mt-1 inline-block border border-amber-500/20">
                   {sp.tier} Partner
                 </span>
                 <p className="text-[11px] text-slate-400 mt-2 leading-tight">{sp.description}</p>
@@ -492,7 +511,7 @@ export const OrgSponsorsAdsPage: React.FC = () => {
                   href={sp.website}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-4 text-[10px] text-cyan-400 hover:text-cyan-300 font-semibold flex items-center justify-center gap-1"
+                  className="mt-4 text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold flex items-center justify-center gap-1"
                 >
                   <span>Visit Website</span>
                   <ExternalLink className="w-3 h-3" />
@@ -516,26 +535,26 @@ export const OrgSponsorsAdsPage: React.FC = () => {
 
             {/* Sample Quick-Fills */}
             <div className="mb-4 p-3 rounded-2xl bg-slate-950 border border-slate-800">
-              <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1.5">1-Click Sample Pre-sets:</span>
+              <span className="text-[11px] font-bold uppercase text-slate-400 block mb-1.5">1-Click Sample Pre-sets:</span>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => handleSampleFill('retail')}
-                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-[10px] font-bold text-amber-400 border border-slate-800 transition-colors"
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-[11px] font-bold text-amber-400 border border-slate-800 transition-colors"
                 >
                   💎 Gold & Jewellery
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSampleFill('fitness')}
-                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-[10px] font-bold text-cyan-400 border border-slate-800 transition-colors"
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-[11px] font-bold text-cyan-400 border border-slate-800 transition-colors"
                 >
                   🏋️ Gym & Fitness
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSampleFill('tech')}
-                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-[10px] font-bold text-emerald-400 border border-slate-800 transition-colors"
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-[11px] font-bold text-emerald-400 border border-slate-800 transition-colors"
                 >
                   🛒 Hypermarket Mall
                 </button>

@@ -2,10 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { 
-  Building2, Trophy, Users, DollarSign, CreditCard, 
-  ArrowUpRight, Plus, ExternalLink, Calendar,
-  Radio, Megaphone, FileText, CheckCircle2, ArrowRight,
-  ShieldCheck, Share2, Eye
+  Trophy, Users, DollarSign, CreditCard, 
+  Plus, ExternalLink, Radio, ShieldCheck, Share2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -76,7 +74,7 @@ export const OrgDashboard: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-black font-heading text-white tracking-tight">{organization?.name}</h1>
-              <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 text-[10px] font-bold uppercase border border-cyan-500/20">
+              <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 text-[11px] font-bold uppercase border border-cyan-500/20">
                 {organization?.type || 'Sports Club'}
               </span>
             </div>
@@ -183,7 +181,7 @@ export const OrgDashboard: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-white">{plan?.name || 'Standard Pro'}</span>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold uppercase border border-emerald-500/20">
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold uppercase border border-emerald-500/20">
                 {subscription?.status || 'Active'}
               </span>
             </div>
@@ -243,7 +241,7 @@ export const OrgDashboard: React.FC = () => {
             <div key={t.id} className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800/80 hover:border-slate-700 transition-all flex flex-col justify-between shadow-sm">
               <div>
                 <div className="flex items-center justify-between mb-2.5">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase border ${
                     t.sport_code === 'football' 
                       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
                       : 'bg-amber-500/10 text-amber-400 border-amber-500/20'

@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import type { Match, Tournament } from '../../types';
-import { Calendar, Plus, Play, Sparkles, RefreshCw, MapPin, Tv } from 'lucide-react';
+import { Calendar, Sparkles, RefreshCw, MapPin, Tv } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useToast } from '../../components/ui/Toast';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { TournamentPicker } from '../../components/ui/TournamentPicker';
+import { Skeleton, SkeletonCard, EmptyState } from '../../components/ui/Feedback';
 
 export const OrgFixturesPage: React.FC = () => {
+  const confirm = useConfirm();
+  const toast = useToast();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTourneyId, setSelectedTourneyId] = useState<string>('');
   const [matches, setMatches] = useState<Match[]>([]);
@@ -42,7 +48,12 @@ export const OrgFixturesPage: React.FC = () => {
   }, [selectedTourneyId]);
 
   const handleAutoGenerate = async (format: 'round_robin' | 'knockout') => {
-    if (!confirm(`Auto-generate ${format === 'round_robin' ? 'Round Robin Group' : 'Knockout Bracket'} fixtures for all approved teams?`)) return;
+    const proceed = await confirm({
+      title: `Generate ${format === 'round_robin' ? 'round robin' : 'knockout'} fixtures?`,
+      message: 'Every approved team will be scheduled. Existing fixtures are kept, and the new matches are added alongside them.',
+      confirmLabel: 'Generate fixtures',
+    });
+    if (!proceed) return;
     setGenerating(true);
     try {
       await api.post('/matches/auto-generate-fixtures', {
@@ -51,11 +62,23 @@ export const OrgFixturesPage: React.FC = () => {
       });
       fetchMatches(selectedTourneyId);
     } catch (err: any) {
-      alert(err.message || 'Failed to generate fixtures');
+      toast.error(err.message || 'Failed to generate fixtures');
     } finally {
       setGenerating(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-72" />
+        <div className="grid md:grid-cols-2 gap-4">
+          <SkeletonCard lines={4} />
+          <SkeletonCard lines={4} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -65,7 +88,12 @@ export const OrgFixturesPage: React.FC = () => {
           <p className="text-xs text-slate-400 mt-1">Generate Round Robin or Single Elimination fixtures and schedule stadium match venues</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <TournamentPicker
+            tournaments={tournaments}
+            value={selectedTourneyId}
+            onChange={setSelectedTourneyId}
+          />
           <button
             disabled={generating}
             onClick={() => handleAutoGenerate('round_robin')}
@@ -86,6 +114,13 @@ export const OrgFixturesPage: React.FC = () => {
       </div>
 
       {/* Match Cards List */}
+      {matches.length === 0 ? (
+        <EmptyState
+          icon={Calendar}
+          title="No fixtures scheduled yet"
+          message="Approve at least two teams, then generate a round robin or knockout bracket to build the schedule."
+        />
+      ) : (
       <div className="grid md:grid-cols-2 gap-4">
         {matches.map(m => {
           const isLive = m.status === 'in_progress' || m.status === 'half_time' || m.status === 'innings_break';
@@ -96,7 +131,7 @@ export const OrgFixturesPage: React.FC = () => {
             }`}>
               <div className="flex items-center justify-between text-xs pb-3 border-b border-slate-800">
                 <span className="font-semibold text-slate-400">{m.round_name} • Match #{m.match_number}</span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase ${
                   isLive ? 'bg-rose-500/20 text-rose-400 animate-pulse' :
                   m.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-300'
                 }`}>
@@ -146,6 +181,7 @@ export const OrgFixturesPage: React.FC = () => {
           );
         })}
       </div>
+      )}
     </div>
   );
 };

@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
-import type { Tournament, Organization, RegistrationLink, RegistrationReceipt } from '../../types';
+import type { Tournament, Organization } from '../../types';
 import { 
-  Users, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, 
-  Plus, Trash2, CreditCard, QrCode, Download, Printer, 
-  Sparkles, IndianRupee, AlertCircle
+  ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, 
+  Plus, Trash2, CreditCard, QrCode, Download, IndianRupee
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ReceiptModal } from '../../components/ReceiptModal';
+import { useToast } from '../../components/ui/Toast';
 
 interface PlayerRow {
   full_name: string;
@@ -22,12 +22,13 @@ interface PlayerRow {
 }
 
 export const PublicTeamRegisterPage: React.FC = () => {
+  const toast = useToast();
   const { token } = useParams<{ token: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
-  const [organization, setOrganization] = useState<Organization | null>(null);
+  const [_organization, setOrganization] = useState<Organization | null>(null);
   const [paymentOptions, setPaymentOptions] = useState<any>(null);
 
   // Wizard Step (1 to 5)
@@ -37,7 +38,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
   const [teamName, setTeamName] = useState('');
   const [shortName, setShortName] = useState('');
   const [jerseyColor, setJerseyColor] = useState('#3B82F6');
-  const [secondaryJerseyColor, setSecondaryJerseyColor] = useState('#FFFFFF');
+  const [secondaryJerseyColor, _setSecondaryJerseyColor] = useState('#FFFFFF');
   const [village, setVillage] = useState('');
   const [panchayat, setPanchayat] = useState('');
   const [district, setDistrict] = useState('Malappuram');
@@ -114,7 +115,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
   const handleRemovePlayer = (index: number) => {
     const min = tournament?.settings.squad_min_players || 7;
     if (players.length <= min) {
-      alert(`Minimum ${min} players required for this tournament roster.`);
+      toast.warning(`Minimum ${min} players required for this tournament roster.`);
       return;
     }
     setPlayers(players.filter((_, i) => i !== index));
@@ -133,11 +134,11 @@ export const PublicTeamRegisterPage: React.FC = () => {
   const validatePlayers = () => {
     for (let i = 0; i < players.length; i++) {
       if (!players[i].full_name.trim()) {
-        alert(`Please enter the name for Player #${i + 1}`);
+        toast.warning(`Please enter the name for Player #${i + 1}`);
         return false;
       }
       if (!players[i].jersey_number) {
-        alert(`Please enter a jersey number for ${players[i].full_name}`);
+        toast.warning(`Please enter a jersey number for ${players[i].full_name}`);
         return false;
       }
     }
@@ -145,7 +146,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
     const jerseys = players.map(p => Number(p.jersey_number));
     const unique = new Set(jerseys);
     if (unique.size !== jerseys.length) {
-      alert('Duplicate jersey numbers detected! Every player must have a unique jersey number.');
+      toast.warning('Duplicate jersey numbers detected! Every player must have a unique jersey number.');
       return false;
     }
     return true;
@@ -181,7 +182,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
       setCompletedReceipt(res.receipt);
       setCurrentStep(5);
     } catch (err: any) {
-      alert(err.message || 'Registration failed');
+      toast.error(err.message || 'Registration failed');
     } finally {
       setIsProcessingPayment(false);
     }
@@ -236,7 +237,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
 
         {/* 5-Step Mobile Progress Bar */}
         <div className="max-w-3xl mx-auto px-4 pb-3">
-          <div className="grid grid-cols-5 gap-1.5 text-center text-[10px] font-bold">
+          <div className="grid grid-cols-5 gap-1.5 text-center text-[11px] font-bold">
             {[
               { num: 1, label: 'Team' },
               { num: 2, label: 'Manager' },
@@ -679,7 +680,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
                 <div>
                   <div className="text-xs text-slate-400">Amount Due Now</div>
                   <div className="text-2xl font-black text-emerald-400 font-mono">₹{amountToPayNow.toLocaleString()}</div>
-                  {balanceDue > 0 && <div className="text-[10px] text-amber-400">Remaining Balance: ₹{balanceDue.toLocaleString()}</div>}
+                  {balanceDue > 0 && <div className="text-[11px] text-amber-400">Remaining Balance: ₹{balanceDue.toLocaleString()}</div>}
                 </div>
 
                 <button

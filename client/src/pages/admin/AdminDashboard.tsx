@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { 
   Building2, CreditCard, DollarSign, TrendingUp, 
-  Trophy, Users, ShieldCheck, ArrowUpRight, Activity
+  Trophy, ArrowUpRight, Activity
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 

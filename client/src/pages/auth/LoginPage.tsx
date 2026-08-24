@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { SHOW_DEMO_ACCOUNTS } from '../../config';
 import { 
   Trophy, ShieldCheck, Building2, Lock, Mail, 
-  ArrowRight, AlertCircle, Sparkles, Check, Eye, EyeOff, User
+  ArrowRight, AlertCircle, Eye, EyeOff, User
 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
@@ -226,9 +227,10 @@ export const LoginPage: React.FC = () => {
             </button>
           </form>
 
-          {/* Quick Demo Fill Presets */}
+          {/* Seeded demo logins — only rendered when VITE_SHOW_DEMO_ACCOUNTS=true. */}
+          {SHOW_DEMO_ACCOUNTS && (
           <div className="mt-6 pt-5 border-t border-slate-800/80">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">
+            <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block mb-2">
               1-Click Demo Accounts:
             </span>
 
@@ -243,7 +245,7 @@ export const LoginPage: React.FC = () => {
                     <span className="font-bold text-white block">Shameer Babu (⚽ Football Striker)</span>
                     <span className="text-[11px] text-slate-400">shameer.player@gmail.com • 12345678</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono text-[10px] font-bold">Fill</span>
+                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono text-[11px] font-bold">Fill</span>
                 </button>
 
                 <button
@@ -255,7 +257,7 @@ export const LoginPage: React.FC = () => {
                     <span className="font-bold text-white block">Rahul Menon (🏏 Cricket All-Rounder)</span>
                     <span className="text-[11px] text-slate-400">rahul.player@gmail.com • 12345678</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono text-[10px] font-bold">Fill</span>
+                  <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono text-[11px] font-bold">Fill</span>
                 </button>
               </div>
             ) : activeTab === 'SUPER_ADMIN' ? (
@@ -268,7 +270,7 @@ export const LoginPage: React.FC = () => {
                   <span className="font-bold text-white block">Syam (Platform Super Admin)</span>
                   <span className="text-[11px] text-slate-400">syamdas@gmail.com • 12345678</span>
                 </div>
-                <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono text-[10px] font-bold">Fill</span>
+                <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono text-[11px] font-bold">Fill</span>
               </button>
             ) : (
               <div className="space-y-1.5">
@@ -281,7 +283,7 @@ export const LoginPage: React.FC = () => {
                     <span className="font-bold text-white block">Green Valley Sports Club</span>
                     <span className="text-[11px] text-slate-400">admin@greenvalley.com • 12345678</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono text-[10px] font-bold">Fill</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono text-[11px] font-bold">Fill</span>
                 </button>
 
                 <button
@@ -293,11 +295,12 @@ export const LoginPage: React.FC = () => {
                     <span className="font-bold text-white block">Malabar Cricket Academy</span>
                     <span className="text-[11px] text-slate-400">admin@malabar.com • 12345678</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono text-[10px] font-bold">Fill</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono text-[11px] font-bold">Fill</span>
                 </button>
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* Footer Links */}

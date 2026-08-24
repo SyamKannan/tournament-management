@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import type { RegistrationReceipt } from '../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -30,7 +30,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
     doc.setTextColor(156, 163, 175);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Receipt No: ${data.receipt_number}  |  Issued: ${new Date(receipt.issued_at).toLocaleDateString()}`, 14, 30);
+    doc.text(`Receipt No: ${receipt.receipt_number}  |  Issued: ${new Date(receipt.issued_at).toLocaleDateString()}`, 14, 30);
 
     // Organization & Tournament
     doc.setTextColor(31, 41, 55);
@@ -83,7 +83,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
     doc.text(`Digital Verification Signature: ${data.qr_code_signature}`, 14, finalY2);
     doc.text('This is a computer generated official SaaS tournament entry receipt.', 14, finalY2 + 6);
 
-    doc.save(`Receipt_${data.receipt_number}_${data.team_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+    doc.save(`Receipt_${receipt.receipt_number}_${data.team_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
   };
 
   const handlePrint = () => {
@@ -101,7 +101,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
             </div>
             <div>
               <h3 className="text-sm font-bold text-white font-heading">Official Registration Receipt</h3>
-              <p className="text-[11px] text-slate-400 font-mono">{data.receipt_number}</p>
+              <p className="text-[11px] text-slate-400 font-mono">{receipt.receipt_number}</p>
             </div>
           </div>
           <button
@@ -191,7 +191,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
           </div>
 
           {/* QR Verification String */}
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-950 border border-slate-800 text-[10px] text-slate-400">
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400">
             <QrCode className="w-6 h-6 text-emerald-400 flex-shrink-0" />
             <div className="truncate">
               <div className="font-semibold text-slate-300">Digital Authenticity Signature</div>

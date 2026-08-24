@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Match, FootballMatchState, CricketMatchState, Team, Player } from '../../types';
+import { useToast } from '../../components/ui/Toast';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { 
-  Play, Pause, RotateCcw, Flame, ShieldCheck, 
-  Tv, Award, Users, AlertCircle, Radio, Clock, Check
+  Play, Pause, RotateCcw, Tv, Radio
 } from 'lucide-react';
 
 export const OrgLiveScorerPage: React.FC = () => {
+  const confirm = useConfirm();
+  const toast = useToast();
   const { matchId } = useParams<{ matchId: string }>();
   const [matchData, setMatchData] = useState<{
     match: Match;
@@ -23,13 +26,10 @@ export const OrgLiveScorerPage: React.FC = () => {
 
   // Football Event state
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
-  const [selectedAssistId, setSelectedAssistId] = useState<string>('');
+  const [selectedAssistId, _setSelectedAssistId] = useState<string>('');
   const [eventMinute, setEventMinute] = useState<number>(25);
 
   // Cricket Delivery state
-  const [crickRuns, setCrickRuns] = useState<number>(0);
-  const [crickExtras, setCrickExtras] = useState<string>('none');
-  const [isWicket, setIsWicket] = useState<boolean>(false);
   const [wicketType, setWicketType] = useState<string>('bowled');
   const [commentary, setCommentary] = useState<string>('');
 
@@ -71,7 +71,7 @@ export const OrgLiveScorerPage: React.FC = () => {
       });
       fetchMatch();
     } catch (err: any) {
-      alert(err.message || 'Failed to record goal');
+      toast.error(err.message || 'Failed to record goal');
     }
   };
 
@@ -87,7 +87,7 @@ export const OrgLiveScorerPage: React.FC = () => {
       });
       fetchMatch();
     } catch (err: any) {
-      alert(err.message || 'Failed to record card');
+      toast.error(err.message || 'Failed to record card');
     }
   };
 
@@ -101,7 +101,7 @@ export const OrgLiveScorerPage: React.FC = () => {
       });
       fetchMatch();
     } catch (err: any) {
-      alert(err.message || 'Failed to update timer');
+      toast.error(err.message || 'Failed to update timer');
     }
   };
 
@@ -111,7 +111,7 @@ export const OrgLiveScorerPage: React.FC = () => {
       await api.post(`/matches/${matchData.match.id}/football/undo`);
       fetchMatch();
     } catch (err: any) {
-      alert(err.message || 'Failed to undo event');
+      toast.error(err.message || 'Failed to undo event');
     }
   };
 
@@ -138,7 +138,7 @@ export const OrgLiveScorerPage: React.FC = () => {
       setCommentary('');
       fetchMatch();
     } catch (err: any) {
-      alert(err.message || 'Failed to record delivery');
+      toast.error(err.message || 'Failed to record delivery');
     }
   };
 
@@ -148,18 +148,23 @@ export const OrgLiveScorerPage: React.FC = () => {
       await api.post(`/matches/${matchData.match.id}/cricket/undo`);
       fetchMatch();
     } catch (err: any) {
-      alert(err.message || 'Failed to undo ball');
+      toast.error(err.message || 'Failed to undo ball');
     }
   };
 
   const handleSwitchInnings = async () => {
     if (!matchData) return;
-    if (!confirm('Switch to 2nd Innings? Target will be calculated automatically.')) return;
+    const proceed = await confirm({
+      title: 'Switch to the second innings?',
+      message: 'The target is set from the first innings total and the batting sides swap.',
+      confirmLabel: 'Start second innings',
+    });
+    if (!proceed) return;
     try {
       await api.post(`/matches/${matchData.match.id}/cricket/innings`);
       fetchMatch();
     } catch (err: any) {
-      alert(err.message || 'Failed to switch innings');
+      toast.error(err.message || 'Failed to switch innings');
     }
   };
 

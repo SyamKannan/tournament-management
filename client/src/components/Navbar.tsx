@@ -1,15 +1,58 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { 
-  Trophy, ShieldCheck, Building2, UserCircle, 
-  Tv, LogOut, ChevronDown, Sparkles, LogIn, Plus
+import {
+  Trophy, ShieldCheck, Building2, UserCircle,
+  LogOut, ChevronDown, LogIn, Plus, Menu, X, Wifi, WifiOff
 } from 'lucide-react';
 
-export const Navbar: React.FC = () => {
-  const { user, organization, role, isAuthenticated, logout } = useAuth();
+interface NavbarProps {
+  /** Shown only on workspace routes, where a sidebar exists to open. */
+  onMenuClick?: () => void;
+  showMenuButton?: boolean;
+}
+
+const PUBLIC_LINKS = [
+  { to: '/', label: 'Home' },
+  { to: '/login', label: 'Sign In' },
+  { to: '/register-club', label: 'Register Club' },
+];
+
+export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) => {
+  const { user, organization, role, isAuthenticated, isWsConnected, logout } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Close the account menu on an outside click or Escape — without this the
+  // panel stays open until its own button is pressed again.
+  useEffect(() => {
+    if (!showUserMenu) return;
+
+    const onPointerDown = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowUserMenu(false);
+    };
+
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [showUserMenu]);
+
+  // Any navigation dismisses the open panels.
+  useEffect(() => {
+    setShowUserMenu(false);
+    setShowMobileNav(false);
+  }, [location.pathname]);
 
   const handleLogout = () => {
     setShowUserMenu(false);
@@ -17,162 +60,212 @@ export const Navbar: React.FC = () => {
     navigate('/login');
   };
 
+  const workspace = role === 'SUPER_ADMIN'
+    ? { to: '/admin/dashboard', label: 'Admin Console', icon: ShieldCheck, classes: 'from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/20' }
+    : { to: '/organization/dashboard', label: 'Club Dashboard', icon: Building2, classes: 'from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-cyan-600/20' };
+
+  const WorkspaceIcon = workspace.icon;
+
   return (
-    <header className="sticky top-0 z-50 bg-slate-950/85 border-b border-slate-800/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 bg-slate-950/90 border-b border-slate-800/80 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Brand Logo */}
-          <div className="flex items-center gap-3">
-            <Link to="/" className="flex items-center gap-2.5 group">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 p-0.5 shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform flex items-center justify-center">
-                <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                  <Trophy className="w-4.5 h-4.5 text-emerald-400" />
+        <div className="flex items-center justify-between h-16 gap-3">
+
+          <div className="flex items-center gap-2 min-w-0">
+            {showMenuButton && (
+              <button
+                onClick={onMenuClick}
+                aria-label="Open navigation menu"
+                className="lg:hidden -ml-1 p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            )}
+
+            <Link to="/" className="flex items-center gap-2.5 group min-w-0">
+              <div className="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 p-0.5
+                              shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+                <div className="w-full h-full bg-slate-950 rounded-[10px] grid place-items-center">
+                  <Trophy className="w-4 h-4 text-emerald-400" aria-hidden="true" />
                 </div>
               </div>
-              <div>
-                <span className="text-base font-black tracking-tight text-white font-heading flex items-center gap-1.5">
-                  SPORTIVO <span className="text-emerald-400 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 font-sans font-bold uppercase">SaaS</span>
+              <span className="text-base font-black tracking-tight text-white font-heading flex items-center gap-1.5">
+                SPORTIVO
+                <span className="hidden sm:inline text-emerald-400 text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/10
+                                 border border-emerald-500/20 font-sans font-bold uppercase">
+                  SaaS
                 </span>
-              </div>
+              </span>
             </Link>
           </div>
 
-          {/* Quick Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1 text-sm font-medium text-slate-300">
-            <Link to="/" className="px-3 py-1.5 rounded-lg hover:text-white hover:bg-slate-800/50 transition-colors text-xs font-semibold">
+          <nav className="hidden lg:flex items-center gap-1 text-sm font-medium text-slate-300" aria-label="Main">
+            <Link to="/" className="px-3 py-2 rounded-lg hover:text-white hover:bg-slate-800/60 transition-colors text-sm font-semibold">
               Home
             </Link>
-            <Link to="/tournaments/malappuram-7s-football-2026" className="px-3 py-1.5 rounded-lg hover:text-emerald-400 hover:bg-slate-800/50 transition-colors text-xs font-semibold flex items-center gap-1.5">
-              <span>⚽ Football Hub</span>
-            </Link>
-            <Link to="/tournaments/calicut-super-8s-t20-2026" className="px-3 py-1.5 rounded-lg hover:text-amber-400 hover:bg-slate-800/50 transition-colors text-xs font-semibold flex items-center gap-1.5">
-              <span>🏏 Cricket Hub</span>
-            </Link>
-            <Link to="/scoreboard/match/match-fb-live-1" target="_blank" className="px-3 py-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/10 transition-colors text-xs font-semibold flex items-center gap-1.5">
-              <Tv className="w-3.5 h-3.5" />
-              <span>16:9 Live TV</span>
-            </Link>
+            {isAuthenticated && (
+              <Link
+                to={workspace.to}
+                className="px-3 py-2 rounded-lg hover:text-white hover:bg-slate-800/60 transition-colors text-sm font-semibold"
+              >
+                Workspace
+              </Link>
+            )}
           </nav>
 
-          {/* Right Action: Login / User Account */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            {isAuthenticated && (
+              <span
+                title={isWsConnected ? 'Live updates connected' : 'Live updates offline'}
+                className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${
+                  isWsConnected
+                    ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
+                    : 'bg-slate-800 text-slate-500 ring-1 ring-slate-700'
+                }`}
+              >
+                {isWsConnected
+                  ? <Wifi className="w-3.5 h-3.5" aria-hidden="true" />
+                  : <WifiOff className="w-3.5 h-3.5" aria-hidden="true" />}
+                <span className="sr-only sm:not-sr-only">{isWsConnected ? 'Live' : 'Offline'}</span>
+              </span>
+            )}
+
             {!isAuthenticated ? (
-              <div className="flex items-center gap-2">
-                <Link
-                  to="/login"
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-xs font-bold text-slate-200 transition-all flex items-center gap-1.5"
-                >
-                  <LogIn className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Log In</span>
-                </Link>
+              <>
+                <div className="hidden sm:flex items-center gap-2">
+                  <Link
+                    to="/login"
+                    className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80
+                               text-sm font-bold text-slate-200 transition-colors flex items-center gap-1.5"
+                  >
+                    <LogIn className="w-4 h-4 text-slate-400" aria-hidden="true" />
+                    Log In
+                  </Link>
+                  <Link
+                    to="/register-club"
+                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600
+                               hover:from-emerald-500 hover:to-teal-500 text-sm font-bold text-white
+                               shadow-md shadow-emerald-600/20 transition-colors flex items-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4" aria-hidden="true" />
+                    Register Club
+                  </Link>
+                </div>
 
-                <Link
-                  to="/register-club"
-                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5"
+                <button
+                  onClick={() => setShowMobileNav(open => !open)}
+                  aria-label={showMobileNav ? 'Close menu' : 'Open menu'}
+                  aria-expanded={showMobileNav}
+                  className="sm:hidden p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Register Club</span>
-                </Link>
-              </div>
+                  {showMobileNav ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                </button>
+              </>
             ) : (
-              <div className="flex items-center gap-2.5">
-                {/* Workspace Shortcut Button */}
-                {role === 'SUPER_ADMIN' ? (
-                  <Link
-                    to="/admin/dashboard"
-                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-1.5"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Super Admin Panel</span>
-                  </Link>
-                ) : (
-                  <Link
-                    to="/organization/dashboard"
-                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold shadow-md shadow-cyan-600/20 flex items-center gap-1.5"
-                  >
-                    <Building2 className="w-3.5 h-3.5" />
-                    <span>Club Dashboard</span>
-                  </Link>
-                )}
+              <>
+                <Link
+                  to={workspace.to}
+                  className={`hidden md:flex px-3 py-2 rounded-xl bg-gradient-to-r ${workspace.classes}
+                              text-white text-sm font-bold shadow-md items-center gap-1.5 transition-colors`}
+                >
+                  <WorkspaceIcon className="w-4 h-4" aria-hidden="true" />
+                  {workspace.label}
+                </Link>
 
-                {/* User Dropdown */}
-                <div className="relative">
+                <div className="relative" ref={menuRef}>
                   <button
-                    onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="flex items-center gap-2 p-1.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all text-xs"
+                    onClick={() => setShowUserMenu(open => !open)}
+                    aria-expanded={showUserMenu}
+                    aria-haspopup="menu"
+                    aria-label="Account menu"
+                    className="flex items-center gap-2 p-1.5 rounded-xl bg-slate-900 border border-slate-800
+                               hover:border-slate-700 transition-colors"
                   >
                     <img
                       src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
-                      alt={user?.name || 'User'}
-                      className="w-6 h-6 rounded-lg object-cover"
+                      alt=""
+                      className="w-7 h-7 rounded-lg object-cover"
                     />
-                    <div className="hidden sm:block text-left pr-1">
-                      <div className="text-[11px] font-bold text-white leading-tight truncate max-w-[120px]">
+                    <span className="hidden sm:block text-left pr-1">
+                      <span className="block text-xs font-bold text-white leading-tight truncate max-w-[130px]">
                         {user?.name?.split(' ')[0]}
-                      </div>
-                      <div className="text-[9px] text-slate-400 font-medium">
+                      </span>
+                      <span className="block text-[11px] text-slate-400 font-medium truncate max-w-[130px]">
                         {role === 'SUPER_ADMIN' ? 'Super Admin' : (organization?.name || 'Club Admin')}
-                      </div>
-                    </div>
-                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                      </span>
+                    </span>
+                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} aria-hidden="true" />
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-slate-900/95 border border-slate-800 shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-in fade-in slide-in-from-top-2">
+                    <div
+                      role="menu"
+                      className="absolute right-0 mt-2 w-60 rounded-2xl bg-slate-900/98 border border-slate-800
+                                 shadow-2xl shadow-black/50 p-1.5 z-50 backdrop-blur-xl animate-toast-in"
+                    >
                       <div className="px-3 py-2.5 border-b border-slate-800/80 mb-1">
-                        <p className="text-xs font-bold text-white truncate">{user?.name}</p>
-                        <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
-                        <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-bold uppercase">
+                        <p className="text-sm font-bold text-white truncate">{user?.name}</p>
+                        <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+                        <span className="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400
+                                         border border-emerald-500/20 text-[11px] font-bold uppercase">
                           {role === 'SUPER_ADMIN' ? 'Platform Super Admin' : (organization?.name || 'Org Admin')}
                         </span>
                       </div>
 
-                      {role === 'SUPER_ADMIN' ? (
-                        <Link
-                          to="/admin/dashboard"
-                          onClick={() => setShowUserMenu(false)}
-                          className="w-full text-left px-3 py-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition-colors flex items-center gap-2"
-                        >
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Admin Console</span>
-                        </Link>
-                      ) : (
-                        <Link
-                          to="/organization/dashboard"
-                          onClick={() => setShowUserMenu(false)}
-                          className="w-full text-left px-3 py-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition-colors flex items-center gap-2"
-                        >
-                          <Building2 className="w-3.5 h-3.5 text-cyan-400" />
-                          <span>Club Dashboard</span>
-                        </Link>
-                      )}
+                      <Link
+                        role="menuitem"
+                        to={workspace.to}
+                        className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-300 hover:text-white
+                                   hover:bg-slate-800 transition-colors flex items-center gap-2.5"
+                      >
+                        <WorkspaceIcon className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+                        {workspace.label}
+                      </Link>
 
                       <Link
+                        role="menuitem"
                         to="/login"
-                        onClick={() => setShowUserMenu(false)}
-                        className="w-full text-left px-3 py-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition-colors flex items-center gap-2"
+                        className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-300 hover:text-white
+                                   hover:bg-slate-800 transition-colors flex items-center gap-2.5"
                       >
-                        <UserCircle className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Switch Account</span>
+                        <UserCircle className="w-4 h-4 text-slate-400" aria-hidden="true" />
+                        Switch Account
                       </Link>
 
                       <div className="my-1 border-t border-slate-800" />
 
                       <button
+                        role="menuitem"
                         onClick={handleLogout}
-                        className="w-full text-left px-3 py-2 rounded-xl text-xs text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-2"
+                        className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-rose-400 hover:bg-rose-500/10
+                                   transition-colors flex items-center gap-2.5"
                       >
-                        <LogOut className="w-3.5 h-3.5" />
-                        <span>Sign Out</span>
+                        <LogOut className="w-4 h-4" aria-hidden="true" />
+                        Sign Out
                       </button>
                     </div>
                   )}
                 </div>
-              </div>
+              </>
             )}
           </div>
         </div>
       </div>
+
+      {/* Signed-out mobile menu */}
+      {showMobileNav && !isAuthenticated && (
+        <nav className="sm:hidden border-t border-slate-800 bg-slate-950/98 backdrop-blur-xl px-4 py-3 space-y-1" aria-label="Mobile">
+          {PUBLIC_LINKS.map(link => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className="block px-3 py-3 rounded-xl text-sm font-semibold text-slate-200 hover:bg-slate-800 transition-colors"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+      )}
     </header>
   );
 };

@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Match, Tournament, Team, Advertisement, Sponsor, Announcement } from '../../types';
+import { websocketUrl } from '../../config';
 import { 
-  Tv, Radio, Clock, ShieldCheck, Flame, Volume2, 
-  Maximize2, Minimize2, Trophy, MapPin, Calendar, Award,
-  Sparkles, Megaphone, ExternalLink, Phone
+  Radio, Clock, Flame, Maximize2, Minimize2, MapPin, Sparkles, Phone
 } from 'lucide-react';
 
 export const ScoreboardTVPage: React.FC = () => {
@@ -73,8 +72,7 @@ export const ScoreboardTVPage: React.FC = () => {
     fetchScoreboard();
 
     // WebSocket connection for real-time live scoreboard sync
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname}:4000/ws`;
+    const wsUrl = websocketUrl();
     let ws: WebSocket | null = null;
 
     try {
@@ -223,7 +221,7 @@ export const ScoreboardTVPage: React.FC = () => {
 
           <div>
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-black uppercase tracking-widest">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] font-black uppercase tracking-widest">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
                 <span>LIVE BROADCAST</span>
               </span>
@@ -265,7 +263,7 @@ export const ScoreboardTVPage: React.FC = () => {
           <div className="flex items-center gap-3">
             <Radio className="w-6 h-6 text-yellow-300" />
             <div>
-              <span className="uppercase text-[10px] tracking-widest block text-yellow-200 font-black">OFFICIAL STADIUM ANNOUNCEMENT</span>
+              <span className="uppercase text-[11px] tracking-widest block text-yellow-200 font-black">OFFICIAL STADIUM ANNOUNCEMENT</span>
               <span className="text-base sm:text-lg">{urgentAnnouncement.title}: {urgentAnnouncement.message}</span>
             </div>
           </div>
@@ -295,7 +293,7 @@ export const ScoreboardTVPage: React.FC = () => {
 
           {popupAd.ad?.phone && (
             <div className="text-right shrink-0">
-              <span className="text-[10px] text-slate-400 block font-semibold">Contact Partner</span>
+              <span className="text-[11px] text-slate-400 block font-semibold">Contact Partner</span>
               <span className="text-xs font-mono font-bold text-amber-400">{popupAd.ad.phone}</span>
             </div>
           )}
@@ -314,7 +312,7 @@ export const ScoreboardTVPage: React.FC = () => {
             <img src={currentAd.media_url} alt={currentAd.title} className="w-full h-80 object-cover" />
             <div className="p-6 bg-slate-950/95 text-left flex items-center justify-between border-t border-slate-800">
               <div>
-                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">OFFICIAL TOURNAMENT PARTNER</span>
+                <span className="text-[11px] font-bold text-amber-400 uppercase tracking-widest">OFFICIAL TOURNAMENT PARTNER</span>
                 <h3 className="text-2xl font-black text-white font-heading">{currentAd.business_name}</h3>
                 <p className="text-xs text-slate-300 mt-1">{currentAd.description}</p>
               </div>
@@ -433,7 +431,7 @@ export const ScoreboardTVPage: React.FC = () => {
                 />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
                       SPONSOR
                     </span>
                     <span className="text-xs font-bold text-white truncate font-heading">{activeLiveAd.business_name}</span>
@@ -450,7 +448,7 @@ export const ScoreboardTVPage: React.FC = () => {
                   </div>
                 )}
                 {activeLiveAd.website && (
-                  <div className="text-[10px] text-slate-400 truncate max-w-[140px]">{activeLiveAd.website}</div>
+                  <div className="text-[11px] text-slate-400 truncate max-w-[140px]">{activeLiveAd.website}</div>
                 )}
               </div>
             </div>
@@ -483,7 +481,7 @@ export const ScoreboardTVPage: React.FC = () => {
             {/* Top Score Summary */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-6 border-b border-slate-800 gap-4">
               <div>
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-black uppercase tracking-widest">
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-black uppercase tracking-widest">
                   1ST INNINGS • T20
                 </span>
                 <h2 className="text-2xl sm:text-4xl font-black font-heading text-white mt-1.5">
@@ -554,7 +552,7 @@ export const ScoreboardTVPage: React.FC = () => {
                 />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
                       SPONSOR
                     </span>
                     <span className="text-xs font-bold text-white truncate font-heading">{activeLiveAd.business_name}</span>
@@ -579,7 +577,7 @@ export const ScoreboardTVPage: React.FC = () => {
       {/* Bottom Sponsor Ticker Strip */}
       <footer className="pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
         <div className="flex items-center gap-3">
-          <span className="font-bold uppercase tracking-wider text-slate-500 text-[10px]">Official Sponsors:</span>
+          <span className="font-bold uppercase tracking-wider text-slate-500 text-[11px]">Official Sponsors:</span>
           <div className="flex items-center gap-4">
             {sponsors.map(sp => (
               <span key={sp.id} className="font-bold text-slate-300">{sp.name}</span>

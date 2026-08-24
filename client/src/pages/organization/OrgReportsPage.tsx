@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import type { Tournament } from '../../types';
-import { FileText, Download, Printer, DollarSign, Users, Award } from 'lucide-react';
+import { FileText, Download } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { TournamentPicker } from '../../components/ui/TournamentPicker';
+import { EmptyState, Skeleton, SkeletonStats, SkeletonTable } from '../../components/ui/Feedback';
 
 export const OrgReportsPage: React.FC = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -125,6 +127,16 @@ export const OrgReportsPage: React.FC = () => {
     doc.save(`Financial_Report_${reportData.tournament.name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
   };
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-72" />
+        <SkeletonStats count={4} />
+        <SkeletonTable rows={5} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -133,7 +145,12 @@ export const OrgReportsPage: React.FC = () => {
           <p className="text-xs text-slate-400 mt-1">Ground fee collection balance sheets and downloadable PDF receipts</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <TournamentPicker
+            tournaments={tournaments}
+            value={selectedTourneyId}
+            onChange={setSelectedTourneyId}
+          />
           <button
             onClick={handleExportCSV}
             className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700"
@@ -151,7 +168,13 @@ export const OrgReportsPage: React.FC = () => {
         </div>
       </div>
 
-      {reportData && (
+      {!reportData ? (
+        <EmptyState
+          icon={FileText}
+          title="No financial data yet"
+          message="Once teams register and pay their ground fee, collection totals and receipts appear here."
+        />
+      ) : (
         <div className="space-y-6">
           {/* Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -167,7 +190,7 @@ export const OrgReportsPage: React.FC = () => {
               <div className="text-2xl font-black text-emerald-400 font-heading font-mono mt-1">
                 ₹{reportData.summary.total_collected.toLocaleString()}
               </div>
-              <div className="text-[10px] text-emerald-400 mt-0.5">{reportData.summary.collection_percentage}% Collected</div>
+              <div className="text-[11px] text-emerald-400 mt-0.5">{reportData.summary.collection_percentage}% Collected</div>
             </div>
 
             <div className="p-5 rounded-2xl glass-card border border-slate-800">
@@ -189,7 +212,7 @@ export const OrgReportsPage: React.FC = () => {
           <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
-                <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[10px] font-bold tracking-wider">
+                <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
                   <tr>
                     <th className="px-5 py-3.5">Team Name</th>
                     <th className="px-4 py-3.5">Manager Contact</th>
@@ -210,7 +233,7 @@ export const OrgReportsPage: React.FC = () => {
                       <td className="px-4 py-3.5 font-mono font-bold text-amber-400">₹{r.remaining_amount.toLocaleString()}</td>
                       <td className="px-4 py-3.5 uppercase font-mono text-[11px] text-slate-400">{r.payment_method}</td>
                       <td className="px-4 py-3.5 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase ${
                           r.status === 'fully_paid' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
                         }`}>
                           {r.status}

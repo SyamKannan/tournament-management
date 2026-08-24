@@ -4,14 +4,15 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import type { Plan } from '../types';
 import { 
-  Trophy, ShieldCheck, Zap, Tv, CreditCard, Users, 
-  Sparkles, CheckCircle2, ArrowRight, Activity, Globe, 
-  DollarSign, BarChart3, Layers, QrCode, Play, Gavel, Award
+  ShieldCheck, Tv, Sparkles, CheckCircle2, ArrowRight
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { useToast } from '../components/ui/Toast';
+import { SHOW_DEMO_ACCOUNTS } from '../config';
 
 export const LandingPage: React.FC = () => {
-  const { role } = useAuth();
+  const toast = useToast();
+  const { registerOrg } = useAuth();
   const navigate = useNavigate();
   const [showSignupModal, setShowSignupModal] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState('plan-standard');
@@ -54,7 +55,7 @@ export const LandingPage: React.FC = () => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const res = await api.post('/auth/register-org', {
+      await registerOrg({
         organizationName: orgName,
         organizationType: orgType,
         contactPerson: contactName,
@@ -71,7 +72,7 @@ export const LandingPage: React.FC = () => {
         navigate('/organization/dashboard');
       }, 1500);
     } catch (err: any) {
-      alert(err.message || 'Signup failed');
+      toast.error(err.message || 'Signup failed');
     } finally {
       setIsSubmitting(false);
     }
@@ -177,7 +178,7 @@ export const LandingPage: React.FC = () => {
                 <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all" />
               </div>
               <div className="text-sm font-bold text-white">Club Dashboard</div>
-              <p className="text-[11px] text-slate-400 mt-1">admin@greenvalley.com • 12345678</p>
+              <p className="text-[11px] text-slate-400 mt-1">{SHOW_DEMO_ACCOUNTS ? 'admin@greenvalley.com • 12345678' : 'Run tournaments, teams and payments'}</p>
             </Link>
 
             {/* Player Login */}
@@ -190,7 +191,7 @@ export const LandingPage: React.FC = () => {
                 <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-1 transition-all" />
               </div>
               <div className="text-sm font-bold text-white">Player Career Portal</div>
-              <p className="text-[11px] text-slate-400 mt-1">shameer.player@gmail.com • 12345678</p>
+              <p className="text-[11px] text-slate-400 mt-1">{SHOW_DEMO_ACCOUNTS ? 'shameer.player@gmail.com • 12345678' : 'Track your stats and career profile'}</p>
             </Link>
 
             {/* Super Admin Login */}
@@ -203,7 +204,7 @@ export const LandingPage: React.FC = () => {
                 <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
               </div>
               <div className="text-sm font-bold text-white">Super Admin Portal</div>
-              <p className="text-[11px] text-slate-400 mt-1">syamdas@gmail.com • 12345678</p>
+              <p className="text-[11px] text-slate-400 mt-1">{SHOW_DEMO_ACCOUNTS ? 'syamdas@gmail.com • 12345678' : 'Manage plans, tenants and billing'}</p>
             </Link>
 
             {/* Public Tournaments */}
@@ -280,7 +281,7 @@ export const LandingPage: React.FC = () => {
                   }`}
                 >
                   {isPopular && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-wider shadow-md">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-emerald-500 text-slate-950 font-black text-[11px] uppercase tracking-wider shadow-md">
                       Most Popular
                     </div>
                   )}
@@ -293,7 +294,7 @@ export const LandingPage: React.FC = () => {
                         {plan.name}
                       </div>
                       {plan.trial_days > 0 && (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase">
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-black uppercase">
                           {plan.trial_days}d Free Trial
                         </span>
                       )}
@@ -330,7 +331,7 @@ export const LandingPage: React.FC = () => {
 
                     {/* Features List */}
                     <div className="mt-5 pt-4 border-t border-slate-800/80">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
                         Included Features:
                       </span>
                       <ul className="space-y-2 text-xs text-slate-300">

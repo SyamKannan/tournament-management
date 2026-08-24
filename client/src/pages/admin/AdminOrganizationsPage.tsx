@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import type { Organization, Plan } from '../../types';
+import type { Plan } from '../../types';
 import { 
-  Building2, Plus, ShieldCheck, CheckCircle2, 
-  XCircle, MoreVertical, X, Check, Users, Trophy
+  Plus, X
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useToast } from '../../components/ui/Toast';
+import { Skeleton, SkeletonTable } from '../../components/ui/Feedback';
 
 export const AdminOrganizationsPage: React.FC = () => {
+  const toast = useToast();
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +21,7 @@ export const AdminOrganizationsPage: React.FC = () => {
   const [contactPerson, setContactPerson] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [district, setDistrict] = useState('Malappuram');
+  const [district, _setDistrict] = useState('Malappuram');
   const [planId, setPlanId] = useState('');
 
   const fetchOrgs = async () => {
@@ -49,7 +51,7 @@ export const AdminOrganizationsPage: React.FC = () => {
       await api.put(`/admin/organizations/${orgId}/status`, { status: nextStatus });
       fetchOrgs();
     } catch (err: any) {
-      alert(err.message || 'Failed to update organization status');
+      toast.error(err.message || 'Failed to update organization status');
     }
   };
 
@@ -71,9 +73,18 @@ export const AdminOrganizationsPage: React.FC = () => {
       setShowCreateModal(false);
       fetchOrgs();
     } catch (err: any) {
-      alert(err.message || 'Failed to create organization');
+      toast.error(err.message || 'Failed to create organization');
     }
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-72" />
+        <SkeletonTable rows={6} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -95,7 +106,7 @@ export const AdminOrganizationsPage: React.FC = () => {
       <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
-            <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[10px] font-bold tracking-wider">
+            <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
               <tr>
                 <th className="px-5 py-3.5">Organization / Tenant</th>
                 <th className="px-4 py-3.5">Type</th>
@@ -116,7 +127,7 @@ export const AdminOrganizationsPage: React.FC = () => {
                         <Link to={`/organizations/${org.slug}`} className="font-bold text-white text-xs hover:text-emerald-400 transition-colors">
                           {org.name}
                         </Link>
-                        <div className="text-[10px] text-slate-400">{org.district}, {org.state}</div>
+                        <div className="text-[11px] text-slate-400">{org.district}, {org.state}</div>
                       </div>
                     </div>
                   </td>
@@ -136,7 +147,7 @@ export const AdminOrganizationsPage: React.FC = () => {
                     {org.tournaments_count || 0}
                   </td>
                   <td className="px-4 py-4 text-center">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase ${
                       org.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                     }`}>
                       {org.status}

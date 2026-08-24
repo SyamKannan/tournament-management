@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Auction, AuctionPlayer, Tournament, TeamAuctionPurse } from '../../types';
+import { websocketUrl } from '../../config';
 import { 
-  Gavel, Trophy, Maximize2, Minimize2, Sparkles, Clock, 
-  MapPin, Award, CheckCircle2, ShieldCheck, Flame
+  Gavel, Maximize2, Minimize2, MapPin, Flame
 } from 'lucide-react';
 
 export const AuctionTVPage: React.FC = () => {
@@ -40,8 +40,7 @@ export const AuctionTVPage: React.FC = () => {
     fetchAuction();
 
     // WebSocket connection for real-time TV broadcast sync
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname}:4000/ws`;
+    const wsUrl = websocketUrl();
     let ws: WebSocket | null = null;
 
     try {
@@ -110,7 +109,7 @@ export const AuctionTVPage: React.FC = () => {
 
           <div>
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-black uppercase tracking-widest">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] font-black uppercase tracking-widest">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
                 <span>OFFICIAL PLAYER AUCTION</span>
               </span>
@@ -233,12 +232,12 @@ export const AuctionTVPage: React.FC = () => {
       {/* Bottom Team Purses Ticker */}
       <footer className="pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
         <div className="flex items-center gap-3 overflow-x-auto py-1 scrollbar-none">
-          <span className="font-bold uppercase tracking-wider text-slate-500 text-[10px] shrink-0">Team Purses:</span>
+          <span className="font-bold uppercase tracking-wider text-slate-500 text-[11px] shrink-0">Team Purses:</span>
           {team_purses.map(tp => (
             <div key={tp.team_id} className="px-3 py-1 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 font-bold shrink-0 flex items-center gap-2">
               <span>{tp.team_name}:</span>
               <span className="font-mono text-emerald-400">₹{tp.remaining_purse.toLocaleString()}</span>
-              <span className="text-slate-500 text-[10px]">({tp.players_bought_count} bought)</span>
+              <span className="text-slate-500 text-[11px]">({tp.players_bought_count} bought)</span>
             </div>
           ))}
         </div>

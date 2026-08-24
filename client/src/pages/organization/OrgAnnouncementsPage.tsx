@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import type { Announcement, Tournament } from '../../types';
-import { Radio, Plus, AlertCircle, Trash2, Tv, Sparkles } from 'lucide-react';
+import { Radio, Trash2 } from 'lucide-react';
+import { useToast } from '../../components/ui/Toast';
+import { Skeleton, SkeletonCard } from '../../components/ui/Feedback';
 
 export const OrgAnnouncementsPage: React.FC = () => {
+  const toast = useToast();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +54,7 @@ export const OrgAnnouncementsPage: React.FC = () => {
       setMessage('');
       fetchData();
     } catch (err: any) {
-      alert(err.message || 'Failed to create announcement');
+      toast.error(err.message || 'Failed to create announcement');
     }
   };
 
@@ -62,7 +65,7 @@ export const OrgAnnouncementsPage: React.FC = () => {
       });
       fetchData();
     } catch (err: any) {
-      alert(err.message || 'Failed to toggle');
+      toast.error(err.message || 'Failed to toggle');
     }
   };
 
@@ -71,9 +74,18 @@ export const OrgAnnouncementsPage: React.FC = () => {
       await api.delete(`/sponsors/announcements/${annId}`);
       fetchData();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete');
+      toast.error(err.message || 'Failed to delete');
     }
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-72" />
+        <SkeletonCard lines={3} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -174,13 +186,13 @@ export const OrgAnnouncementsPage: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <h4 className="text-sm font-bold text-white">{ann.title}</h4>
                     {ann.is_active_on_scoreboard && (
-                      <span className="px-2 py-0.5 rounded bg-rose-500/20 border border-rose-500/30 text-rose-400 text-[10px] font-bold uppercase">
+                      <span className="px-2 py-0.5 rounded bg-rose-500/20 border border-rose-500/30 text-rose-400 text-[11px] font-bold uppercase">
                         Active On Scoreboard TV
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-slate-300 mt-1">{ann.message}</p>
-                  <div className="text-[10px] text-slate-500 mt-2 font-mono">{new Date(ann.created_at).toLocaleString()}</div>
+                  <div className="text-[11px] text-slate-500 mt-2 font-mono">{new Date(ann.created_at).toLocaleString()}</div>
                 </div>
               </div>
 

@@ -3,8 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Auction, Tournament, Organization, AuctionCategory, FootballPosition, CricketRole, CricketBattingStyle, CricketBowlingStyle } from '../../types';
 import { 
-  Gavel, Trophy, User, Phone, MapPin, Award, CheckCircle2, 
-  Share2, ArrowRight, ShieldCheck, Sparkles, ChevronRight, Copy, Check
+  Gavel, CheckCircle2, 
+  Share2, ArrowRight, Check
 } from 'lucide-react';
 
 export const PublicPlayerAuctionRegisterPage: React.FC = () => {
@@ -175,7 +175,7 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
                 </div>
               </div>
               <div>
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-black uppercase tracking-widest">
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-black uppercase tracking-widest">
                   PLAYER AUCTION REGISTRATION
                 </span>
                 <h1 className="text-xl sm:text-2xl font-black font-heading text-white mt-1">
@@ -234,7 +234,7 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Status:</span>
-                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold uppercase text-[10px]">Under Review</span>
+                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold uppercase text-[11px]">Under Review</span>
               </div>
             </div>
 

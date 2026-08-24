@@ -4,8 +4,7 @@ import { api } from '../../services/api';
 import type { Tournament, Organization, Match, Standing, Sponsor, Announcement, Team } from '../../types';
 import { 
   Trophy, Calendar, MapPin, DollarSign, Users, Tv, 
-  Share2, ArrowRight, Activity, ShieldCheck, CheckCircle2, 
-  ExternalLink, ChevronRight, Award, Radio, Gavel, Flame, Star
+  Award, Radio, Gavel, Flame
 } from 'lucide-react';
 
 export const PublicTournamentPage: React.FC = () => {
@@ -78,11 +77,10 @@ export const PublicTournamentPage: React.FC = () => {
     );
   }
 
-  const { tournament, organization, teams, matches, standings, sponsors, announcements, registration_link } = data;
+  const { tournament, organization, teams, matches, standings, sponsors, announcements } = data;
   const isFootball = tournament.sport_code === 'football';
   const liveMatches = matches.filter(m => m.status === 'in_progress' || m.status === 'half_time' || m.status === 'innings_break');
   const upcomingMatches = matches.filter(m => m.status === 'scheduled' || m.status === 'toss');
-  const completedMatches = matches.filter(m => m.status === 'completed');
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-20 font-sans">
@@ -181,7 +179,7 @@ export const PublicTournamentPage: React.FC = () => {
                   <Icon className="w-3.5 h-3.5" />
                   <span>{tab.label}</span>
                   {tab.badge && (
-                    <span className="px-1.5 py-0.5 rounded bg-rose-500 text-white text-[9px] font-black animate-pulse">
+                    <span className="px-1.5 py-0.5 rounded bg-rose-500 text-white text-[11px] font-black animate-pulse">
                       {tab.badge}
                     </span>
                   )}
@@ -226,7 +224,7 @@ export const PublicTournamentPage: React.FC = () => {
                   {liveMatches.map(m => (
                     <div key={m.id} className="p-5 rounded-3xl bg-slate-900 border-2 border-rose-500/40 shadow-xl space-y-4">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-bold uppercase text-[10px]">
+                        <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-bold uppercase text-[11px]">
                           {m.status === 'in_progress' ? '● Live' : 'Half Time Break'}
                         </span>
                         <span className="text-slate-400 font-medium">{m.round_name}</span>
@@ -272,9 +270,9 @@ export const PublicTournamentPage: React.FC = () => {
                   <div key={m.id} className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between text-xs">
                     <div>
                       <div className="font-bold text-white text-sm">{m.team_a?.name || m.team_a_id} vs {m.team_b?.name || m.team_b_id}</div>
-                      <div className="text-slate-400 mt-1">{m.round_name} • {new Date(m.scheduled_time).toLocaleString()}</div>
+                      <div className="text-slate-400 mt-1">{m.round_name} • {new Date(m.scheduled_at).toLocaleString()}</div>
                     </div>
-                    <span className="px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
+                    <span className="px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 text-slate-400 font-bold uppercase text-[11px]">
                       Scheduled
                     </span>
                   </div>
@@ -300,7 +298,7 @@ export const PublicTournamentPage: React.FC = () => {
                         className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-400 shadow-md shrink-0"
                       />
                       <div>
-                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-black uppercase tracking-widest">
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-black uppercase tracking-widest">
                           🏆 GOLDEN BOOT LEADER
                         </span>
                         <h4 className="text-xl font-black text-white font-heading mt-1">{leaderboards.golden_boot.full_name}</h4>
@@ -321,7 +319,7 @@ export const PublicTournamentPage: React.FC = () => {
                         className="w-20 h-20 rounded-2xl object-cover border-2 border-cyan-400 shadow-md shrink-0"
                       />
                       <div>
-                        <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[10px] font-black uppercase tracking-widest">
+                        <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[11px] font-black uppercase tracking-widest">
                           🎯 TOP PLAYMAKER
                         </span>
                         <h4 className="text-xl font-black text-white font-heading mt-1">{leaderboards.top_playmaker.full_name}</h4>
@@ -343,7 +341,7 @@ export const PublicTournamentPage: React.FC = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
-                        <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px]">
+                        <tr className="border-b border-slate-800 text-slate-400 uppercase text-[11px]">
                           <th className="pb-3">Rank</th>
                           <th className="pb-3">Player</th>
                           <th className="pb-3">Team</th>
@@ -386,7 +384,7 @@ export const PublicTournamentPage: React.FC = () => {
                         className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-400 shadow-md shrink-0"
                       />
                       <div>
-                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-black uppercase tracking-widest">
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-black uppercase tracking-widest">
                           🧢 ORANGE CAP (MOST RUNS)
                         </span>
                         <h4 className="text-xl font-black text-white font-heading mt-1">{leaderboards.orange_cap.full_name}</h4>
@@ -407,7 +405,7 @@ export const PublicTournamentPage: React.FC = () => {
                         className="w-20 h-20 rounded-2xl object-cover border-2 border-purple-400 shadow-md shrink-0"
                       />
                       <div>
-                        <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 text-[10px] font-black uppercase tracking-widest">
+                        <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 text-[11px] font-black uppercase tracking-widest">
                           🧢 PURPLE CAP (MOST WICKETS)
                         </span>
                         <h4 className="text-xl font-black text-white font-heading mt-1">{leaderboards.purple_cap.full_name}</h4>
@@ -429,7 +427,7 @@ export const PublicTournamentPage: React.FC = () => {
           <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px]">
+                <tr className="border-b border-slate-800 text-slate-400 uppercase text-[11px]">
                   <th className="pb-3">Rank</th>
                   <th className="pb-3">Team</th>
                   <th className="pb-3 text-center">P</th>
@@ -463,7 +461,7 @@ export const PublicTournamentPage: React.FC = () => {
               <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-xl space-y-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
                   <div>
-                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-black uppercase tracking-widest">
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-black uppercase tracking-widest">
                       OFFICIAL AUCTION HUB
                     </span>
                     <h3 className="text-xl font-black text-white font-heading mt-1">
@@ -490,19 +488,19 @@ export const PublicTournamentPage: React.FC = () => {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                   <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
-                    <span className="text-slate-400 uppercase text-[10px] font-bold block">Team Purse</span>
+                    <span className="text-slate-400 uppercase text-[11px] font-bold block">Team Purse</span>
                     <span className="text-xl font-mono font-black text-amber-400">₹{auctionData.auction.team_purse.toLocaleString()}</span>
                   </div>
                   <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
-                    <span className="text-slate-400 uppercase text-[10px] font-bold block">Registered</span>
+                    <span className="text-slate-400 uppercase text-[11px] font-bold block">Registered</span>
                     <span className="text-xl font-mono font-black text-cyan-400">{auctionData.registered_count} Players</span>
                   </div>
                   <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
-                    <span className="text-slate-400 uppercase text-[10px] font-bold block">Sold</span>
+                    <span className="text-slate-400 uppercase text-[11px] font-bold block">Sold</span>
                     <span className="text-xl font-mono font-black text-emerald-400">{auctionData.sold_count} Sold</span>
                   </div>
                   <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
-                    <span className="text-slate-400 uppercase text-[10px] font-bold block">Min Increment</span>
+                    <span className="text-slate-400 uppercase text-[11px] font-bold block">Min Increment</span>
                     <span className="text-xl font-mono font-black text-slate-300">₹{auctionData.auction.min_bid_increment}</span>
                   </div>
                 </div>
@@ -523,7 +521,7 @@ export const PublicTournamentPage: React.FC = () => {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="w-4 h-4 rounded-full" style={{ backgroundColor: team.jersey_color }} />
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase">
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
                       {team.status}
                     </span>
                   </div>
@@ -546,7 +544,7 @@ export const PublicTournamentPage: React.FC = () => {
                 <div key={sp.id} className="p-5 rounded-2xl bg-slate-900 border border-slate-800 text-center">
                   <img src={sp.logo} alt={sp.name} className="w-16 h-16 rounded-xl object-cover mx-auto mb-3 border border-slate-700" />
                   <div className="font-bold text-white text-xs">{sp.name}</div>
-                  <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-bold uppercase mt-1 inline-block">
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[11px] font-bold uppercase mt-1 inline-block">
                     {sp.tier} Partner
                   </span>
                 </div>

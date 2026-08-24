@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import type { User, Organization, UserRole, Announcement } from '../types';
 import { api } from '../services/api';
+import { websocketUrl } from '../config';
 
 interface AuthContextType {
   user: User | null;
@@ -120,8 +122,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // WebSocket Global Connection for live updates and emergency alerts
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname}:4000/ws`;
+    const wsUrl = websocketUrl();
     let ws: WebSocket | null = null;
     let reconnectTimeout: any = null;
 

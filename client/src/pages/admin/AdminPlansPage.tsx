@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import type { Plan } from '../../types';
+import type { Plan, BillingInterval } from '../../types';
+import { useToast } from '../../components/ui/Toast';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { Skeleton, SkeletonStats } from '../../components/ui/Feedback';
 import { 
-  CreditCard, Plus, Edit2, Trash2, CheckCircle2, 
-  ShieldCheck, Sparkles, X, Check
+  Plus, Edit2, Trash2, CheckCircle2, 
+  X, Check
 } from 'lucide-react';
 
 export const AdminPlansPage: React.FC = () => {
+  const confirm = useConfirm();
+  const toast = useToast();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -17,7 +22,7 @@ export const AdminPlansPage: React.FC = () => {
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState<number>(1999);
   const [billingType, setBillingType] = useState<'recurring' | 'one_time'>('recurring');
-  const [billingInterval, setBillingInterval] = useState<'monthly' | 'quarterly' | 'yearly'>('monthly');
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>('monthly');
   const [trialDays, setTrialDays] = useState<number>(14);
   const [tournamentLimit, setTournamentLimit] = useState<number>(3);
   const [teamLimit, setTeamLimit] = useState<number>(50);
@@ -126,19 +131,34 @@ export const AdminPlansPage: React.FC = () => {
       setShowModal(false);
       fetchPlans();
     } catch (err: any) {
-      alert(err.message || 'Failed to save plan');
+      toast.error(err.message || 'Failed to save plan');
     }
   };
 
   const handleDeletePlan = async (planId: string) => {
-    if (!confirm('Are you sure you want to delete this plan?')) return;
+    const proceed = await confirm({
+      title: 'Delete this plan?',
+      message: 'Organizations already subscribed keep their current limits, but the plan can no longer be chosen.',
+      confirmLabel: 'Delete plan',
+      tone: 'danger',
+    });
+    if (!proceed) return;
     try {
       await api.delete(`/admin/plans/${planId}`);
       fetchPlans();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete plan');
+      toast.error(err.message || 'Failed to delete plan');
     }
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-72" />
+        <SkeletonStats count={4} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -165,7 +185,7 @@ export const AdminPlansPage: React.FC = () => {
             <div key={plan.id} className="p-6 rounded-3xl glass-card border border-slate-800 flex flex-col justify-between hover:border-slate-700 transition-all">
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
                     isRecurring ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                   }`}>
                     {isRecurring ? `${plan.billing_interval} Recurring` : 'One-Time Payment'}
@@ -196,19 +216,19 @@ export const AdminPlansPage: React.FC = () => {
                 {/* Limits Summary */}
                 <div className="mt-4 p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <span className="text-slate-500 block text-[10px] uppercase font-bold">Tournaments</span>
+                    <span className="text-slate-500 block text-[11px] uppercase font-bold">Tournaments</span>
                     <span className="font-bold text-white font-mono">{plan.tournament_limit} Max</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[10px] uppercase font-bold">Teams Limit</span>
+                    <span className="text-slate-500 block text-[11px] uppercase font-bold">Teams Limit</span>
                     <span className="font-bold text-white font-mono">{plan.team_limit} Max</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[10px] uppercase font-bold">Players Limit</span>
+                    <span className="text-slate-500 block text-[11px] uppercase font-bold">Players Limit</span>
                     <span className="font-bold text-white font-mono">{plan.player_limit} Max</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[10px] uppercase font-bold">Ads Limit</span>
+                    <span className="text-slate-500 block text-[11px] uppercase font-bold">Ads Limit</span>
                     <span className="font-bold text-white font-mono">{plan.ad_limit} Ads</span>
                   </div>
                 </div>
@@ -222,7 +242,7 @@ export const AdminPlansPage: React.FC = () => {
                     </div>
                   ))}
                   {plan.features?.length > 5 && (
-                    <div className="text-[10px] text-slate-500 pl-5">+{plan.features.length - 5} more features enabled</div>
+                    <div className="text-[11px] text-slate-500 pl-5">+{plan.features.length - 5} more features enabled</div>
                   )}
                 </div>
               </div>

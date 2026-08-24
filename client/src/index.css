@@ -7,11 +7,33 @@
     --font-mono: 'JetBrains Mono', monospace;
   }
 
+  html {
+    /* Anchor links and in-page navigation should glide, unless the reader
+       has asked the system for reduced motion. */
+    scroll-behavior: smooth;
+  }
+
   body {
     background-color: #030712;
     color: #f3f4f6;
     font-family: 'Plus Jakarta Sans', sans-serif;
-    overflow-x: hidden;
+  }
+
+  /* Visible keyboard focus everywhere, without drawing rings for mouse users. */
+  :focus-visible {
+    outline: 2px solid #10b981;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Tap targets on touch devices should never fall below the ~44px guideline. */
+  @media (pointer: coarse) {
+    button,
+    a[role="button"],
+    [type="button"],
+    [type="submit"] {
+      min-height: 40px;
+    }
   }
 }
 
@@ -21,6 +43,25 @@
 
 .font-mono-score {
   font-family: 'JetBrains Mono', monospace;
+}
+
+/* Skip link — first tab stop, hidden until focused. */
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 200;
+  padding: 0.625rem 1rem;
+  border-radius: 0.75rem;
+  background: #10b981;
+  color: #04120c;
+  font-size: 0.875rem;
+  font-weight: 700;
+  transition: top 0.15s ease-out;
+}
+
+.skip-link:focus {
+  top: 1rem;
 }
 
 /* Glassmorphism Styles */
@@ -85,6 +126,14 @@
   background: #334155;
 }
 
+/* Horizontally scrollable regions (wide tables, fixture rows) should not show
+   a scrollbar gutter on desktop but must stay swipeable on touch. */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
 /* Animation utilities */
 @keyframes pulse-subtle {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -102,4 +151,55 @@
 
 .animate-live-blink {
   animation: live-blink 1.5s infinite ease-in-out;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-toast-in {
+  animation: toast-in 0.22s cubic-bezier(0.21, 1.02, 0.73, 1);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.18s ease-out;
+}
+
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-dialog-in {
+  animation: dialog-in 0.2s cubic-bezier(0.21, 1.02, 0.73, 1);
+}
+
+@keyframes drawer-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+.animate-drawer-in {
+  animation: drawer-in 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Respect the reader's motion preference: keep state changes, drop the movement. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
