@@ -84,6 +84,8 @@ class GeneratePoster implements ShouldQueue
             'headline' => $copy['headline'],
             'subhead' => $copy['subhead'],
             'backgroundImage' => $backgroundImage,
+            'variant' => $this->pickVariant(),
+            'bokeh' => $this->randomBokeh(),
             'antonFontBase64' => $this->fontBase64('Anton-Regular.ttf'),
             'interFontBase64' => $this->fontBase64('Inter-Variable.ttf'),
         ];
@@ -359,6 +361,38 @@ class GeneratePoster implements ShouldQueue
         return $startDate->isSameDay($endDate)
             ? $startDate->format('jS M Y')
             : $startDate->format('jS M').' – '.$endDate->format('jS M Y');
+    }
+
+    /**
+     * Picked fresh on every render, independent of the art director/AI
+     * background — this is what guarantees "generate it again, get a
+     * different-looking poster" even with no AI keys configured at all.
+     */
+    private function pickVariant(): string
+    {
+        return ['floodlight', 'blocks', 'stripes', 'halftone'][random_int(0, 3)];
+    }
+
+    /**
+     * A handful of scattered translucent circles, randomised every render.
+     *
+     * @return array<int, array{x: float, y: float, size: int, color: string, opacity: float}>
+     */
+    private function randomBokeh(): array
+    {
+        $circles = [];
+
+        for ($i = 0; $i < random_int(7, 11); $i++) {
+            $circles[] = [
+                'x' => random_int(0, 100),
+                'y' => random_int(0, 100),
+                'size' => random_int(30, 150),
+                'color' => random_int(0, 1) ? '#ffffff' : 'var(--accent)',
+                'opacity' => random_int(4, 16) / 100,
+            ];
+        }
+
+        return $circles;
     }
 
     private function fontBase64(string $filename): string

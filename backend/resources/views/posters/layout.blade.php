@@ -3,7 +3,12 @@
     system every partial builds on. `$palette` is {bg, accent, text} (from the
     art director, or PaletteService::toTemplatePalette() as fallback).
     `$backgroundImage` is a data: URI / URL from BackgroundService, or null —
-    when null the CSS mesh gradient (Layer 1 fallback) takes over.
+    when null the CSS two-tone/decor combo (Layer 1 fallback) takes over.
+    `$variant` (floodlight/blocks/stripes/halftone) and `$bokeh` (a list of
+    scattered circles) are picked fresh, at random, on every single render —
+    see GeneratePoster::pickVariant()/randomBokeh() — so regenerating the same
+    poster never looks the same way twice, independent of whether AI copy or
+    AI artwork are configured.
 --}}
 <!DOCTYPE html>
 <html>
@@ -27,6 +32,7 @@
 
     :root {
         --bg: {{ $palette['bg'] }};
+        --bg-deep: color-mix(in srgb, {{ $palette['bg'] }} 55%, black 45%);
         --accent: {{ $palette['accent'] }};
         --text: {{ $palette['text'] }};
         --margin: 64px;
@@ -51,7 +57,7 @@
         height: 1350px;
     }
 
-    /* Layer 1: AI artwork, or a pure-CSS mesh gradient when there's none. */
+    /* Layer 1: AI artwork, or a two-tone club-color backdrop when there's none. */
     .bg-layer {
         position: absolute;
         inset: 0;
@@ -60,13 +66,76 @@
             background-size: cover;
             background-position: center;
         @else
-            background:
-                radial-gradient(at 15% 15%, color-mix(in srgb, var(--accent) 55%, transparent) 0px, transparent 55%),
-                radial-gradient(at 85% 10%, color-mix(in srgb, var(--text) 25%, transparent) 0px, transparent 50%),
-                radial-gradient(at 80% 90%, color-mix(in srgb, var(--accent) 40%, transparent) 0px, transparent 55%),
-                radial-gradient(at 10% 95%, color-mix(in srgb, var(--text) 15%, transparent) 0px, transparent 50%),
-                var(--bg);
+            background: linear-gradient(165deg, var(--bg) 0%, var(--bg) 62%, var(--bg-deep) 62%, var(--bg-deep) 100%);
         @endif
+    }
+
+    /* Decorative pass, layered above bg-layer regardless of whether that's an
+       AI photo or the CSS fallback — this is what actually varies between
+       renders (see $variant), not just the copy. */
+    .decor-layer {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+    }
+
+    @if ($variant === 'floodlight')
+        .decor-layer::before, .decor-layer::after {
+            content: '';
+            position: absolute;
+            top: -10%;
+            width: 140%;
+            height: 90%;
+            background: conic-gradient(from 200deg at 50% 0%, transparent 0deg, rgba(255,255,255,0.16) 18deg, transparent 34deg);
+        }
+        .decor-layer::before { left: -55%; }
+        .decor-layer::after { right: -55%; transform: scaleX(-1); }
+    @elseif ($variant === 'blocks')
+        .decor-layer::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: var(--accent);
+            clip-path: polygon(0 0, 100% 0, 100% 14%, 0 34%);
+            opacity: 0.9;
+        }
+        .decor-layer::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: var(--accent);
+            clip-path: polygon(0 78%, 100% 92%, 100% 100%, 0 100%);
+            opacity: 0.55;
+        }
+    @elseif ($variant === 'stripes')
+        .decor-layer::before {
+            content: '';
+            position: absolute;
+            inset: -20% -20%;
+            background: repeating-linear-gradient(-35deg,
+                color-mix(in srgb, var(--accent) 35%, transparent) 0px,
+                color-mix(in srgb, var(--accent) 35%, transparent) 22px,
+                transparent 22px,
+                transparent 90px);
+            opacity: 0.5;
+        }
+    @else
+        {{-- halftone --}}
+        .decor-layer::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(color-mix(in srgb, var(--text) 70%, transparent) 3px, transparent 3.5px);
+            background-size: 28px 28px;
+            opacity: 0.12;
+        }
+    @endif
+
+    /* Scattered bokeh — a fresh random set every render (see $bokeh). */
+    .bokeh {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(1px);
     }
 
     /* Layer 2: always-on scrim so Layer 3 text is legible over anything. */
@@ -92,19 +161,29 @@
     }
 
     .eyebrow {
+        display: inline-block;
         font-size: var(--fs-meta);
-        font-weight: 700;
-        letter-spacing: 3px;
+        font-weight: 800;
+        letter-spacing: 2px;
         text-transform: uppercase;
-        color: var(--accent);
+        color: #0a0a0a;
+        background: var(--accent);
+        padding: 8px 20px;
+        border-radius: 999px;
     }
 
+    /* The bold outlined/dropped-shadow look of a printed tournament flyer,
+       not a restrained app UI headline — that's the whole point here. */
     .headline {
         font-family: 'Anton', sans-serif;
         font-size: var(--fs-headline);
-        line-height: 0.95;
+        line-height: 1;
         text-transform: uppercase;
         letter-spacing: 1px;
+        color: var(--accent);
+        -webkit-text-stroke: 7px #0a0a0a;
+        paint-order: stroke fill;
+        text-shadow: 0 10px 0 rgba(0,0,0,0.35);
     }
 
     .subhead {
@@ -166,6 +245,18 @@
 <body>
 <div class="canvas">
     <div class="bg-layer"></div>
+    <div class="decor-layer">
+        @foreach ($bokeh ?? [] as $circle)
+            <div class="bokeh" style="
+                left: {{ $circle['x'] }}%;
+                top: {{ $circle['y'] }}%;
+                width: {{ $circle['size'] }}px;
+                height: {{ $circle['size'] }}px;
+                background: {{ $circle['color'] }};
+                opacity: {{ $circle['opacity'] }};
+            "></div>
+        @endforeach
+    </div>
     <div class="scrim"></div>
     <div class="content layout-{{ $layout }}">
         @yield('content')

@@ -61,8 +61,13 @@ class PaletteService
     /**
      * Heuristic bg/accent/text triple used whenever the AI art director isn't
      * available: darkest extracted color as background (posters read best as
-     * dark-base/light-text), lightest as accent, near-white text guaranteed
-     * legible against the renderer's dark scrim.
+     * dark-base/light-text), near-white text guaranteed legible against the
+     * renderer's dark scrim, and — this is the part that actually needs
+     * care — the most saturated remaining color as accent. The *lightest*
+     * extracted color is usually a near-white highlight from the logo photo,
+     * not a usable brand color, so picking accent by luminance alone tends
+     * to wash it out to near-white; saturation is what actually finds "the
+     * yellow" (or whatever the vivid brand hue is) instead.
      *
      * @param  string[]  $colors
      * @return array{bg: string, accent: string, text: string}
@@ -75,12 +80,41 @@ class PaletteService
 
         $byLuminance = $colors;
         usort($byLuminance, fn (string $a, string $b) => $this->luminance($a) <=> $this->luminance($b));
+        $bg = $byLuminance[0];
+
+        $candidates = array_values(array_diff($colors, [$bg])) ?: $colors;
+        $accent = $candidates[0];
+        $bestSaturation = $this->saturation($accent);
+
+        foreach ($candidates as $color) {
+            $saturation = $this->saturation($color);
+            if ($saturation > $bestSaturation) {
+                $accent = $color;
+                $bestSaturation = $saturation;
+            }
+        }
 
         return [
-            'bg' => $byLuminance[0],
-            'accent' => end($byLuminance),
+            'bg' => $bg,
+            'accent' => $accent,
             'text' => '#f8fafc',
         ];
+    }
+
+    /**
+     * 0 (grayscale) to 1 (fully saturated) — plain min/max chroma, no need
+     * for full HSL here, just something to rank "how vivid" a color is.
+     */
+    private function saturation(string $hex): float
+    {
+        $hex = ltrim($hex, '#');
+        $r = hexdec(substr($hex, 0, 2));
+        $g = hexdec(substr($hex, 2, 2));
+        $b = hexdec(substr($hex, 4, 2));
+        $max = max($r, $g, $b);
+        $min = min($r, $g, $b);
+
+        return $max > 0 ? ($max - $min) / $max : 0.0;
     }
 
     private function luminance(string $hex): float
