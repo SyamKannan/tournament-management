@@ -104,6 +104,57 @@ player photos and sponsor images directly under `public/uploads/<folder>` and re
 their public URL — no `storage:link` needed. Keep that directory writable and back it
 up; it isn't in the database.
 
+## AI posters
+
+`GeneratePoster` (a queued job — run `php artisan queue:work`, or `npm run dev` at the
+repo root, which now starts it alongside the API/gateway/client) renders share-ready
+1080×1350 PNGs for a match or tournament: `PaletteService` pulls 2-3 club colors from
+the tournament's logo, `ArtDirectorService` asks Anthropic for a headline/subhead/layout
+as JSON, `BackgroundService` optionally generates a background image, and a Blade view
+(fonts self-hosted as base64 so Chrome never waits on a CDN) gets rendered to PNG by
+`spatie/browsershot`.
+
+**Running with no AI keys at all** works out of the box: leave `ANTHROPIC_API_KEY` and
+`OPENAI_API_KEY` blank in `.env` and posters still generate — `ArtDirectorService`
+returns `null`, `GeneratePoster` falls back to a plain-copy template, and the CSS mesh
+gradient in `posters.layout` stands in for the AI background. Poster generation is only
+ever blocked by a missing **Chrome**, never by a missing API key.
+
+**Chrome is the one hard requirement**, independent of any key above — Browsershot's
+bundled script requires the full `puppeteer` npm package by name, but `.puppeteerrc.cjs`
+skips its bundled Chromium download, so it always needs a real browser pointed to by
+`POSTER_CHROME_PATH`. Install steps:
+
+```bash
+cd backend
+npm install                      # puppeteer, no Chromium download (see .puppeteerrc.cjs)
+```
+
+Leave `POSTER_CHROME_PATH` blank locally — `GeneratePoster::resolveChromePath()`
+auto-detects a local Chrome/Edge/Chromium install. Set it explicitly in production
+(the Docker image installs Alpine's `chromium` package and the extension list there
+also gains `gd`, needed by `league/color-extractor` for the palette).
+
+Env vars for this feature (all optional except Chrome, which needs the auto-detect or
+an explicit path — see above):
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ANTHROPIC_API_KEY` | blank | Poster copy; blank = hardcoded template copy |
+| `ANTHROPIC_MODEL` | `claude-haiku-4-5-20251001` | Cheap/fast is enough for a short JSON call |
+| `OPENAI_API_KEY` | blank | Poster background art; blank = CSS mesh gradient |
+| `POSTER_CHROME_PATH` | blank (auto-detect) | Required in production |
+
+**To remove this feature entirely:** drop the `posters` migration and table, delete
+`app/Models/Poster.php`, `app/Jobs/GeneratePoster.php`, `app/Services/Poster/`,
+`app/Http/Controllers/Api/PosterController.php`, `resources/views/posters/`,
+`resources/fonts/{Anton-Regular.ttf,Inter-Variable.ttf}`, the `posters` route group in
+`routes/api.php`, the `GeneratePoster::dispatch(...)` calls in `TossController` and
+`MatchController::update()`, `backend/package.json` + `.puppeteerrc.cjs` + `node_modules`,
+`client/src/pages/organization/OrgPostersPage.tsx` and its route/nav entry, and the
+`queue` process from the root `package.json` dev script and `docker/entrypoint.sh` (only
+`GeneratePoster` uses the queue — nothing else in the app dispatches jobs).
+
 ## Configuration
 
 | Variable | Default | Purpose |
