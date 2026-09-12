@@ -1,19 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
-import { api } from '../../services/api';
-import type { Plan } from '../../types';
-import { 
-  Building2, ArrowRight, ArrowLeft, AlertCircle
+import { AuthShowcase } from '../../components/AuthShowcase';
+import { ImageUploadModal } from '../../components/ImageUploadModal';
+import { SPORTS_CAROUSELS } from '../../lib/sportsImagery';
+import {
+  Building2, ArrowRight, AlertCircle, Camera
 } from 'lucide-react';
 
 export const RegisterClubPage: React.FC = () => {
   const navigate = useNavigate();
   const { registerOrg } = useAuth();
-
-  const [step, setStep] = useState<1 | 2>(1);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loadingPlans, setLoadingPlans] = useState(true);
 
   const [formData, setFormData] = useState({
     organizationName: '',
@@ -27,48 +25,25 @@ export const RegisterClubPage: React.FC = () => {
     panchayat: '',
     district: 'Malappuram',
     state: 'Kerala',
-    planId: 'plan-standard'
+    logo: ''
   });
 
+  const [showLogoModal, setShowLogoModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    const fetchPlans = async () => {
-      try {
-        setLoadingPlans(true);
-        const res = await api.get('/plans');
-        if (Array.isArray(res) && res.length > 0) {
-          setPlans(res);
-          setFormData(prev => ({ ...prev, planId: res[0]?.id || 'plan-standard' }));
-        }
-      } catch (err) {
-        console.error('Failed to load plans', err);
-      } finally {
-        setLoadingPlans(false);
-      }
-    };
-
-    fetchPlans();
-  }, []);
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleStep1Submit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.organizationName || !formData.contactPerson || !formData.email || !formData.password || !formData.phone) {
       setError('Please fill in all required fields.');
       return;
     }
     setError(null);
-    setStep(2);
-  };
-
-  const handleFinalSubmit = async () => {
     setIsLoading(true);
-    setError(null);
 
     try {
       await registerOrg(formData);
@@ -80,7 +55,26 @@ export const RegisterClubPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[85vh] max-w-2xl mx-auto px-4 py-12">
+    <div className="lg:flex">
+      <AuthShowcase
+        images={SPORTS_CAROUSELS.registerClub}
+        eyebrow="Club & Academy Onboarding"
+        title={<>Manage every team, fixture and <span className="text-cyan-400">payment</span> in one place.</>}
+        description="Public registration links, offline payment tracking, sponsor management and PDF receipts — built for clubs, academies and panchayats."
+        stats={[
+          { value: '13', label: 'Kerala Districts' },
+          { value: 'Live', label: 'Cricket Scoring' },
+          { value: '24/7', label: 'Live Dashboard' },
+        ]}
+        accent="cyan"
+      />
+
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, ease: [0.21, 1.02, 0.73, 1] }}
+      className="min-h-[85vh] flex-1 max-w-2xl mx-auto px-4 py-12"
+    >
       {/* Header */}
       <div className="text-center mb-8">
         <Link to="/" className="inline-flex items-center gap-2 mb-3">
@@ -94,21 +88,9 @@ export const RegisterClubPage: React.FC = () => {
           Register Your Sports Club / Organization
         </h1>
         <p className="text-xs text-slate-400 mt-1">
-          Create your organization account to host football & cricket tournaments with live scoring
+          Create your free organization account to host cricket tournaments with live scoring —
+          no card required, choose a paid plan only when you launch your first tournament.
         </p>
-
-        {/* Step indicator */}
-        <div className="flex items-center justify-center gap-3 mt-6">
-          <div className={`flex items-center gap-1.5 text-xs font-bold ${step >= 1 ? 'text-cyan-400' : 'text-slate-500'}`}>
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ${step >= 1 ? 'bg-cyan-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'}`}>1</span>
-            <span>Club Details</span>
-          </div>
-          <div className="w-8 h-0.5 bg-slate-800" />
-          <div className={`flex items-center gap-1.5 text-xs font-bold ${step >= 2 ? 'text-cyan-400' : 'text-slate-500'}`}>
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ${step >= 2 ? 'bg-cyan-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'}`}>2</span>
-            <span>Select Plan</span>
-          </div>
-        </div>
       </div>
 
       {/* Main Card */}
@@ -120,8 +102,28 @@ export const RegisterClubPage: React.FC = () => {
           </div>
         )}
 
-        {step === 1 ? (
-          <form onSubmit={handleStep1Submit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="relative w-16 h-16 shrink-0 rounded-2xl overflow-hidden bg-slate-950 border-2 border-cyan-500/40 flex items-center justify-center">
+                {formData.logo ? (
+                  <img src={formData.logo} alt="Club logo" className="w-full h-full object-cover" />
+                ) : (
+                  <Building2 className="w-7 h-7 text-slate-600" />
+                )}
+              </div>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowLogoModal(true)}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>{formData.logo ? 'Change Club Logo' : 'Upload Club Logo'}</span>
+                </button>
+                <p className="text-[11px] text-slate-500 mt-1">Optional — you can add or change this anytime from settings.</p>
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1.5">
                 Organization / Club Name *
@@ -271,96 +273,19 @@ export const RegisterClubPage: React.FC = () => {
 
             <button
               type="submit"
-              className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-sm shadow-lg shadow-cyan-600/20 flex items-center justify-center gap-2"
+              disabled={isLoading}
+              className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2"
             >
-              <span>Continue to Select Plan</span>
-              <ArrowRight className="w-4 h-4" />
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <span>Create Free Account & Open Dashboard</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
-        ) : (
-          <div className="space-y-5">
-            <div>
-              <h3 className="text-sm font-bold text-white mb-3">Choose a Plan for {formData.organizationName}:</h3>
-              
-              {loadingPlans ? (
-                <div className="py-8 text-center text-xs text-slate-400">Loading available plans...</div>
-              ) : (
-                <div className="space-y-3">
-                  {plans.map(p => {
-                    const isSelected = formData.planId === p.id;
-                    const isOneTime = p.billing_type === 'one_time';
-
-                    return (
-                      <div
-                        key={p.id}
-                        onClick={() => handleChange('planId', p.id)}
-                        className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                          isSelected
-                            ? 'bg-cyan-500/10 border-cyan-500/60 ring-1 ring-cyan-500/40 shadow-lg'
-                            : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-white text-sm">{p.name}</span>
-                              {p.trial_days > 0 && (
-                                <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 text-[11px] font-bold uppercase">
-                                  {p.trial_days}-Day Free Trial
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-slate-400 mt-1">
-                              {p.description || `${p.tournament_limit >= 999 ? 'Unlimited' : p.tournament_limit} Tournaments, ${p.team_limit} Teams, ${p.player_limit} Players`}
-                            </p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <div className="text-base font-black text-cyan-400 font-mono">
-                              ₹{p.price.toLocaleString()}
-                              <span className="text-[11px] text-slate-400 font-normal">
-                                {isOneTime ? '/event' : `/${p.billing_interval || 'mo'}`}
-                              </span>
-                            </div>
-                            {p.trial_days > 0 && (
-                              <div className="text-[11px] text-slate-500 font-medium">Free during trial</div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors flex items-center gap-1.5"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Back</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleFinalSubmit}
-                disabled={isLoading}
-                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2"
-              >
-                {isLoading ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <span>Complete Registration & Open Dashboard</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
 
         <div className="mt-6 pt-5 border-t border-slate-800 text-center">
           <p className="text-xs text-slate-400">
@@ -371,6 +296,18 @@ export const RegisterClubPage: React.FC = () => {
           </p>
         </div>
       </div>
+    </motion.div>
+
+    <ImageUploadModal
+      isOpen={showLogoModal}
+      onClose={() => setShowLogoModal(false)}
+      onSuccess={(url) => handleChange('logo', url)}
+      title="Upload Club Logo"
+      subtitle="Choose a logo from your computer or select a preset"
+      currentImage={formData.logo}
+      folder="clubs"
+      aspectRatio="square"
+    />
     </div>
   );
 };

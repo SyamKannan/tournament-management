@@ -11,6 +11,7 @@ class AuctionPlayer extends BaseModel
      */
     protected $attributes = [
         'photo' => '',
+        'payment_status' => 'pending',
     ];
 
     const UPDATED_AT = null;
@@ -19,5 +20,6 @@ class AuctionPlayer extends BaseModel
         'age' => 'integer',
         'base_price' => 'float',
         'sold_price' => 'float',
+        'payment_amount' => 'float',
     ];
 }

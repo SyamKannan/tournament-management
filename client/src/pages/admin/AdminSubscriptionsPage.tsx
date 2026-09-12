@@ -41,8 +41,8 @@ export const AdminSubscriptionsPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black font-heading text-white">SaaS Subscriptions & Invoices</h1>
-          <p className="text-xs text-slate-400 mt-1">Platform Payment System 1 (Organizations paying SaaS fees to you)</p>
+          <h1 className="text-2xl font-black font-heading text-white">Club Subscriptions & Invoices</h1>
+          <p className="text-xs text-slate-400 mt-1">Club Memberships & Platform Billing</p>
         </div>
 
         <div className="flex items-center gap-1.5 p-1 bg-slate-900 rounded-xl border border-slate-800 text-xs font-semibold">

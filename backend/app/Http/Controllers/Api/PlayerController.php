@@ -87,6 +87,12 @@ class PlayerController extends Controller
             return response()->json(['error' => 'Player profile not found'], 404);
         }
 
+        $auctionEntry = AuctionPlayer::query()
+            ->where('player_id', $player->id)
+            ->orWhere('id', $player->id)
+            ->orWhere(fn ($q) => $q->whereNotNull('mobile')->where('mobile', $player->mobile))
+            ->first();
+
         return response()->json([
             'user' => $user->toAuthPayload(),
             'player' => $player,
@@ -94,6 +100,65 @@ class PlayerController extends Controller
             'tournament' => Tournament::find($player->tournament_id),
             'organization' => Organization::find($player->organization_id),
             'stats' => $this->stats->forPlayer($player),
+            'auction_entry' => $auctionEntry,
+        ]);
+    }
+
+    /**
+     * Update the logged-in player's profile (name, photo, phone, styles, age, jersey).
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $data = $request->validate([
+            'name' => ['sometimes', 'string', 'max:255'],
+            'phone' => ['sometimes', 'string', 'max:64'],
+            'avatar' => ['sometimes', 'nullable', 'string'],
+            'football_position' => ['sometimes', 'nullable', 'string', 'max:64'],
+            'cricket_role' => ['sometimes', 'nullable', 'string', 'max:64'],
+            'cricket_batting_style' => ['sometimes', 'nullable', 'string', 'max:64'],
+            'cricket_bowling_style' => ['sometimes', 'nullable', 'string', 'max:64'],
+            'age' => ['sometimes', 'nullable', 'integer', 'min:5', 'max:100'],
+            'jersey_number' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:99'],
+            'dob' => ['sometimes', 'nullable', 'string'],
+        ]);
+
+        if (isset($data['name'])) {
+            $user->name = $data['name'];
+        }
+        if (isset($data['phone'])) {
+            $user->phone = $data['phone'];
+        }
+        if (isset($data['avatar'])) {
+            $user->avatar = $data['avatar'];
+        }
+        $user->save();
+
+        $player = Player::query()->where('id', $user->id)->first();
+        if (! $player) {
+            $player = Player::query()->whereNotNull('mobile')->where('mobile', $user->phone)->first();
+        }
+
+        if ($player) {
+            $playerUpdates = [];
+            if (isset($data['name'])) $playerUpdates['full_name'] = $data['name'];
+            if (isset($data['avatar'])) $playerUpdates['photo'] = $data['avatar'];
+            if (isset($data['phone'])) $playerUpdates['mobile'] = $data['phone'];
+            if (isset($data['football_position'])) $playerUpdates['football_position'] = $data['football_position'];
+            if (isset($data['cricket_role'])) $playerUpdates['cricket_role'] = $data['cricket_role'];
+            if (isset($data['cricket_batting_style'])) $playerUpdates['cricket_batting_style'] = $data['cricket_batting_style'];
+            if (isset($data['cricket_bowling_style'])) $playerUpdates['cricket_bowling_style'] = $data['cricket_bowling_style'];
+            if (isset($data['age'])) $playerUpdates['age'] = $data['age'];
+            if (isset($data['jersey_number'])) $playerUpdates['jersey_number'] = $data['jersey_number'];
+            if (isset($data['dob'])) $playerUpdates['dob'] = $data['dob'];
+
+            $player->fill($playerUpdates)->save();
+        }
+
+        return response()->json([
+            'user' => $user->toAuthPayload(),
+            'player' => $player,
+            'message' => 'Profile updated successfully!',
         ]);
     }
 

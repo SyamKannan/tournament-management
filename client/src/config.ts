@@ -15,6 +15,16 @@
 export const SHOW_DEMO_ACCOUNTS = import.meta.env.VITE_SHOW_DEMO_ACCOUNTS === 'true';
 
 /**
+ * Feature toggle for a capability that exists in the codebase but isn't ready
+ * to show organizers/players yet. Flip to `true` once it's ready to launch.
+ *
+ * Which sports (football, cricket, ...) are visible is no longer a build-time
+ * flag — the super admin controls that at runtime from Admin > Sports, and
+ * clients read it via `usePlatformConfig()` / `GET /sports`.
+ */
+export const FEATURE_AUCTION_ENABLED = false;
+
+/**
  * Base URL for the real-time gateway.
  *
  * Defaults to the page's own host on the gateway port, which is what the local

@@ -164,7 +164,7 @@ export const AdminPlansPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black font-heading text-white">SaaS Plans & Pricing Manager</h1>
+          <h1 className="text-2xl font-black font-heading text-white">Club Membership & Pricing Plans</h1>
           <p className="text-xs text-slate-400 mt-1">Configure subscription packages, tournament limits, and monetization tiers</p>
         </div>
         <button
@@ -262,7 +262,7 @@ export const AdminPlansPage: React.FC = () => {
           <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
               <h3 className="text-base font-bold text-white font-heading">
-                {editingPlan ? `Edit Plan: ${editingPlan.name}` : 'Configure New SaaS Plan'}
+                {editingPlan ? `Edit Plan: ${editingPlan.name}` : 'Create New Membership Plan'}
               </h3>
               <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />

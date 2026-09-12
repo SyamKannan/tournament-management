@@ -58,6 +58,13 @@ return new class extends Migration
             $table->string('sold_to_team_id')->nullable();
             $table->string('sold_to_team_name')->nullable();
             $table->string('status', 32)->default('registered')->index();
+            $table->string('payment_status', 32)->default('pending')->index();
+            $table->decimal('payment_amount', 14, 2)->nullable();
+            $table->string('payment_method', 32)->nullable();
+            $table->string('payment_reference', 255)->nullable();
+            $table->text('payment_notes')->nullable();
+            $table->string('paid_at')->nullable();
+            $table->string('paid_by_user_id')->nullable();
             $table->string('cricket_role', 64)->nullable();
             $table->string('cricket_batting_style', 64)->nullable();
             $table->string('cricket_bowling_style', 64)->nullable();

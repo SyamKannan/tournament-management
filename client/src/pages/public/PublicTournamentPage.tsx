@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Tournament, Organization, Match, Standing, Sponsor, Announcement, Team } from '../../types';
-import { 
-  Trophy, Calendar, MapPin, DollarSign, Users, Tv, 
+import {
+  Trophy, Calendar, MapPin, DollarSign, Users, Tv,
   Award, Radio, Gavel, Flame
 } from 'lucide-react';
+import { FEATURE_AUCTION_ENABLED } from '../../config';
 
 export const PublicTournamentPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -41,9 +42,11 @@ export const PublicTournamentPage: React.FC = () => {
             .catch(() => {});
 
           // Fetch auction
-          api.get(`/auctions/tournament/${res.tournament.id}`)
-            .then(a => setAuctionData(a))
-            .catch(() => {});
+          if (FEATURE_AUCTION_ENABLED) {
+            api.get(`/auctions/tournament/${res.tournament.id}`)
+              .then(a => setAuctionData(a))
+              .catch(() => {});
+          }
         }
       } catch (err: any) {
         setError(err.message || 'Tournament not found');
@@ -112,10 +115,15 @@ export const PublicTournamentPage: React.FC = () => {
                 </h1>
 
                 <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 mt-2.5">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>{tournament.location || `${tournament.village}, ${tournament.district}`}</span>
-                  </span>
+                  <a
+                    href={(tournament as any).settings?.google_maps_url || `https://maps.google.com/?q=${encodeURIComponent(tournament.location || `${tournament.village}, ${tournament.district}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold hover:underline bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20 transition-colors"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>{tournament.location || `${tournament.village}, ${tournament.district}`} 🗺️</span>
+                  </a>
                   <span className="flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5 text-cyan-400" />
                     <span>{new Date(tournament.start_date).toLocaleDateString()} - {new Date(tournament.end_date).toLocaleDateString()}</span>
@@ -161,7 +169,7 @@ export const PublicTournamentPage: React.FC = () => {
               { id: 'matches', label: 'Matches & Fixtures', icon: Calendar, badge: liveMatches.length > 0 ? 'LIVE' : undefined },
               { id: 'leaderboards', label: 'Player Stats & Leaders', icon: Flame },
               { id: 'standings', label: 'Points Table', icon: Trophy },
-              { id: 'auction', label: 'Player Auction', icon: Gavel },
+              ...(FEATURE_AUCTION_ENABLED ? [{ id: 'auction', label: 'Player Auction', icon: Gavel }] : []),
               { id: 'teams', label: `Teams (${teams.length})`, icon: Users },
               { id: 'sponsors', label: 'Sponsors & Info', icon: Award }
             ].map(tab => {
@@ -488,20 +496,31 @@ export const PublicTournamentPage: React.FC = () => {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                   <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
-                    <span className="text-slate-400 uppercase text-[11px] font-bold block">Team Purse</span>
+                    <span className="text-slate-400 uppercase text-[11px] font-bold block">Virtual Team Purse</span>
                     <span className="text-xl font-mono font-black text-amber-400">₹{auctionData.auction.team_purse.toLocaleString()}</span>
+                    <span className="text-[10px] text-slate-500 block mt-0.5">Bidding Points</span>
                   </div>
                   <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
                     <span className="text-slate-400 uppercase text-[11px] font-bold block">Registered</span>
                     <span className="text-xl font-mono font-black text-cyan-400">{auctionData.registered_count} Players</span>
+                    <span className="text-[10px] text-slate-500 block mt-0.5">In Player Pool</span>
                   </div>
                   <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
                     <span className="text-slate-400 uppercase text-[11px] font-bold block">Sold</span>
                     <span className="text-xl font-mono font-black text-emerald-400">{auctionData.sold_count} Sold</span>
+                    <span className="text-[10px] text-slate-500 block mt-0.5">Squad Allocated</span>
                   </div>
                   <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
                     <span className="text-slate-400 uppercase text-[11px] font-bold block">Min Increment</span>
                     <span className="text-xl font-mono font-black text-slate-300">₹{auctionData.auction.min_bid_increment}</span>
+                    <span className="text-[10px] text-slate-500 block mt-0.5">Per Bid Raise</span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-xs text-slate-400 flex items-center gap-3">
+                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 font-bold shrink-0 text-sm">💡</div>
+                  <div>
+                    <strong className="text-slate-200">Virtual-Money Tournament Auction:</strong> Teams bid using virtual budget allocations. The final auction price becomes the player's official fee entitlement handled directly by the tournament committee.
                   </div>
                 </div>
               </div>

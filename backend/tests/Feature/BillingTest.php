@@ -20,25 +20,47 @@ class BillingTest extends TestCase
 
     public function test_plan_catalogue_defines_the_expected_tournament_allowances(): void
     {
-        $this->assertSame(1, Plan::find('plan-basic')->tournament_limit);
+        $this->assertSame(1, Plan::find('plan-free')->tournament_limit);
+        $this->assertSame(2, Plan::find('plan-basic')->tournament_limit);
         $this->assertSame(5, Plan::find('plan-standard')->tournament_limit);
     }
 
-    public function test_tournament_limit_blocks_a_basic_plan_after_its_first_tournament(): void
+    public function test_tournament_limit_blocks_a_basic_plan_after_its_allowance_is_used(): void
     {
         $before = $this->billing->checkLimit('org-highland-fc', 'tournaments');
         $this->assertTrue($before['allowed']);
 
         $this->createTournamentFor('org-highland-fc');
+        $this->assertTrue($this->billing->checkLimit('org-highland-fc', 'tournaments')['allowed']);
 
+        $this->createTournamentFor('org-highland-fc');
         $after = $this->billing->checkLimit('org-highland-fc', 'tournaments');
 
         $this->assertFalse($after['allowed']);
         $this->assertStringContainsString('limit reached', $after['reason']);
     }
 
+    public function test_free_plan_allows_exactly_one_tournament_then_requires_an_upgrade(): void
+    {
+        $this->billing->subscribePlan('org-highland-fc', 'plan-free', 'upi');
+
+        $before = $this->billing->checkLimit('org-highland-fc', 'tournaments');
+        $this->assertTrue($before['allowed']);
+
+        $this->createTournamentFor('org-highland-fc');
+
+        $after = $this->billing->checkLimit('org-highland-fc', 'tournaments');
+        $this->assertFalse($after['allowed']);
+        $this->assertStringContainsString('limit reached', $after['reason']);
+
+        // Upgrading to a paid plan raises the allowance and unblocks creation.
+        $this->billing->subscribePlan('org-highland-fc', 'plan-basic', 'upi');
+        $this->assertTrue($this->billing->checkLimit('org-highland-fc', 'tournaments')['allowed']);
+    }
+
     public function test_creating_a_tournament_past_the_plan_limit_is_refused_over_http(): void
     {
+        $this->createTournamentFor('org-highland-fc');
         $this->createTournamentFor('org-highland-fc');
         $this->actingAsUser('admin@greenvalley.com');
 

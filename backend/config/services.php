@@ -35,4 +35,27 @@ return [
         ],
     ],
 
+    // AI-generated poster background artwork (see AiArtworkService). Left
+    // blank, poster generation just skips the AI step and falls back to the
+    // plain template — never a hard failure.
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+    ],
+
+    // Real UPI/card checkout (RazorpayGatewayService). Left blank, ground-fee
+    // and subscription payments stay simulated — never a hard failure.
+    'razorpay' => [
+        'key_id' => env('RAZORPAY_KEY_ID'),
+        'key_secret' => env('RAZORPAY_KEY_SECRET'),
+    ],
+
+    // Match/tournament poster art director (see ArtDirectorService). Left
+    // blank, GeneratePoster skips straight to the hardcoded copy template —
+    // never a hard failure. Haiku by default: this is a short, cheap,
+    // low-latency JSON-only call, not something that needs a bigger model.
+    'anthropic' => [
+        'api_key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001'),
+    ],
+
 ];

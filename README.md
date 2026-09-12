@@ -6,8 +6,7 @@ collection and per-organizer SaaS subscriptions.
 
 ```
 backend/   Laravel 13 API + real-time WebSocket gateway
-client/    React 19 + Vite SPA (unchanged by the backend migration)
-server/    the previous Express/TypeScript backend — no longer used
+client/    React 19 + Vite SPA
 ```
 
 ## Requirements
@@ -92,6 +91,7 @@ run `npm run db:reset`. No application code changes are needed.
 npm test
 ```
 
-89 tests covering tenant isolation, authentication, plan limits, ground-fee
-collection, both scoring engines, the auction lifecycle, the real-time contract, and
-the JSON shape of every endpoint the client depends on.
+105 tests covering tenant isolation, authentication, plan limits, ground-fee
+collection, both scoring engines, the auction lifecycle and its payment reports, the
+real-time contract, the WebSocket hub, and the JSON shape of every endpoint the
+client depends on.

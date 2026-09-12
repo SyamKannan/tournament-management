@@ -56,6 +56,9 @@ export const ScoreboardTVPage: React.FC = () => {
 
   const [urgentAnnouncement, setUrgentAnnouncement] = useState<Announcement | null>(null);
 
+  // Coin toss reveal state — true while the big-screen flip animation is playing
+  const [tossFlipping, setTossFlipping] = useState(false);
+
   const fetchScoreboard = async () => {
     try {
       const res = await api.get(`/matches/scoreboard/match/${id || 'match-fb-live-1'}`);
@@ -129,6 +132,14 @@ export const ScoreboardTVPage: React.FC = () => {
             });
           } else if (msg.type === 'EMERGENCY_ANNOUNCEMENT') {
             setUrgentAnnouncement(msg.payload?.announcement || null);
+          } else if (msg.type === 'TOSS_FLIPPED') {
+            setTossFlipping(true);
+            setTimeout(() => {
+              fetchScoreboard();
+              setTossFlipping(false);
+            }, 2200);
+          } else if (msg.type === 'TOSS_DECISION_SET') {
+            fetchScoreboard();
           }
         } catch (e) {}
       };
@@ -477,6 +488,46 @@ export const ScoreboardTVPage: React.FC = () => {
          * REDESIGNED BROADCAST CRICKET SCOREBOARD
          * =================================================================== */
         <div className="my-auto max-w-5xl mx-auto w-full py-4 space-y-4">
+          {match.status === 'toss' ? (
+            /* =================================================================
+             * COIN TOSS REVEAL
+             * =============================================================== */
+            <div className="p-10 sm:p-16 rounded-3xl bg-gradient-to-b from-slate-900/95 to-slate-950/95 border border-amber-500/30 shadow-2xl backdrop-blur-xl text-center">
+              <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-black uppercase tracking-widest">
+                Coin Toss
+              </span>
+
+              <div className="flex flex-col items-center gap-6 mt-8">
+                <div
+                  className={`w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 border-8 border-amber-300/60 shadow-2xl shadow-amber-500/30 flex items-center justify-center text-7xl sm:text-8xl ${tossFlipping ? 'animate-coin-flip' : ''}`}
+                >
+                  🪙
+                </div>
+
+                {tossFlipping ? (
+                  <span className="text-2xl font-black text-amber-300 uppercase tracking-widest animate-pulse-subtle">
+                    Flipping the coin…
+                  </span>
+                ) : cricket_state?.toss_winner_team_id ? (
+                  <div className="space-y-3">
+                    <h2 className="text-3xl sm:text-5xl font-black font-heading text-white">
+                      {cricket_state.toss_winner_team_id === team_a.id ? team_a.name : team_b.name}
+                      <span className="text-amber-400"> won the toss!</span>
+                    </h2>
+                    {cricket_state.toss_decision ? (
+                      <p className="text-lg sm:text-2xl font-bold text-slate-300">
+                        Elected to <span className="text-white uppercase">{cricket_state.toss_decision}</span> first
+                      </p>
+                    ) : (
+                      <p className="text-lg text-slate-400 animate-pulse-subtle">Deciding whether to bat or bowl…</p>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-xl font-bold text-slate-400">Waiting for the coin toss…</span>
+                )}
+              </div>
+            </div>
+          ) : (
           <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-b from-slate-900/95 to-slate-950/95 border border-slate-800 shadow-2xl backdrop-blur-xl">
             {/* Top Score Summary */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-6 border-b border-slate-800 gap-4">
@@ -540,6 +591,7 @@ export const ScoreboardTVPage: React.FC = () => {
               </div>
             </div>
           </div>
+          )}
 
           {/* Live Gameplay Organizer Sponsor Banner */}
           {adConfig.liveTickerEnabled && activeLiveAd && (
@@ -586,9 +638,9 @@ export const ScoreboardTVPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 text-slate-500">
-          <span>Powered by Antigravity Sports SaaS</span>
+          <span>Powered by Sportivo Live Engine</span>
           <span>•</span>
-          <span className="text-emerald-400 font-bold">WebSocket Live Sync</span>
+          <span className="text-emerald-400 font-bold">Live Sync</span>
         </div>
       </footer>
     </div>

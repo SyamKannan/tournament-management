@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-  Trophy, ShieldCheck, Building2, UserCircle,
-  LogOut, ChevronDown, LogIn, Plus, Menu, X, Wifi, WifiOff, Gavel
+  Trophy, ShieldCheck, Building2, UserCircle, User,
+  LogOut, ChevronDown, LogIn, Plus, Menu, X, Wifi, WifiOff, Gavel,
+  Sparkles, ArrowLeft
 } from 'lucide-react';
+import { ImpersonateModal } from './ImpersonateModal';
 
 interface NavbarProps {
   /** Shown only on workspace routes, where a sidebar exists to open. */
@@ -14,14 +16,16 @@ interface NavbarProps {
 
 const PUBLIC_LINKS = [
   { to: '/', label: 'Home' },
-  { to: '/login', label: 'Sign In' },
+  { to: '/register-player', label: 'Join as Player' },
   { to: '/register-club', label: 'Register Club' },
+  { to: '/login', label: 'Sign In' },
 ];
 
 export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) => {
-  const { user, organization, role, isAuthenticated, isWsConnected, logout } = useAuth();
+  const { user, organization, role, isAuthenticated, isWsConnected, isImpersonating, stopImpersonating, logout } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
+  const [showImpersonateModal, setShowImpersonateModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -64,7 +68,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
   const WORKSPACES = {
     SUPER_ADMIN:  { to: '/admin/dashboard',        label: 'Admin Console',  icon: ShieldCheck, classes: 'from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/20' },
     ORG_ADMIN:    { to: '/organization/dashboard', label: 'Club Dashboard', icon: Building2,   classes: 'from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-cyan-600/20' },
-    TEAM_MANAGER: { to: '/team/auctions',          label: 'My Team',        icon: Gavel,       classes: 'from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-600/20' },
+    // Auction is the only thing the team-manager workspace does today, and it's
+    // hidden until launch — so this role lands on the home page for now.
+    TEAM_MANAGER: { to: '/',                       label: 'My Team',        icon: Gavel,       classes: 'from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-600/20' },
     PLAYER:       { to: '/player/dashboard',       label: 'My Profile',     icon: UserCircle,  classes: 'from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-violet-600/20' },
   } as const;
 
@@ -99,7 +105,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
                 SPORTIVO
                 <span className="hidden sm:inline text-emerald-400 text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/10
                                  border border-emerald-500/20 font-sans font-bold uppercase">
-                  SaaS
+                  PRO
                 </span>
               </span>
             </Link>
@@ -146,6 +152,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
                   >
                     <LogIn className="w-4 h-4 text-slate-400" aria-hidden="true" />
                     Log In
+                  </Link>
+                  <Link
+                    to="/register-player"
+                    className="px-3.5 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30
+                               text-sm font-bold text-cyan-300 hover:text-white transition-colors flex items-center gap-1.5"
+                  >
+                    <User className="w-4 h-4 text-cyan-400" aria-hidden="true" />
+                    Join as Player
                   </Link>
                   <Link
                     to="/register-club"
@@ -228,15 +242,36 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
                         {workspace.label}
                       </Link>
 
-                      <Link
-                        role="menuitem"
-                        to="/login"
-                        className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-300 hover:text-white
-                                   hover:bg-slate-800 transition-colors flex items-center gap-2.5"
-                      >
-                        <UserCircle className="w-4 h-4 text-slate-400" aria-hidden="true" />
-                        Switch Account
-                      </Link>
+                      {role === 'SUPER_ADMIN' && !isImpersonating && (
+                        <button
+                          role="menuitem"
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            setShowImpersonateModal(true);
+                          }}
+                          className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-amber-300 hover:text-amber-200
+                                     hover:bg-amber-500/10 transition-colors flex items-center gap-2.5 font-medium"
+                        >
+                          <Sparkles className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                          Impersonate Club / User
+                        </button>
+                      )}
+
+                      {isImpersonating && (
+                        <button
+                          role="menuitem"
+                          onClick={async () => {
+                            setShowUserMenu(false);
+                            await stopImpersonating();
+                            navigate('/admin/dashboard');
+                          }}
+                          className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-amber-400 hover:bg-amber-500/10
+                                     transition-colors flex items-center gap-2.5 font-bold"
+                        >
+                          <ArrowLeft className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                          Exit Impersonation
+                        </button>
+                      )}
 
                       <div className="my-1 border-t border-slate-800" />
 
@@ -272,6 +307,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
           ))}
         </nav>
       )}
+
+      {/* Impersonate Modal for Super Admin */}
+      <ImpersonateModal
+        isOpen={showImpersonateModal}
+        onClose={() => setShowImpersonateModal(false)}
+      />
     </header>
   );
 };

@@ -3,41 +3,46 @@ import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { 
   Trophy, Users, DollarSign, CreditCard, 
-  Plus, ExternalLink, Radio, ShieldCheck, Share2
+  Plus, ExternalLink, Radio, ShieldCheck, Share2, Camera
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { ImageUploadModal } from '../../components/ImageUploadModal';
+import { useToast } from '../../components/ui/Toast';
 
 export const OrgDashboard: React.FC = () => {
+  const toast = useToast();
   const { organization } = useAuth();
+  const [showLogoModal, setShowLogoModal] = useState(false);
+  const [orgLogo, setOrgLogo] = useState<string>('');
   const [usageData, setUsageData] = useState<any>(null);
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [financials, setFinancials] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchOrgData = async () => {
-      if (!organization) return;
-      try {
-        setLoading(true);
-        const [usageRes, tourneysRes] = await Promise.all([
-          api.get(`/organizations/${organization.id}/usage`),
-          api.get('/tournaments')
-        ]);
-        setUsageData(usageRes);
-        setTournaments(tourneysRes);
+  const fetchOrgData = async () => {
+    if (!organization) return;
+    try {
+      setLoading(true);
+      const [usageRes, tourneysRes] = await Promise.all([
+        api.get(`/organizations/${organization.id}/usage`),
+        api.get('/tournaments')
+      ]);
+      setUsageData(usageRes);
+      setTournaments(tourneysRes);
 
-        if (tourneysRes.length > 0) {
-          const finRes = await api.get(`/reports/financials/${tourneysRes[0].id}`);
-          setFinancials(finRes);
-        }
-      } catch (err) {
-        console.error('Failed to load org dashboard', err);
-      } finally {
-        setLoading(false);
+      if (tourneysRes.length > 0) {
+        const finRes = await api.get(`/reports/financials/${tourneysRes[0].id}`);
+        setFinancials(finRes);
       }
-    };
+    } catch (err) {
+      console.error('Failed to load org dashboard', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchOrgData();
   }, [organization]);
 
@@ -66,11 +71,22 @@ export const OrgDashboard: React.FC = () => {
       {/* Club Header Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800/80">
         <div className="flex items-center gap-3.5">
-          <img
-            src={organization?.logo || 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=150&auto=format&fit=crop&q=80'}
-            alt={organization?.name}
-            className="w-12 h-12 rounded-2xl object-cover border border-slate-700/60 shadow-lg shadow-cyan-500/10"
-          />
+          <div className="relative group shrink-0">
+            <img
+              src={orgLogo || organization?.logo || 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=150&auto=format&fit=crop&q=80'}
+              alt={organization?.name}
+              className="w-14 h-14 rounded-2xl object-cover border border-slate-700/60 shadow-lg shadow-cyan-500/10 bg-slate-900"
+            />
+            <button
+              type="button"
+              onClick={() => setShowLogoModal(true)}
+              title="Upload Club Crest / Logo"
+              className="absolute inset-0 bg-black/60 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-bold gap-0.5 cursor-pointer"
+            >
+              <Camera className="w-4 h-4 text-cyan-400" />
+              <span>Logo</span>
+            </button>
+          </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-black font-heading text-white tracking-tight">{organization?.name}</h1>
@@ -167,7 +183,7 @@ export const OrgDashboard: React.FC = () => {
             {tournaments.length} Active
           </div>
           <div className="text-[11px] text-slate-400 font-medium mt-1">
-            Football & Cricket events
+            Cricket events
           </div>
         </div>
       </div>
@@ -179,17 +195,41 @@ export const OrgDashboard: React.FC = () => {
             <ShieldCheck className="w-5 h-5 text-cyan-400" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-white">{plan?.name || 'Standard Pro'}</span>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold uppercase border border-emerald-500/20">
-                {subscription?.status || 'Active'}
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              ₹{subscription?.amount_paid || 2499} / {plan?.billing_interval || 'month'} • Renews {subscription?.next_billing_date ? new Date(subscription.next_billing_date).toLocaleDateString() : 'Active'}
-            </p>
+            {plan ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-white">{plan.name}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold uppercase border border-emerald-500/20">
+                    {subscription?.status || 'Active'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  ₹{subscription?.amount_paid ?? plan.price} / {plan.billing_interval || 'month'} • Renews {subscription?.next_billing_date ? new Date(subscription.next_billing_date).toLocaleDateString() : 'Active'}
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-white">No Active Plan</span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[11px] font-bold uppercase border border-slate-700">
+                    Free Account
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Registration is free — choose a plan when you're ready to host your first tournament.
+                </p>
+              </>
+            )}
           </div>
         </div>
+
+        <Link
+          to="/organization/billing"
+          className="shrink-0 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center gap-1.5"
+        >
+          <CreditCard className="w-4 h-4" />
+          <span>{plan ? 'Manage Plan' : 'Choose a Plan'}</span>
+        </Link>
 
         {/* Quota Progress */}
         <div className="flex-1 max-w-md grid grid-cols-3 gap-4">
@@ -273,7 +313,7 @@ export const OrgDashboard: React.FC = () => {
 
                 <div className="flex items-center gap-2">
                   <Link
-                    to={`/organization/scorer/${t.sport_code === 'football' ? 'match-fb-live-1' : 'match-crick-live-1'}`}
+                    to={`/organization/tournaments/${t.id}/fixtures`}
                     className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 font-semibold text-xs transition-colors flex items-center gap-1"
                   >
                     <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
@@ -292,6 +332,26 @@ export const OrgDashboard: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {/* Club Logo Upload Modal */}
+      <ImageUploadModal
+        isOpen={showLogoModal}
+        onClose={() => setShowLogoModal(false)}
+        title="Upload Club Crest / Logo"
+        subtitle="Choose an image file from your computer or pick a club crest"
+        currentImage={orgLogo || organization?.logo}
+        folder="clubs"
+        onSuccess={async (newUrl) => {
+          if (!organization) return;
+          try {
+            await api.put(`/organizations/${organization.id}`, { logo: newUrl });
+            setOrgLogo(newUrl);
+            toast.success('Club logo updated successfully!');
+          } catch (err) {
+            console.error('Failed to update organization logo', err);
+          }
+        }}
+      />
     </div>
   );
 };

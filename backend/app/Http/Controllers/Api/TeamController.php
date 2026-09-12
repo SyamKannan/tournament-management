@@ -10,6 +10,8 @@ use App\Models\RegistrationPayment;
 use App\Models\RegistrationReceipt;
 use App\Models\Team;
 use App\Models\Tournament;
+use App\Services\BillingService;
+use App\Services\RazorpayGatewayService;
 use App\Services\TournamentPaymentService;
 use App\Support\Audit;
 use App\Support\Ids;
@@ -20,7 +22,11 @@ use Illuminate\Validation\ValidationException;
 
 class TeamController extends Controller
 {
-    public function __construct(private readonly TournamentPaymentService $payments) {}
+    public function __construct(
+        private readonly TournamentPaymentService $payments,
+        private readonly BillingService $billing,
+        private readonly RazorpayGatewayService $gateway,
+    ) {}
 
     /* ------------------------------------------- Public registration wizard */
 
@@ -56,6 +62,57 @@ class TeamController extends Controller
             'current_teams_count' => $currentTeams,
             'is_full' => $currentTeams >= $tournament->max_teams,
         ]);
+    }
+
+    /**
+     * Create a Razorpay order for the ground fee a team is about to pay, so
+     * the client can open a real Checkout popup. Returns configured:false
+     * (no order) when Razorpay isn't set up, so the client falls back to the
+     * simulated registration flow.
+     */
+    public function paymentOrder(Request $request, string $token): JsonResponse
+    {
+        $link = RegistrationLink::query()->where('token', $token)->where('status', 'active')->first();
+
+        if (! $link) {
+            return response()->json(['error' => 'Registration link is inactive or invalid'], 400);
+        }
+
+        $tournament = Tournament::find($link->tournament_id);
+
+        if (! $tournament) {
+            return response()->json(['error' => 'Tournament not found'], 404);
+        }
+
+        if (! $this->gateway->isConfigured()) {
+            return response()->json(['configured' => false]);
+        }
+
+        $data = $request->validate([
+            'payment_option' => ['nullable', 'string', 'in:full,partial'],
+        ]);
+
+        $options = $this->payments->paymentOptions($tournament);
+        $amount = ($data['payment_option'] ?? 'full') === 'partial'
+            ? (float) ($options['partialAmount'] ?: $options['totalFee'])
+            : (float) $options['fullAmount'];
+
+        if ($amount <= 0) {
+            return response()->json(['configured' => false]);
+        }
+
+        try {
+            $order = $this->gateway->createOrder(
+                $amount,
+                'INR',
+                'reg-'.$tournament->id.'-'.Ids::token(6),
+                ['tournament_id' => $tournament->id, 'purpose' => 'ground_fee'],
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => 'Unable to start payment. Please try again.'], 502);
+        }
+
+        return response()->json(['configured' => true, ...$order]);
     }
 
     /**
@@ -106,13 +163,25 @@ class TeamController extends Controller
             'players.*.full_name' => ['required', 'string', 'max:255'],
             'players.*.jersey_number' => ['nullable', 'integer'],
             'payment_option' => ['nullable', 'string', 'in:full,partial'],
-            'payment_method' => ['nullable', 'string', 'in:online,cash,upi,bank_transfer,other'],
+            'payment_method' => ['nullable', 'string', 'in:'.implode(',', [...Tournament::PAYMENT_METHODS, 'online', 'cash', 'bank_transfer', 'other'])],
             'transaction_id' => ['nullable', 'string', 'max:255'],
+            'razorpay_payment_id' => ['nullable', 'string', 'max:255'],
+            'razorpay_order_id' => ['nullable', 'string', 'max:255'],
+            'razorpay_signature' => ['nullable', 'string', 'max:512'],
         ], [
             'team_name.required' => 'Team name, manager name, and manager mobile number are required',
             'manager_name.required' => 'Team name, manager name, and manager mobile number are required',
             'manager_phone.required' => 'Team name, manager name, and manager mobile number are required',
         ]);
+
+        $paymentMethod = $data['payment_method'] ?? 'upi';
+        $enabledMethods = $tournament->payment_config['enabled_methods'] ?? Tournament::PAYMENT_METHODS;
+
+        if (in_array($paymentMethod, Tournament::PAYMENT_METHODS, true) && ! in_array($paymentMethod, $enabledMethods, true)) {
+            return response()->json([
+                'error' => 'This payment method is not accepted for this tournament. Please choose another one.',
+            ], 400);
+        }
 
         $players = $data['players'];
         $settings = $tournament->settings ?? [];
@@ -132,6 +201,18 @@ class TeamController extends Controller
             ], 400);
         }
 
+        $playerLimit = $this->billing->planLimitFor($tournament->organization_id, 'players');
+
+        if ($playerLimit !== null) {
+            $currentPlayers = Player::query()->where('organization_id', $tournament->organization_id)->count();
+
+            if ($currentPlayers + count($players) > $playerLimit) {
+                return response()->json([
+                    'error' => "This registration would exceed the organizer's player limit ({$currentPlayers}/{$playerLimit}). Please contact the organizer.",
+                ], 400);
+            }
+        }
+
         $jerseyNumbers = array_filter(array_map(fn ($player) => (int) ($player['jersey_number'] ?? 0), $players));
 
         if (count(array_unique($jerseyNumbers)) !== count($jerseyNumbers)) {
@@ -140,9 +221,47 @@ class TeamController extends Controller
             ], 400);
         }
 
-        $paymentOption = $data['payment_option'] ?? 'full';
+        $normalizedPhone = preg_replace('/\D+/', '', $data['manager_phone']);
+        $alreadyRegistered = Team::query()
+            ->where('tournament_id', $tournament->id)
+            ->where('status', '!=', 'withdrawn')
+            ->get(['manager_phone'])
+            ->contains(fn ($team) => preg_replace('/\D+/', '', $team->manager_phone) === $normalizedPhone && $normalizedPhone !== '');
 
-        $result = DB::transaction(function () use ($data, $players, $tournament, $link, $paymentOption, $request) {
+        if ($alreadyRegistered) {
+            return response()->json([
+                'error' => 'A team is already registered for this tournament with this manager mobile number. Contact the organizer if you need to make changes.',
+            ], 409);
+        }
+
+        $paymentOption = $data['payment_option'] ?? 'full';
+        $payAtGround = $paymentMethod === 'pay_at_ground';
+
+        $options = $this->payments->paymentOptions($tournament);
+        $amountToPay = $paymentOption === 'partial'
+            ? (float) ($options['partialAmount'] ?: $options['totalFee'])
+            : (float) $options['fullAmount'];
+
+        $verifiedTransactionId = null;
+
+        // Once Razorpay is configured, a self-reported transaction_id is no
+        // longer accepted for an online payment — it must be a Checkout
+        // result whose signature we verify server-side. Falls back to the
+        // existing fabricated-id behavior for pay-at-ground, zero-fee
+        // tournaments, or while Razorpay keys aren't set (dev/CI).
+        if (! $payAtGround && $amountToPay > 0 && $this->gateway->isConfigured()) {
+            if (empty($data['razorpay_payment_id']) || empty($data['razorpay_order_id']) || empty($data['razorpay_signature'])) {
+                return response()->json(['error' => 'Payment verification is required to complete registration.'], 400);
+            }
+
+            if (! $this->gateway->verifyPaymentSignature($data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'])) {
+                return response()->json(['error' => 'Payment verification failed. Please try again.'], 400);
+            }
+
+            $verifiedTransactionId = $data['razorpay_payment_id'];
+        }
+
+        $result = DB::transaction(function () use ($data, $players, $tournament, $link, $paymentOption, $paymentMethod, $payAtGround, $verifiedTransactionId, $request) {
             $team = Team::create([
                 'id' => Ids::timestamped('team'),
                 'tournament_id' => $tournament->id,
@@ -191,9 +310,15 @@ class TeamController extends Controller
                 'tournamentId' => $tournament->id,
                 'organizationId' => $tournament->organization_id,
                 'paymentOption' => $paymentOption,
-                'paymentMethod' => $data['payment_method'] ?? 'online',
-                'transactionId' => $data['transaction_id'] ?? 'ONLINE_TXN_'.strtoupper(Ids::token(7)),
-                'notes' => sprintf('Public registration ground fee payment (%s)', strtoupper($paymentOption)),
+                'paymentMethod' => $paymentMethod,
+                // Paying at the ground defers the whole fee — nothing is collected now.
+                'customAmount' => $payAtGround ? 0.0 : null,
+                'transactionId' => $payAtGround
+                    ? null
+                    : ($verifiedTransactionId ?? $data['transaction_id'] ?? strtoupper($paymentMethod).'_TXN_'.strtoupper(Ids::token(7))),
+                'notes' => $payAtGround
+                    ? 'Team opted to pay the ground fee in person at the venue'
+                    : sprintf('Public registration ground fee payment (%s, %s)', strtoupper($paymentOption), strtoupper($paymentMethod)),
             ]);
 
             $link->increment('current_registrations');
@@ -384,6 +509,15 @@ class TeamController extends Controller
 
         if ($denied = $this->denyForeignTenant($request, $team->organization_id)) {
             return $denied;
+        }
+
+        $limit = $this->billing->checkLimit($team->organization_id, 'players');
+
+        if (! $limit['allowed']) {
+            return response()->json([
+                'error' => $limit['reason'] ?? 'Player limit reached for your current subscription plan.',
+                'limit' => $limit,
+            ], 403);
         }
 
         try {

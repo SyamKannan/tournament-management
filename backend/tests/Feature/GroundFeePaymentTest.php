@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\RegistrationLink;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Services\TournamentPaymentService;
+use App\Support\Ids;
 use Tests\TestCase;
 
 /**
@@ -121,6 +123,120 @@ class GroundFeePaymentTest extends TestCase
             'players' => [['full_name' => 'Only Player', 'jersey_number' => 1]],
         ])->assertStatus(400)
             ->assertJsonPath('error', 'Minimum 7 players are required. You entered 1.');
+    }
+
+    public function test_creating_a_tournament_persists_the_organizers_chosen_payment_methods(): void
+    {
+        $this->actingAsUser('admin@greenvalley.com');
+
+        $response = $this->postJson('/api/tournaments', [
+            'name' => 'Payment Methods Test Cup',
+            'sport_code' => 'football',
+            'payment_config' => [
+                'enabled_methods' => ['upi', 'pay_at_ground'],
+            ],
+        ])->assertCreated();
+
+        $this->assertSame(
+            ['upi', 'pay_at_ground'],
+            $response->json('tournament.payment_config.enabled_methods')
+        );
+    }
+
+    public function test_an_unspecified_payment_config_defaults_to_every_method_enabled(): void
+    {
+        $this->actingAsUser('admin@greenvalley.com');
+
+        $response = $this->postJson('/api/tournaments', [
+            'name' => 'Default Payment Methods Cup',
+            'sport_code' => 'football',
+        ])->assertCreated();
+
+        $this->assertSame(
+            Tournament::PAYMENT_METHODS,
+            $response->json('tournament.payment_config.enabled_methods')
+        );
+    }
+
+    public function test_paying_at_the_ground_defers_the_whole_fee_and_charges_nothing_now(): void
+    {
+        $tournament = Tournament::find('tourney-football-sevens');
+        $token = $tournament->registrationLink->token;
+
+        $players = collect(range(1, 8))->map(fn (int $number) => [
+            'full_name' => "Ground Pay Player {$number}",
+            'jersey_number' => $number,
+        ])->all();
+
+        $response = $this->postJson("/api/teams/public/registration/{$token}", [
+            'team_name' => 'Pay Later FC',
+            'manager_name' => 'Manager',
+            'manager_phone' => '+91 90000 00001',
+            'players' => $players,
+            'payment_method' => 'pay_at_ground',
+        ])->assertCreated();
+
+        $this->assertSame(0, (int) $response->json('payment.paid_amount'));
+        $this->assertSame(5000, (int) $response->json('payment.remaining_amount'));
+        $this->assertSame('unpaid', $response->json('payment.status'));
+    }
+
+    public function test_registration_is_refused_for_a_payment_method_the_tournament_does_not_accept(): void
+    {
+        $tournament = $this->tournamentAcceptingOnly(['pay_at_ground']);
+
+        $players = collect(range(1, 8))->map(fn (int $number) => [
+            'full_name' => "Restricted Player {$number}",
+            'jersey_number' => $number,
+        ])->all();
+
+        $this->postJson("/api/teams/public/registration/{$tournament['token']}", [
+            'team_name' => 'Wrong Method FC',
+            'manager_name' => 'Manager',
+            'manager_phone' => '+91 90000 00002',
+            'players' => $players,
+            'payment_method' => 'upi',
+        ])->assertStatus(400)
+            ->assertJsonPath('error', 'This payment method is not accepted for this tournament. Please choose another one.');
+    }
+
+    /**
+     * @param  array<int, string>  $enabledMethods
+     * @return array{tournament: Tournament, token: string}
+     */
+    private function tournamentAcceptingOnly(array $enabledMethods): array
+    {
+        $tournament = Tournament::create([
+            'id' => Ids::unique('test-tourney'),
+            'organization_id' => 'org-green-valley',
+            'sport_id' => 'sport-football',
+            'sport_code' => 'football',
+            'name' => 'Restricted Methods Cup',
+            'slug' => Ids::unique('restricted-methods'),
+            'start_date' => '2026-08-01',
+            'end_date' => '2026-08-10',
+            'max_teams' => 8,
+            'ground_fee' => 5000,
+            'payment_config' => [
+                'allow_partial' => true,
+                'min_partial_type' => 'percentage',
+                'min_partial_value' => 50,
+                'enabled_methods' => $enabledMethods,
+            ],
+            'settings' => ['squad_min_players' => 7, 'squad_max_players' => 14],
+            'status' => 'registration_open',
+        ]);
+
+        $link = RegistrationLink::create([
+            'id' => Ids::unique('test-link'),
+            'tournament_id' => $tournament->id,
+            'organization_id' => $tournament->organization_id,
+            'token' => Ids::unique('test-token'),
+            'status' => 'active',
+            'max_teams' => 8,
+        ]);
+
+        return ['tournament' => $tournament, 'token' => $link->token];
     }
 
     public function test_registration_is_refused_when_two_players_share_a_jersey_number(): void

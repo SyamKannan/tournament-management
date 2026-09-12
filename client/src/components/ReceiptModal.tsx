@@ -81,7 +81,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
     doc.setFontSize(9);
     doc.setTextColor(107, 114, 128);
     doc.text(`Digital Verification Signature: ${data.qr_code_signature}`, 14, finalY2);
-    doc.text('This is a computer generated official SaaS tournament entry receipt.', 14, finalY2 + 6);
+    doc.text('This is a computer generated official tournament registration receipt.', 14, finalY2 + 6);
 
     doc.save(`Receipt_${receipt.receipt_number}_${data.team_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
   };

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Match, Tournament } from '../../types';
-import { Calendar, Sparkles, RefreshCw, MapPin, Tv } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Calendar, Sparkles, RefreshCw, MapPin, Tv, ArrowLeft } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { TournamentPicker } from '../../components/ui/TournamentPicker';
@@ -11,6 +11,8 @@ import { Skeleton, SkeletonCard, EmptyState } from '../../components/ui/Feedback
 export const OrgFixturesPage: React.FC = () => {
   const confirm = useConfirm();
   const toast = useToast();
+  const navigate = useNavigate();
+  const { tournamentId: routeTournamentId } = useParams<{ tournamentId: string }>();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTourneyId, setSelectedTourneyId] = useState<string>('');
   const [matches, setMatches] = useState<Match[]>([]);
@@ -23,7 +25,11 @@ export const OrgFixturesPage: React.FC = () => {
         setLoading(true);
         const res = await api.get('/tournaments');
         setTournaments(res);
-        if (res.length > 0) setSelectedTourneyId(res[0].id);
+        if (!routeTournamentId && res.length > 0) {
+          // Entered without a specific tournament (e.g. from the sidebar) — pin
+          // the URL to one so the page always shows an unambiguous context.
+          navigate(`/organization/tournaments/${res[0].id}/fixtures`, { replace: true });
+        }
       } catch (err) {
         console.error('Failed to load tournaments', err);
       } finally {
@@ -31,7 +37,18 @@ export const OrgFixturesPage: React.FC = () => {
       }
     };
     fetchTourneys();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (routeTournamentId) setSelectedTourneyId(routeTournamentId);
+  }, [routeTournamentId]);
+
+  const handleSelectTournament = (id: string) => {
+    navigate(`/organization/tournaments/${id}/fixtures`);
+  };
+
+  const activeTournament = tournaments.find(t => t.id === selectedTourneyId);
 
   const fetchMatches = async (tourneyId: string) => {
     if (!tourneyId) return;
@@ -80,20 +97,76 @@ export const OrgFixturesPage: React.FC = () => {
     );
   }
 
+  const isFootball = activeTournament?.sport_code === 'football';
+  const completedCount = matches.filter(m => m.status === 'completed').length;
+  const liveCount = matches.filter(m => m.status === 'in_progress' || m.status === 'half_time' || m.status === 'innings_break').length;
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black font-heading text-white">Fixtures & Bracket Scheduler</h1>
-          <p className="text-xs text-slate-400 mt-1">Generate Round Robin or Single Elimination fixtures and schedule stadium match venues</p>
-        </div>
+      {/* Breadcrumb back to the tournaments list */}
+      <Link
+        to="/organization/tournaments"
+        className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+      >
+        <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+        Back to Tournaments
+      </Link>
 
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Top Header Card — anchors the page to the specific tournament */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-slate-800 shadow-2xl relative">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+          <div className="flex items-start gap-4 min-w-0 w-full lg:w-auto">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 p-0.5 shadow-lg shadow-emerald-500/20 flex items-center justify-center shrink-0">
+              <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
+                <Calendar className="w-7 h-7 text-emerald-400" />
+              </div>
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                {activeTournament && (
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                    isFootball ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                  }`}>
+                    {isFootball ? '⚽ Football' : '🏏 Cricket'}
+                  </span>
+                )}
+                {liveCount > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] font-bold uppercase animate-pulse">
+                    ● {liveCount} live now
+                  </span>
+                )}
+                {matches.length > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[11px] font-bold">
+                    {completedCount}/{matches.length} completed
+                  </span>
+                )}
+              </div>
+
+              <h1 className="text-2xl sm:text-3xl font-black font-heading text-white tracking-tight truncate">
+                {activeTournament ? activeTournament.name : 'Fixtures & Bracket Scheduler'}
+              </h1>
+              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                {activeTournament && (activeTournament.village || activeTournament.district) && (
+                  <>
+                    <MapPin className="w-3 h-3 text-slate-500 shrink-0" />
+                    <span className="truncate">{activeTournament.village}{activeTournament.village && activeTournament.district ? ', ' : ''}{activeTournament.district}</span>
+                    <span className="text-slate-700">•</span>
+                  </>
+                )}
+                <span>Round Robin or Single Elimination fixtures and stadium match venues</span>
+              </p>
+            </div>
+          </div>
+
           <TournamentPicker
             tournaments={tournaments}
             value={selectedTourneyId}
-            onChange={setSelectedTourneyId}
+            onChange={handleSelectTournament}
           />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 mt-6 pt-6 border-t border-slate-800">
           <button
             disabled={generating}
             onClick={() => handleAutoGenerate('round_robin')}

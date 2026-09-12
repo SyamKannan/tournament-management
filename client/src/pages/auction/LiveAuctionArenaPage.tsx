@@ -237,6 +237,15 @@ export const LiveAuctionArenaPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5">
+          {tournament && (
+            <Link
+              to={`/organization/tournaments/${tournament.id}/auction`}
+              className="px-3.5 py-2 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 text-xs font-bold flex items-center gap-1.5 border border-emerald-500/30 transition-colors"
+            >
+              <span>Settlement Report ↗</span>
+            </Link>
+          )}
+
           <Link
             to={`/auction/tv/${auction.id}`}
             target="_blank"
@@ -453,9 +462,9 @@ export const LiveAuctionArenaPage: React.FC = () => {
           <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-xs font-bold text-white uppercase tracking-wider font-heading">
-                Team Purses & Squad Capacity
+                Team Purses & Squad Capacity (Virtual Points)
               </h3>
-              <span className="text-[11px] text-slate-400 font-semibold">Total Purse: ₹{auction.team_purse.toLocaleString()} / Team</span>
+              <span className="text-[11px] text-amber-400 font-semibold">Virtual Purse: ₹{auction.team_purse.toLocaleString()} / Team</span>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-3 text-xs">

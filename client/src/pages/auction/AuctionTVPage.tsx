@@ -243,9 +243,9 @@ export const AuctionTVPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 text-slate-500 shrink-0">
-          <span>Powered by Antigravity Auction Engine</span>
+          <span>Powered by Sportivo Auction Arena</span>
           <span>•</span>
-          <span className="text-amber-400 font-bold">WebSocket Live Sync</span>
+          <span className="text-amber-400 font-bold">Live Sync</span>
         </div>
       </footer>
     </div>

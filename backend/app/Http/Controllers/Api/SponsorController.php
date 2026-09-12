@@ -7,6 +7,7 @@ use App\Models\Advertisement;
 use App\Models\Announcement;
 use App\Models\GameMatch;
 use App\Models\Sponsor;
+use App\Services\BillingService;
 use App\Services\RealtimeBroadcaster;
 use App\Support\Ids;
 use Illuminate\Http\JsonResponse;
@@ -18,7 +19,10 @@ use Illuminate\Http\Request;
  */
 class SponsorController extends Controller
 {
-    public function __construct(private readonly RealtimeBroadcaster $realtime) {}
+    public function __construct(
+        private readonly RealtimeBroadcaster $realtime,
+        private readonly BillingService $billing,
+    ) {}
 
     /* ------------------------------------------------------------ Sponsors */
 
@@ -109,9 +113,19 @@ class SponsorController extends Controller
             'media_url.required' => 'Title, business name, and media URL are required',
         ]);
 
+        $organizationId = $data['organization_id'] ?? $request->user()->organization_id;
+        $limit = $this->billing->checkLimit($organizationId, 'ads');
+
+        if (! $limit['allowed']) {
+            return response()->json([
+                'error' => $limit['reason'] ?? 'Advertisement limit reached for your current subscription plan.',
+                'limit' => $limit,
+            ], 403);
+        }
+
         $ad = Advertisement::create([
             'id' => Ids::timestamped('ad'),
-            'organization_id' => $data['organization_id'] ?? $request->user()->organization_id,
+            'organization_id' => $organizationId,
             'title' => $data['title'],
             'business_name' => $data['business_name'],
             'media_type' => $data['media_type'] ?? 'image',

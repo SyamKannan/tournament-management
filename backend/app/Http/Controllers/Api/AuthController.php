@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
 use App\Models\PlatformSetting;
+use App\Models\Player;
 use App\Models\User;
-use App\Services\BillingService;
 use App\Services\TokenService;
 use App\Support\Audit;
 use App\Support\Ids;
@@ -19,7 +19,6 @@ class AuthController extends Controller
 {
     public function __construct(
         private readonly TokenService $tokens,
-        private readonly BillingService $billing,
     ) {}
 
     public function login(Request $request): JsonResponse
@@ -84,8 +83,10 @@ class AuthController extends Controller
     }
 
     /**
-     * Public organizer signup: creates the organization, its first admin, and
-     * activates the chosen plan in one step.
+     * Public organizer signup: creates the organization and its first admin,
+     * free of charge and with no subscription. The organization picks (and
+     * pays for) a plan later, at the point it tries to host a tournament —
+     * see BillingService::checkLimit(), enforced in TournamentController::store().
      */
     public function registerOrganization(Request $request): JsonResponse
     {
@@ -93,8 +94,8 @@ class AuthController extends Controller
             'organizationName' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
             'contactPerson' => ['required', 'string', 'max:255'],
-            'planId' => ['required', 'string'],
             'organizationType' => ['nullable', 'string', 'max:255'],
+            'logo' => ['nullable', 'string'],
             'phone' => ['nullable', 'string', 'max:64'],
             'whatsapp' => ['nullable', 'string', 'max:64'],
             'address' => ['nullable', 'string'],
@@ -103,11 +104,9 @@ class AuthController extends Controller
             'district' => ['nullable', 'string', 'max:255'],
             'state' => ['nullable', 'string', 'max:255'],
             'password' => ['nullable', 'string', 'min:6'],
-            'paymentMethod' => ['nullable', 'string', 'max:32'],
         ], [], [
             'organizationName' => 'organization name',
             'contactPerson' => 'contact person',
-            'planId' => 'plan',
         ]);
 
         $settings = PlatformSetting::current();
@@ -120,7 +119,7 @@ class AuthController extends Controller
                 'id' => $organizationId,
                 'name' => $data['organizationName'],
                 'slug' => Ids::slug($data['organizationName']).'-'.Ids::token(3),
-                'logo' => 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=150&auto=format&fit=crop&q=80',
+                'logo' => $data['logo'] ?? 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=150&auto=format&fit=crop&q=80',
                 'banner' => 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=1200&auto=format&fit=crop&q=80',
                 'type' => $data['organizationType'] ?? 'Sports Club',
                 'description' => 'Registered organization: '.$data['organizationName'],
@@ -151,8 +150,6 @@ class AuthController extends Controller
                 'avatar' => 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
             ]);
 
-            $this->billing->subscribePlan($organizationId, $data['planId'], $data['paymentMethod'] ?? 'upi');
-
             Audit::log([
                 'organization_id' => $organizationId,
                 'user_id' => $user->id,
@@ -161,7 +158,7 @@ class AuthController extends Controller
                 'action' => 'ORGANIZATION_SELF_SIGNUP',
                 'entity_type' => 'Organization',
                 'entity_id' => $organizationId,
-                'details' => sprintf('Organization [%s] signed up with plan [%s]', $data['organizationName'], $data['planId']),
+                'details' => sprintf('Organization [%s] signed up (no plan yet — will choose one when hosting a tournament)', $data['organizationName']),
             ]);
 
             return [$organization->fresh(), $user];
@@ -172,6 +169,88 @@ class AuthController extends Controller
             'user' => $user->toAuthPayload(),
             'organization' => $organization,
             'message' => 'Organization created successfully',
+        ], 201);
+    }
+
+    /**
+     * Public athlete signup: creates the player account and linked player profile.
+     */
+    public function registerPlayer(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
+            'password' => ['required', 'string', 'min:6'],
+            'phone' => ['required', 'string', 'max:64'],
+            'sport' => ['nullable', 'string', 'max:64'],
+            'role_or_position' => ['nullable', 'string', 'max:64'],
+            'batting_style' => ['nullable', 'string', 'max:64'],
+            'bowling_style' => ['nullable', 'string', 'max:64'],
+            'district' => ['nullable', 'string', 'max:128'],
+            'state' => ['nullable', 'string', 'max:128'],
+            'age' => ['nullable', 'integer', 'min:5', 'max:100'],
+            'dob' => ['nullable', 'string', 'max:32'],
+            'jersey_number' => ['nullable', 'integer', 'min:0', 'max:999'],
+            'avatar' => ['nullable', 'string'],
+        ]);
+
+        if (User::query()->where('email', $data['email'])->exists()) {
+            return response()->json(['error' => 'An account with this email address already exists. Please sign in.'], 422);
+        }
+
+        [$user, $player] = DB::transaction(function () use ($data) {
+            $userId = Ids::timestamped('usr');
+            $sport = strtolower($data['sport'] ?? 'cricket');
+            $avatar = $data['avatar'] ?? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+
+            $user = User::create([
+                'id' => $userId,
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password_hash' => Hash::make($data['password']),
+                'role' => 'PLAYER',
+                'phone' => $data['phone'],
+                'avatar' => $avatar,
+            ]);
+
+            $player = Player::create([
+                'id' => $userId,
+                'team_id' => '',
+                'tournament_id' => '',
+                'organization_id' => '',
+                'full_name' => $data['name'],
+                'photo' => $avatar,
+                'age' => $data['age'] ?? 22,
+                'dob' => $data['dob'] ?? null,
+                'mobile' => $data['phone'],
+                'jersey_number' => $data['jersey_number'] ?? 10,
+                'is_captain' => false,
+                'is_wicketkeeper' => ($sport === 'cricket' && ($data['role_or_position'] ?? '') === 'Wicket Keeper'),
+                'football_position' => $sport === 'football' ? ($data['role_or_position'] ?? 'Striker') : null,
+                'cricket_role' => $sport === 'cricket' ? ($data['role_or_position'] ?? 'All-Rounder') : null,
+                'cricket_batting_style' => $data['batting_style'] ?? 'Right Handed',
+                'cricket_bowling_style' => $data['bowling_style'] ?? 'Right Arm Fast Medium',
+            ]);
+
+            Audit::log([
+                'organization_id' => '',
+                'user_id' => $user->id,
+                'user_name' => $user->name,
+                'user_role' => 'PLAYER',
+                'action' => 'PLAYER_SELF_SIGNUP',
+                'entity_type' => 'Player',
+                'entity_id' => $player->id,
+                'details' => sprintf('Athlete [%s] registered on site (%s)', $user->name, $sport),
+            ]);
+
+            return [$user, $player];
+        });
+
+        return response()->json([
+            'token' => $this->tokens->issue($user),
+            'user' => $user->toAuthPayload(),
+            'player' => $player,
+            'message' => 'Athlete profile registered successfully!',
         ], 201);
     }
 

@@ -5,13 +5,16 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import type { 
-  Auction, AuctionPlayer, Tournament, TeamAuctionPurse, AuctionStatus 
+  Auction, AuctionPlayer, Tournament, TeamAuctionPurse, AuctionStatus,
+  AuctionPaymentReport
 } from '../../types';
 import { 
   Gavel, Trophy, Users, DollarSign, Clock, 
   CheckCircle2, XCircle, Tv, Share2, 
   ArrowRight, Trash2, 
-  Filter, Download, Award, Play, Pause
+  Filter, Download, Award, Play, Pause,
+  Printer, CreditCard, Check, RotateCcw,
+  Info, FileText, Search, X
 } from 'lucide-react';
 
 export const OrgTournamentAuctionManagePage: React.FC = () => {
@@ -23,10 +26,25 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [auction, setAuction] = useState<Auction | null>(null);
   const [summaryData, setSummaryData] = useState<any | null>(null);
+  const [paymentReport, setPaymentReport] = useState<AuctionPaymentReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'players' | 'teams' | 'settings' | 'history'>('overview');
   const [playerFilter, setPlayerFilter] = useState<'all' | 'registered' | 'approved' | 'sold' | 'unsold' | 'rejected'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Payment Settlement state
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'pending'>('all');
+  const [paymentSearch, setPaymentSearch] = useState('');
+  const [selectedPlayerForPayment, setSelectedPlayerForPayment] = useState<AuctionPlayer | null>(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentFormStatus, setPaymentFormStatus] = useState<'paid' | 'pending'>('paid');
+  const [paymentFormAmount, setPaymentFormAmount] = useState<number>(0);
+  const [paymentFormMethod, setPaymentFormMethod] = useState<'cash' | 'upi' | 'bank_transfer' | 'cheque' | 'other'>('upi');
+  const [paymentFormRef, setPaymentFormRef] = useState('');
+  const [paymentFormNotes, setPaymentFormNotes] = useState('');
+  const [paymentFormDate, setPaymentFormDate] = useState('');
+  const [savingPayment, setSavingPayment] = useState(false);
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   // Settings form state
   const [hasAuction, setHasAuction] = useState(true);
@@ -63,6 +81,10 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
         // Fetch full summary
         const sum = await api.get(`/auctions/${auctionRes.auction.id}/summary`).catch(() => null);
         setSummaryData(sum);
+
+        // Fetch payment report
+        const report = await api.get(`/auctions/${auctionRes.auction.id}/payment-report`).catch(() => null);
+        setPaymentReport(report);
       }
     } catch (err) {
       console.error('Failed to load auction data', err);
@@ -80,6 +102,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
     if (!auction) return;
     try {
       await api.post(`/auctions/${auction.id}/status`, { status: newStatus });
+      toast.success(`Auction status set to ${newStatus.replace('_', ' ')}`);
       fetchAuctionData();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to update status');
@@ -91,6 +114,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
     if (!auction) return;
     try {
       await api.post(`/auctions/${auction.id}/players/${playerId}/approve`, {});
+      toast.success('Player approved for auction pool');
       fetchAuctionData();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to approve player');
@@ -101,6 +125,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
     if (!auction) return;
     try {
       await api.post(`/auctions/${auction.id}/players/${playerId}/reject`, {});
+      toast.info('Player registration rejected');
       fetchAuctionData();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to reject player');
@@ -118,10 +143,153 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
     if (!proceed) return;
     try {
       await api.delete(`/auctions/${auction.id}/players/${playerId}`);
+      toast.success('Player removed from pool');
       fetchAuctionData();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to delete player');
     }
+  };
+
+  // Open Payment Settlement Modal
+  const openPaymentModal = (player: AuctionPlayer) => {
+    setSelectedPlayerForPayment(player);
+    setPaymentFormStatus('paid');
+    setPaymentFormAmount(player.payment_amount || player.sold_price || player.base_price || 0);
+    setPaymentFormMethod(player.payment_method || 'upi');
+    setPaymentFormRef(player.payment_reference || '');
+    setPaymentFormNotes(player.payment_notes || '');
+    setPaymentFormDate(player.paid_at ? player.paid_at.substring(0, 10) : new Date().toISOString().substring(0, 10));
+    setPaymentModalOpen(true);
+  };
+
+  // Quick Toggle Payment
+  const handleQuickTogglePayment = async (player: AuctionPlayer) => {
+    if (!auction) return;
+    const newStatus = player.payment_status === 'paid' ? 'pending' : 'paid';
+    try {
+      await api.post(`/auctions/${auction.id}/players/${player.id}/payment`, {
+        payment_status: newStatus,
+        payment_amount: player.payment_amount || player.sold_price || player.base_price,
+        payment_method: newStatus === 'paid' ? (player.payment_method || 'cash') : undefined,
+        payment_reference: newStatus === 'paid' ? (player.payment_reference || `REF-${Date.now().toString().slice(-6)}`) : undefined,
+        paid_at: newStatus === 'paid' ? new Date().toISOString() : undefined,
+      });
+      toast.success(`Marked ${player.full_name} as ${newStatus.toUpperCase()}`);
+      fetchAuctionData();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update payment status');
+    }
+  };
+
+  // Save Detailed Payment Modal
+  const handleSavePaymentModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auction || !selectedPlayerForPayment) return;
+    setSavingPayment(true);
+    try {
+      await api.post(`/auctions/${auction.id}/players/${selectedPlayerForPayment.id}/payment`, {
+        payment_status: paymentFormStatus,
+        payment_amount: Number(paymentFormAmount),
+        payment_method: paymentFormStatus === 'paid' ? paymentFormMethod : undefined,
+        payment_reference: paymentFormStatus === 'paid' ? paymentFormRef : undefined,
+        payment_notes: paymentFormNotes,
+        paid_at: paymentFormStatus === 'paid' ? new Date(paymentFormDate || Date.now()).toISOString() : undefined,
+      });
+      toast.success(`Payment record saved for ${selectedPlayerForPayment.full_name}!`);
+      setPaymentModalOpen(false);
+      fetchAuctionData();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to save payment record');
+    } finally {
+      setSavingPayment(false);
+    }
+  };
+
+  // Bulk Mark Payments
+  const handleBulkUpdatePayments = async (status: 'paid' | 'pending') => {
+    if (!auction) return;
+    const count = status === 'paid' 
+      ? (paymentReport?.summary?.pending_players_count || 0)
+      : (paymentReport?.summary?.paid_players_count || 0);
+
+    if (count === 0) {
+      toast.info(`No players currently in ${status === 'paid' ? 'pending' : 'paid'} status.`);
+      return;
+    }
+
+    const proceed = await confirm({
+      title: `Bulk mark all ${count} players as ${status.toUpperCase()}?`,
+      message: status === 'paid'
+        ? 'This will mark all sold players as Paid (recorded via Cash settlement by default). You can customize individual records afterwards.'
+        : 'This will revert all sold player payment statuses back to Pending.',
+      confirmLabel: `Mark all as ${status}`,
+      tone: status === 'paid' ? 'default' : 'danger',
+    });
+    if (!proceed) return;
+
+    setBulkProcessing(true);
+    try {
+      await api.post(`/auctions/${auction.id}/payments/bulk-update`, {
+        payment_status: status,
+        payment_method: status === 'paid' ? 'cash' : undefined,
+        payment_notes: status === 'paid' ? 'Settled in full by tournament organizing committee' : undefined,
+      });
+      toast.success(`Successfully updated payment status for all sold players!`);
+      fetchAuctionData();
+    } catch (err: any) {
+      toast.error(err?.message || 'Bulk update failed');
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  // Export CSV
+  const handleExportCSV = () => {
+    const sold = paymentReport?.sold_players || summaryData?.sold_players || [];
+    if (sold.length === 0) {
+      toast.warning('No sold players to export yet.');
+      return;
+    }
+
+    const headers = [
+      'Rank', 'Player Name', 'Mobile', 'Village', 'District', 'Role', 'Category',
+      'Acquiring Team', 'Base Price (INR)', 'Final Auction Price / Entitlement (INR)',
+      'Payment Status', 'Settled Amount (INR)', 'Payment Method', 'Transaction Reference', 'Paid At', 'Notes'
+    ];
+
+    const rows = sold.map((p: AuctionPlayer, i: number) => [
+      i + 1,
+      `"${p.full_name}"`,
+      `"${p.mobile}"`,
+      `"${p.village || ''}"`,
+      `"${p.district || ''}"`,
+      `"${p.football_position || p.cricket_role || ''}"`,
+      `"${p.category}"`,
+      `"${p.sold_to_team_name || ''}"`,
+      p.base_price,
+      p.sold_price || 0,
+      (p.payment_status || 'pending').toUpperCase(),
+      p.payment_status === 'paid' ? (p.payment_amount || p.sold_price || 0) : 0,
+      `"${p.payment_method || ''}"`,
+      `"${p.payment_reference || ''}"`,
+      `"${p.paid_at ? new Date(p.paid_at).toLocaleDateString() : ''}"`,
+      `"${p.payment_notes || ''}"`,
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r: any) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Player_Payment_Settlement_Report_${tournament?.name.replace(/[^a-zA-Z0-9]/g, '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('Payment settlement report exported to CSV!');
+  };
+
+  // Print Report
+  const handlePrintReport = () => {
+    window.print();
   };
 
   // Save Settings
@@ -192,6 +360,28 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
     return true;
   });
 
+  const soldPlayersList: AuctionPlayer[] = paymentReport?.sold_players || summaryData?.sold_players || [];
+  const filteredSoldPlayers = soldPlayersList.filter(p => {
+    const matchesSearch = p.full_name.toLowerCase().includes(paymentSearch.toLowerCase()) ||
+      (p.sold_to_team_name && p.sold_to_team_name.toLowerCase().includes(paymentSearch.toLowerCase())) ||
+      (p.mobile && p.mobile.includes(paymentSearch));
+    if (!matchesSearch) return false;
+    if (paymentFilter === 'all') return true;
+    if (paymentFilter === 'paid') return p.payment_status === 'paid';
+    if (paymentFilter === 'pending') return p.payment_status !== 'paid';
+    return true;
+  });
+
+  const paymentSummary = paymentReport?.summary || {
+    total_sold_players: soldPlayersList.length,
+    total_entitled_amount: summaryData?.stats?.total_spent || 0,
+    total_paid_amount: summaryData?.stats?.total_paid_amount || 0,
+    total_pending_amount: summaryData?.stats?.total_pending_amount || (summaryData?.stats?.total_spent || 0),
+    paid_players_count: summaryData?.stats?.paid_players_count || 0,
+    pending_players_count: summaryData?.stats?.pending_players_count || soldPlayersList.length,
+    settlement_percentage: summaryData?.stats?.settlement_percentage || 0,
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Header Card */}
@@ -210,6 +400,10 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                   isFootball ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                 }`}>
                   {isFootball ? '⚽ Football 7s' : '🏏 Cricket T20'}
+                </span>
+
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[11px] font-bold">
+                  Virtual Currency Auction
                 </span>
 
                 {auction ? (
@@ -278,21 +472,29 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
             { id: 'players', label: `Player Pool (${allPlayers.length})`, icon: Users },
             { id: 'teams', label: `Teams & Purses (${summaryData?.team_purses?.length || 0})`, icon: DollarSign },
             { id: 'settings', label: 'Auction Schedule & Rules', icon: Clock },
-            { id: 'history', label: 'Auction Results & Report', icon: Award }
+            { id: 'history', label: `Payment Report & Settlements (${soldPlayersList.length})`, icon: Award, highlight: true }
           ].map(tab => {
             const Icon = tab.icon;
+            const isTabActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`px-4 py-2 rounded-xl flex items-center gap-2 whitespace-nowrap transition-all ${
-                  activeTab === tab.id
+                  isTabActive
                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                    : tab.highlight
+                    ? 'text-emerald-400 hover:text-emerald-300 hover:bg-slate-900 border border-emerald-500/20'
                     : 'text-slate-400 hover:text-white hover:bg-slate-900'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
                 <span>{tab.label}</span>
+                {tab.highlight && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black">
+                    REPORT
+                  </span>
+                )}
               </button>
             );
           })}
@@ -305,7 +507,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
           {/* Key Metric Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">Total Purse / Team</span>
+              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">Virtual Purse / Team</span>
               <div className="text-2xl sm:text-3xl font-black font-mono text-amber-400 mt-1">
                 ₹{auction?.team_purse.toLocaleString() || '1,00,000'}
               </div>
@@ -329,11 +531,11 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
             </div>
 
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">Total Spent in Auction</span>
+              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">Total Player Payout Entitlement</span>
               <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1">
-                ₹{(summaryData?.stats?.total_spent || 0).toLocaleString()}
+                ₹{(paymentSummary.total_entitled_amount || 0).toLocaleString()}
               </div>
-              <span className="text-[11px] text-slate-500 font-semibold">Top Bid: ₹{(summaryData?.stats?.highest_bid || 0).toLocaleString()}</span>
+              <span className="text-[11px] text-emerald-400 font-semibold">{paymentSummary.paid_players_count} Paid • {paymentSummary.pending_players_count} Pending</span>
             </div>
           </div>
 
@@ -541,12 +743,12 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div>
               <h3 className="text-sm font-bold text-white uppercase tracking-wider font-heading">
-                Participating Teams & Purse Balances
+                Participating Teams & Virtual Purse Balances
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Track team manager budgets, spent amounts, and squad fill ratios</p>
+              <p className="text-xs text-slate-400 mt-0.5">Track team manager virtual budgets, spent amounts, and squad fill ratios</p>
             </div>
             <span className="text-xs font-mono font-bold text-emerald-400">
-              Total Team Purse: ₹{auction?.team_purse.toLocaleString() || '100,000'}
+              Virtual Budget / Team: ₹{auction?.team_purse.toLocaleString() || '100,000'}
             </span>
           </div>
 
@@ -560,7 +762,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
 
                 <div className="flex items-center justify-between text-xs text-slate-400">
                   <span>Squad: <strong className="text-white">{tp.players_bought_count} / {tp.max_players}</strong> bought</span>
-                  <span>Spent: <strong className="text-amber-400">₹{tp.spent_amount.toLocaleString()}</strong></span>
+                  <span>Virtual Spent: <strong className="text-amber-400">₹{tp.spent_amount.toLocaleString()}</strong></span>
                 </div>
 
                 {/* Progress bar */}
@@ -597,7 +799,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div>
               <h3 className="text-sm font-bold text-white uppercase tracking-wider font-heading">
-                Configure Auction Rules, Schedule & Purse
+                Configure Auction Rules, Schedule & Virtual Purse
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">Control whether player auction is enabled or clubs register directly</p>
             </div>
@@ -658,7 +860,10 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Total Team Purse Budget (₹) *</label>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    Total Team Virtual Purse Budget (₹) *
+                    <span className="text-[11px] text-amber-400 font-normal ml-1.5">(Points only, no cash value)</span>
+                  </label>
                   <input
                     type="number"
                     value={teamPurse}
@@ -713,67 +918,489 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
         </form>
       )}
 
-      {/* TAB 5: AUCTION RESULTS & SUMMARY REPORT */}
+      {/* TAB 5: POST-AUCTION PLAYER PAYMENT REPORT & SETTLEMENT TRACKER */}
       {activeTab === 'history' && (
-        <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider font-heading">
-                Complete Auction Results & Transfer History
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Comprehensive audit trail of all hammered sales and squad purchases</p>
+        <div className="space-y-6">
+          {/* Virtual Money Disclaimer Banner */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-500/10 via-slate-900 to-cyan-500/10 border border-amber-500/30 text-xs shadow-lg flex items-start gap-3.5">
+            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0 mt-0.5">
+              <Info className="w-5 h-5" />
             </div>
-
-            <button
-              onClick={() => toast.success('Auction Summary report exported!')}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-colors"
-            >
-              <Download className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Export CSV / PDF</span>
-            </button>
+            <div className="space-y-1">
+              <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                <span>Virtual-Money Auction & Player Settlement Model</span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase">
+                  OFFICIAL GUIDELINE
+                </span>
+              </h4>
+              <p className="text-slate-300 leading-relaxed">
+                The virtual money (e.g. ₹{auction?.team_purse.toLocaleString() || '1,00,000'}) was used solely as bidding currency to allot players to team squads fairly. 
+                Each sold player is entitled to receive real-money remuneration matching their final auction hammer price. 
+                As tournament organizer, record, manage, and toggle each player's real-world disbursement status below.
+              </p>
+            </div>
           </div>
 
-          {/* Sold Players Results Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-800 text-slate-400 uppercase text-[11px]">
-                  <th className="pb-3">Rank</th>
-                  <th className="pb-3">Player Name</th>
-                  <th className="pb-3">Role / Skill</th>
-                  <th className="pb-3">Base Price</th>
-                  <th className="pb-3">Purchased by Team</th>
-                  <th className="pb-3 text-right">Final Bid Price</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {(summaryData?.sold_players || []).length > 0 ? (
-                  summaryData.sold_players.map((sp: AuctionPlayer, idx: number) => (
-                    <tr key={sp.id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-3 font-mono font-bold text-slate-400">{idx + 1}</td>
-                      <td className="py-3">
-                        <div className="flex items-center gap-2.5">
-                          <img src={sp.photo} alt={sp.full_name} className="w-7 h-7 rounded-lg object-cover" />
-                          <span className="font-bold text-white">{sp.full_name}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 text-slate-300">{sp.football_position || sp.cricket_role}</td>
-                      <td className="py-3 font-mono text-slate-400">₹{sp.base_price.toLocaleString()}</td>
-                      <td className="py-3 font-bold text-emerald-400">{sp.sold_to_team_name}</td>
-                      <td className="py-3 text-right font-mono font-black text-amber-400 text-sm">
-                        ₹{sp.sold_price?.toLocaleString()}
+          {/* Settlement KPI Headline Metrics */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center">
+              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">
+                Total Entitled Payout
+              </span>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-cyan-400 mt-1">
+                ₹{paymentSummary.total_entitled_amount.toLocaleString()}
+              </div>
+              <span className="text-[11px] text-slate-400 font-semibold">{paymentSummary.total_sold_players} Sold Players</span>
+            </div>
+
+            <div className="p-5 rounded-3xl bg-slate-900/90 border border-emerald-500/30 bg-emerald-500/5 text-center">
+              <span className="text-[11px] font-black uppercase tracking-widest text-emerald-400 block">
+                Total Settled / Paid
+              </span>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400 mt-1">
+                ₹{paymentSummary.total_paid_amount.toLocaleString()}
+              </div>
+              <span className="text-[11px] text-emerald-300/80 font-bold">{paymentSummary.paid_players_count} Players Settled</span>
+            </div>
+
+            <div className="p-5 rounded-3xl bg-slate-900/90 border border-amber-500/30 bg-amber-500/5 text-center">
+              <span className="text-[11px] font-black uppercase tracking-widest text-amber-400 block">
+                Pending Payouts
+              </span>
+              <div className="text-2xl sm:text-3xl font-black font-mono text-amber-400 mt-1">
+                ₹{paymentSummary.total_pending_amount.toLocaleString()}
+              </div>
+              <span className="text-[11px] text-amber-300/80 font-bold">{paymentSummary.pending_players_count} Players Awaiting</span>
+            </div>
+
+            <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center flex flex-col justify-between">
+              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">
+                Settlement Progress
+              </span>
+              <div>
+                <div className="text-2xl sm:text-3xl font-black font-mono text-white">
+                  {paymentSummary.settlement_percentage}%
+                </div>
+                <div className="w-full h-2 bg-slate-800 rounded-full mt-2 overflow-hidden">
+                  <div 
+                    className="h-full bg-emerald-500 rounded-full transition-all"
+                    style={{ width: `${paymentSummary.settlement_percentage}%` }}
+                  />
+                </div>
+              </div>
+              <span className="text-[11px] text-slate-400 mt-1">
+                {paymentSummary.paid_players_count} of {paymentSummary.total_sold_players} settled
+              </span>
+            </div>
+          </div>
+
+          {/* Team Disbursement Summaries */}
+          {paymentReport?.team_summaries && paymentReport.team_summaries.length > 0 && (
+            <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider font-heading">
+                    Disbursement Breakdown by Acquiring Team
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Total player payment obligations generated per club squad</p>
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {paymentReport.team_summaries.map(ts => (
+                  <div key={ts.team_id} className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white text-sm">{ts.team_name}</span>
+                      <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-mono text-[11px]">
+                        {ts.players_acquired_count} bought
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 text-slate-400">
+                      <span>Total Payout:</span>
+                      <span className="font-mono font-bold text-cyan-400">₹{ts.total_player_entitlement.toLocaleString()}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span>Paid ({ts.paid_count}):</span>
+                      <span className="font-mono font-bold text-emerald-400">₹{ts.paid_amount.toLocaleString()}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span>Pending ({ts.pending_count}):</span>
+                      <span className="font-mono font-bold text-amber-400">₹{ts.pending_amount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Interactive Player Payment Settlement Table */}
+          <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-5">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              <div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider font-heading flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-emerald-400" />
+                  <span>Player Payment Entitlement & Settlement Roster</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Update payment status, record UPI/Cash transaction reference IDs, and generate physical payment vouchers
+                </p>
+              </div>
+
+              {/* Action Buttons: Export CSV & Print */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handleExportCSV}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Export CSV</span>
+                </button>
+
+                <button
+                  onClick={handlePrintReport}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Print Report</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filters, Search & Bulk Actions Bar */}
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-2">
+                {(['all', 'paid', 'pending'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setPaymentFilter(tab)}
+                    className={`px-3.5 py-1.5 rounded-xl capitalize text-xs font-bold transition-all ${
+                      paymentFilter === tab
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    {tab === 'all' ? `All Players (${soldPlayersList.length})` :
+                     tab === 'paid' ? `Paid (${paymentSummary.paid_players_count})` :
+                     `Pending (${paymentSummary.pending_players_count})`}
+                  </button>
+                ))}
+
+                <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block" />
+
+                {/* Bulk Actions */}
+                <button
+                  onClick={() => handleBulkUpdatePayments('paid')}
+                  disabled={bulkProcessing || paymentSummary.pending_players_count === 0}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 disabled:opacity-40 border border-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Mark All as Paid</span>
+                </button>
+
+                <button
+                  onClick={() => handleBulkUpdatePayments('pending')}
+                  disabled={bulkProcessing || paymentSummary.paid_players_count === 0}
+                  className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 disabled:opacity-40 border border-amber-500/30 text-xs font-bold transition-all flex items-center gap-1"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Revert All to Pending</span>
+                </button>
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative w-full sm:w-64">
+                <input
+                  type="text"
+                  placeholder="Search player, team, phone..."
+                  value={paymentSearch}
+                  onChange={(e) => setPaymentSearch(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs outline-none pl-8"
+                />
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-3" />
+              </div>
+            </div>
+
+            {/* Payment Roster Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 uppercase text-[11px]">
+                    <th className="pb-3">Rank & Player</th>
+                    <th className="pb-3">Acquiring Team</th>
+                    <th className="pb-3">Entitled Fee</th>
+                    <th className="pb-3">Settlement Status</th>
+                    <th className="pb-3">Payment Details</th>
+                    <th className="pb-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {filteredSoldPlayers.length > 0 ? (
+                    filteredSoldPlayers.map((sp: AuctionPlayer, idx: number) => {
+                      const isPaid = sp.payment_status === 'paid';
+                      return (
+                        <tr key={sp.id} className="hover:bg-slate-800/40 transition-colors">
+                          {/* Player Column */}
+                          <td className="py-3.5">
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono text-slate-500 text-xs font-bold w-4">#{idx + 1}</span>
+                              <img src={sp.photo} alt={sp.full_name} className="w-9 h-9 rounded-xl object-cover border border-slate-700 shrink-0" />
+                              <div>
+                                <div className="font-bold text-white text-sm">{sp.full_name}</div>
+                                <div className="text-[11px] text-slate-400">
+                                  {sp.mobile} • {sp.football_position || sp.cricket_role}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Team Column */}
+                          <td className="py-3.5">
+                            <span className="font-bold text-emerald-400 block">{sp.sold_to_team_name}</span>
+                            <span className="text-[11px] text-slate-400 font-semibold">{sp.category}</span>
+                          </td>
+
+                          {/* Entitled Fee */}
+                          <td className="py-3.5">
+                            <div className="font-mono font-black text-amber-400 text-sm">
+                              ₹{(sp.sold_price || sp.base_price).toLocaleString()}
+                            </div>
+                            <span className="text-[10px] text-slate-500 uppercase font-semibold">Final Bid Price</span>
+                          </td>
+
+                          {/* Settlement Status */}
+                          <td className="py-3.5">
+                            <button
+                              onClick={() => handleQuickTogglePayment(sp)}
+                              title="Click to toggle Paid / Pending"
+                              className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all ${
+                                isPaid
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
+                                  : 'bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30 animate-pulse'
+                              }`}
+                            >
+                              {isPaid ? (
+                                <>
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span>PAID</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>PENDING</span>
+                                </>
+                              )}
+                            </button>
+                          </td>
+
+                          {/* Payment Details */}
+                          <td className="py-3.5 text-slate-400 text-[11px]">
+                            {isPaid ? (
+                              <div>
+                                <span className="text-white font-semibold uppercase">{sp.payment_method || 'CASH'}</span>
+                                {sp.payment_reference && (
+                                  <span className="block font-mono text-[10px] text-cyan-400">Ref: {sp.payment_reference}</span>
+                                )}
+                                {sp.paid_at && (
+                                  <span className="text-[10px] text-slate-500 block">
+                                    Date: {new Date(sp.paid_at).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-500 italic">No disbursement recorded</span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => openPaymentModal(sp)}
+                                className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs border border-slate-700 transition-colors flex items-center gap-1"
+                              >
+                                <CreditCard className="w-3 h-3 text-cyan-400" />
+                                <span>{isPaid ? 'Edit Record' : 'Record Pay'}</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="text-center py-10 text-xs text-slate-500">
+                        {soldPlayersList.length === 0 
+                          ? 'No players have been sold in the auction yet.'
+                          : 'No players match your payment filter.'}
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="text-center py-6 text-xs text-slate-500">
-                      No players have been sold yet. Live auction in progress or pending.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RECORD / EDIT PAYMENT SETTLEMENT MODAL */}
+      {paymentModalOpen && selectedPlayerForPayment && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base">Player Payment Settlement</h3>
+                  <p className="text-xs text-slate-400">{selectedPlayerForPayment.full_name}</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setPaymentModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePaymentModal} className="space-y-4 text-xs">
+              {/* Player Summary Card */}
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-slate-400 uppercase text-[10px] font-bold block">Acquired by Team</span>
+                  <span className="font-bold text-emerald-400 text-sm">{selectedPlayerForPayment.sold_to_team_name}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-slate-400 uppercase text-[10px] font-bold block">Winning Auction Price</span>
+                  <span className="font-mono font-black text-amber-400 text-sm">
+                    ₹{(selectedPlayerForPayment.sold_price || selectedPlayerForPayment.base_price).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Status Radio */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1.5">Disbursement Status *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentFormStatus('paid')}
+                    className={`py-2 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
+                      paymentFormStatus === 'paid'
+                        ? 'bg-emerald-600 border-emerald-500 text-white shadow-md'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Mark Paid</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentFormStatus('pending')}
+                    className={`py-2 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
+                      paymentFormStatus === 'pending'
+                        ? 'bg-amber-600 border-amber-500 text-white shadow-md'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Clock className="w-4 h-4" />
+                    <span>Mark Pending</span>
+                  </button>
+                </div>
+              </div>
+
+              {paymentFormStatus === 'paid' && (
+                <>
+                  {/* Amount & Method */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Disbursed Amount (₹) *</label>
+                      <input
+                        type="number"
+                        value={paymentFormAmount}
+                        onChange={(e) => setPaymentFormAmount(Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono font-bold outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Payment Method *</label>
+                      <select
+                        value={paymentFormMethod}
+                        onChange={(e: any) => setPaymentFormMethod(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white font-semibold outline-none"
+                      >
+                        <option value="upi">UPI / GPay / PhonePe</option>
+                        <option value="cash">Cash in Hand</option>
+                        <option value="bank_transfer">Bank NEFT / IMPS</option>
+                        <option value="cheque">Cheque</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Reference & Date */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Transaction Ref / UTR / Cheque #</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. UPI/2026/894102948"
+                        value={paymentFormRef}
+                        onChange={(e) => setPaymentFormRef(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Payment Date</label>
+                      <input
+                        type="date"
+                        value={paymentFormDate}
+                        onChange={(e) => setPaymentFormDate(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white outline-none"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Committee Notes */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Settlement Notes / Remarks</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Handed over at committee office by Tournament President."
+                  value={paymentFormNotes}
+                  onChange={(e) => setPaymentFormNotes(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white outline-none"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingPayment}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md shadow-emerald-600/20"
+                >
+                  {savingPayment ? 'Saving Record...' : 'Save Settlement Record'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

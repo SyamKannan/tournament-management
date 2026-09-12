@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import type { Sponsor, Advertisement, Match } from '../../types';
 import { useToast } from '../../components/ui/Toast';
@@ -13,9 +14,11 @@ import {
 export const OrgSponsorsAdsPage: React.FC = () => {
   const confirm = useConfirm();
   const toast = useToast();
+  const { organization } = useAuth();
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [ads, setAds] = useState<Advertisement[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [adLimit, setAdLimit] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'scoreboard_config' | 'ads' | 'sponsors'>('scoreboard_config');
 
@@ -70,6 +73,15 @@ export const OrgSponsorsAdsPage: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (!organization) return;
+    api.get(`/organizations/${organization.id}/usage`)
+      .then(res => setAdLimit(res?.plan?.ad_limit ?? null))
+      .catch(err => console.error('Failed to load plan limits', err));
+  }, [organization]);
+
+  const adLimitReached = adLimit !== null && ads.length >= adLimit;
 
   const handleUpdateScoreboardSettings = async () => {
     try {
@@ -155,6 +167,14 @@ export const OrgSponsorsAdsPage: React.FC = () => {
     }
   };
 
+  const openAddAdModal = () => {
+    if (adLimitReached) {
+      toast.warning(`Your plan allows up to ${adLimit} sponsor ads. Upgrade your plan to add more.`);
+      return;
+    }
+    setShowAddModal(true);
+  };
+
   const handleCreateAd = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -209,9 +229,16 @@ export const OrgSponsorsAdsPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {adLimit !== null && (
+            <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-mono font-bold text-slate-300">
+              {ads.length}/{adLimit} ads
+            </span>
+          )}
           <button
-            onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all"
+            onClick={openAddAdModal}
+            disabled={adLimitReached}
+            title={adLimitReached ? `Your plan allows up to ${adLimit} sponsor ads.` : undefined}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add New Sponsor Ad</span>
@@ -439,8 +466,10 @@ export const OrgSponsorsAdsPage: React.FC = () => {
               Active organizer ads configured to rotate across the live scoreboard and break takeovers
             </p>
             <button
-              onClick={() => setShowAddModal(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md"
+              onClick={openAddAdModal}
+              disabled={adLimitReached}
+              title={adLimitReached ? `Your plan allows up to ${adLimit} sponsor ads.` : undefined}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add Advertisement</span>

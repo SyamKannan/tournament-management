@@ -97,6 +97,13 @@ Rooms in use: `match:<id>` (scorer consoles), `scoreboard:<id>` (stadium display
 `RealtimeBroadcaster` posts to the bridge with a short timeout and swallows failures,
 so an unreachable gateway never turns a successful score into a failed request.
 
+## Media uploads
+
+`POST /api/upload` (throttled to 60/min, accepts multipart or base64) stores logos,
+player photos and sponsor images directly under `public/uploads/<folder>` and returns
+their public URL — no `storage:link` needed. Keep that directory writable and back it
+up; it isn't in the database.
+
 ## Configuration
 
 | Variable | Default | Purpose |
@@ -134,6 +141,8 @@ php artisan test
 | `FootballScoringTest` | Goals, own goals, cards, undo, full time |
 | `CricketScoringTest` | Runs, extras, wickets, strike rotation, innings, chases |
 | `AuctionTest` | Pool registration, hammer, bid limits, sale, accelerated round |
+| `AuctionAuthorizationTest` | Who can start/bid/hammer an auction, per role and org |
+| `AuctionPaymentReportTest` | Per-team spend and settlement reporting after an auction |
 | `ApiContractTest` | The JSON shape every client screen depends on |
 | `RealtimeResilienceTest` | Correct rooms, and graceful behaviour with no gateway |
 | `WebSocketHubTest` | Room routing, global broadcast, disconnect cleanup |

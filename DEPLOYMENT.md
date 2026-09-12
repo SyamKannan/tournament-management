@@ -1,9 +1,6 @@
 # Deployment
 
-Two supported paths. **XAMPP / MAMP** is the simplest and is covered first;
-Docker Compose is there if you'd rather ship containers.
-
-Whichever you choose, one thing is easy to miss:
+Deploying with XAMPP / MAMP. One thing is easy to miss:
 
 > **The real-time gateway is a second process.** Apache cannot host it — it is a
 > long-running socket server, not a request handler. Live scoring, auctions and
@@ -127,25 +124,6 @@ curl http://127.0.0.1:4100/health              # {"status":"healthy","connection
 
 ---
 
-## Docker Compose
-
-```bash
-cp .env.docker.example .env      # fill in APP_KEY, JWT_SECRET, DB_PASSWORD, DB_ROOT_PASSWORD
-docker compose up -d --build
-```
-
-Four services: `web` (nginx serving the SPA and proxying `/api` and `/ws`),
-`api`, `ws`, and `db`. Everything is one origin on `WEB_PORT`, so there is no
-CORS to configure and the WebSocket upgrade works through the same host.
-
-```bash
-docker compose logs -f api
-docker compose exec api php artisan migrate --force
-docker compose down                 # add -v to drop the database volume
-```
-
----
-
 ## Before going live
 
 - [ ] `APP_DEBUG=false` and `APP_ENV=production` — debug mode leaks stack traces
@@ -174,8 +152,7 @@ connections in memory, so a single instance serves all clients; to run more than
 one, give them a shared backplane (Redis pub/sub) rather than load-balancing
 them blind.
 
-**Logs.** `LOG_CHANNEL=stderr` in containers. Under Apache, logs go to
-`backend/storage/logs/laravel.log` — rotate it.
+**Logs.** Under Apache, logs go to `backend/storage/logs/laravel.log` — rotate it.
 
-**Migrations.** Run from one place only. Under Compose the `api` container owns
-them (`RUN_MIGRATIONS`); the `ws` container is explicitly told not to.
+**Migrations.** Run from one place only — the same shell you use for
+`artisan migrate --force`.

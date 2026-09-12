@@ -8,11 +8,13 @@ use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\PlatformSetting;
+use App\Models\Sport;
 use App\Models\Subscription;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\User;
 use App\Services\BillingService;
+use App\Services\TokenService;
 use App\Support\Audit;
 use App\Support\Ids;
 use Illuminate\Http\JsonResponse;
@@ -28,7 +30,10 @@ use Illuminate\Support\Facades\Hash;
  */
 class AdminController extends Controller
 {
-    public function __construct(private readonly BillingService $billing) {}
+    public function __construct(
+        private readonly BillingService $billing,
+        private readonly TokenService $tokens,
+    ) {}
 
     public function metrics(): JsonResponse
     {
@@ -133,6 +138,83 @@ class AdminController extends Controller
         $this->audit($request, 'DELETED_PLAN', 'Plan', $id, sprintf('Deleted plan [%s]', $plan->name));
 
         return response()->json(['message' => 'Plan deleted successfully']);
+    }
+
+    /* ----------------------------------------------------------------- Sports */
+
+    public function listSports(): JsonResponse
+    {
+        return response()->json(Sport::query()->orderBy('name')->get());
+    }
+
+    public function updateSport(Request $request, string $id): JsonResponse
+    {
+        $sport = Sport::find($id);
+
+        if (! $sport) {
+            return response()->json(['error' => 'Sport not found'], 404);
+        }
+
+        $data = $request->validate([
+            'is_active' => ['required', 'boolean'],
+        ]);
+
+        if (! $data['is_active']) {
+            $otherActive = Sport::query()->where('is_active', true)->where('id', '!=', $id)->exists();
+            if (! $otherActive) {
+                return response()->json(['error' => 'At least one sport must stay enabled'], 422);
+            }
+        }
+
+        $sport->fill($data)->save();
+
+        $this->audit($request, $data['is_active'] ? 'ENABLED_SPORT' : 'DISABLED_SPORT', 'Sport', $sport->id,
+            sprintf('%s sport [%s]', $data['is_active'] ? 'Enabled' : 'Disabled', $sport->name));
+
+        return response()->json($sport);
+    }
+
+    /* ------------------------------------------------------------------ Users */
+
+    public function listUsers(Request $request): JsonResponse
+    {
+        $role = $request->query('role');
+        $search = $request->query('search');
+
+        $query = User::with('organization')->orderBy('name');
+
+        if ($role && $role !== 'ALL') {
+            $query->where('role', $role);
+        }
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%");
+            });
+        }
+
+        $users = $query->get();
+
+        return response()->json($users->map(function (User $user) {
+            return [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'role' => $user->role,
+                'avatar' => $user->avatar,
+                'created_at' => $user->created_at,
+                'organization' => $user->organization ? [
+                    'id' => $user->organization->id,
+                    'name' => $user->organization->name,
+                    'slug' => $user->organization->slug,
+                    'logo' => $user->organization->logo,
+                    'type' => $user->organization->type,
+                ] : null,
+            ];
+        }));
     }
 
     /* ----------------------------------------------------------- Organizations */
@@ -325,6 +407,97 @@ class AdminController extends Controller
         $settings->fill($data)->save();
 
         return response()->json($settings);
+    }
+
+    /* --------------------------------------------------------- Impersonation */
+
+    public function impersonate(Request $request): JsonResponse
+    {
+        $userId = $request->input('user_id');
+        $organizationId = $request->input('organization_id');
+
+        if (! $userId && ! $organizationId) {
+            return response()->json(['error' => 'user_id or organization_id is required'], 422);
+        }
+
+        $targetUser = null;
+
+        if ($userId) {
+            $targetUser = User::find($userId);
+        } elseif ($organizationId) {
+            $targetUser = User::where('organization_id', $organizationId)
+                ->where('role', 'ORG_ADMIN')
+                ->first();
+
+            // Fallback to any user in the organization if no ORG_ADMIN
+            $targetUser ??= User::where('organization_id', $organizationId)->first();
+        }
+
+        if (! $targetUser) {
+            return response()->json(['error' => 'Target user or club admin not found'], 404);
+        }
+
+        $token = $this->tokens->issue($targetUser);
+        $organization = $targetUser->organization_id ? Organization::find($targetUser->organization_id) : null;
+
+        $this->audit(
+            $request,
+            'IMPERSONATE_USER',
+            'user',
+            $targetUser->id,
+            "Super Admin impersonated user {$targetUser->name} ({$targetUser->email}, role: {$targetUser->role})"
+        );
+
+        return response()->json([
+            'token' => $token,
+            'user' => $targetUser->toAuthPayload(),
+            'organization' => $organization,
+        ]);
+    }
+
+    public function impersonationTargets(): JsonResponse
+    {
+        $organizations = Organization::query()->orderBy('name')->get();
+        $orgAdmins = User::query()
+            ->where('role', 'ORG_ADMIN')
+            ->get()
+            ->keyBy('organization_id');
+
+        $orgTargets = $organizations->map(function (Organization $org) use ($orgAdmins) {
+            $admin = $orgAdmins->get($org->id);
+            return [
+                'id' => $org->id,
+                'name' => $org->name,
+                'slug' => $org->slug,
+                'logo' => $org->logo,
+                'type' => $org->type,
+                'district' => $org->district,
+                'admin_user' => $admin ? [
+                    'id' => $admin->id,
+                    'name' => $admin->name,
+                    'email' => $admin->email,
+                    'role' => $admin->role,
+                ] : null,
+            ];
+        });
+
+        $players = User::query()
+            ->where('role', 'PLAYER')
+            ->orderBy('name')
+            ->limit(50)
+            ->get(['id', 'name', 'email', 'phone', 'role', 'avatar', 'organization_id']);
+
+        $teamManagers = User::query()
+            ->where('role', 'TEAM_MANAGER')
+            ->orderBy('name')
+            ->limit(50)
+            ->get(['id', 'name', 'email', 'phone', 'role', 'avatar', 'organization_id']);
+
+        return response()->json([
+            'organizations' => $orgTargets,
+            'players' => $players,
+            'team_managers' => $teamManagers,
+        ]);
     }
 
     private function audit(Request $request, string $action, string $entityType, string $entityId, string $details): void

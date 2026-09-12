@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, CreditCard, Building2, Trophy, Users, Calendar,
-  Radio, Megaphone, FileText, Settings, History, X
+  Radio, Megaphone, FileText, Settings, History, X, Gamepad2
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -16,7 +16,9 @@ interface SidebarProps {
 const ADMIN_LINKS = [
   { to: '/admin/dashboard', label: 'Overview & Metrics', icon: LayoutDashboard },
   { to: '/admin/plans', label: 'Plans & Pricing', icon: CreditCard },
+  { to: '/admin/sports', label: 'Sports', icon: Gamepad2 },
   { to: '/admin/organizations', label: 'Organizations', icon: Building2 },
+  { to: '/admin/users', label: 'Users & Players', icon: Users },
   { to: '/admin/subscriptions', label: 'Subscriptions', icon: FileText },
   { to: '/admin/settings', label: 'Platform Settings', icon: Settings },
   { to: '/admin/audit-logs', label: 'Audit Logs', icon: History },
@@ -30,6 +32,7 @@ const ORG_LINKS = [
   { to: '/organization/sponsors', label: 'Sponsors & Ads', icon: Megaphone },
   { to: '/organization/announcements', label: 'Announcements', icon: Radio },
   { to: '/organization/reports', label: 'Financials & Reports', icon: FileText },
+  { to: '/organization/billing', label: 'Billing & Plan', icon: CreditCard },
 ];
 
 /**
@@ -109,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ type, open, onClose }) => {
             </button>
           </div>
 
-          <nav className="space-y-1">
+          <nav className="space-y-1.5">
             {links.map(link => {
               const Icon = link.icon;
               return (
@@ -118,15 +121,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ type, open, onClose }) => {
                   to={link.to}
                   onClick={onClose}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-3.5 py-3 lg:py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    `flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 group ${
                       isActive
-                        ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/10 text-emerald-400 border border-emerald-500/30'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                        ? 'bg-gradient-to-r from-emerald-500/20 via-teal-500/15 to-emerald-500/5 text-emerald-300 border border-emerald-500/35 shadow-lg shadow-emerald-950/50'
+                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 hover:translate-x-0.5'
                     }`
                   }
                 >
-                  <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
-                  <span className="truncate">{link.label}</span>
+                  {({ isActive }) => (
+                    <>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Icon className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-emerald-400' : 'text-slate-400 group-hover:text-slate-200'}`} aria-hidden="true" />
+                        <span className="truncate">{link.label}</span>
+                      </div>
+                      {isActive && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse" />
+                      )}
+                    </>
+                  )}
                 </NavLink>
               );
             })}

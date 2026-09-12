@@ -92,7 +92,7 @@ class AuthTest extends TestCase
         $this->getJson('/api/auth/me')->assertUnauthorized();
     }
 
-    public function test_public_signup_creates_the_organization_admin_and_subscription(): void
+    public function test_public_signup_creates_the_organization_admin_with_no_subscription(): void
     {
         $response = $this->postJson('/api/auth/register-org', [
             'organizationName' => 'Wayanad United Sports Club',
@@ -102,7 +102,6 @@ class AuthTest extends TestCase
             'email' => 'anoop@wayanadunited.in',
             'district' => 'Wayanad',
             'password' => 'secret-password',
-            'planId' => 'plan-standard',
         ])->assertCreated();
 
         $organizationId = $response->json('organization.id');
@@ -111,8 +110,10 @@ class AuthTest extends TestCase
         $this->assertSame('ORG_ADMIN', $response->json('user.role'));
         $this->assertSame('active', $response->json('organization.status'));
 
-        $this->assertTrue(
-            Subscription::query()->where('organization_id', $organizationId)->where('status', 'active')->exists()
+        // Signup is free — no plan is chosen (and nothing charged) until the
+        // organization tries to host a tournament.
+        $this->assertFalse(
+            Subscription::query()->where('organization_id', $organizationId)->exists()
         );
 
         // The submitted password must be stored hashed, then work for sign-in.
@@ -137,7 +138,6 @@ class AuthTest extends TestCase
             'organizationName' => 'Kerala Sports Club',
             'contactPerson' => 'Person One',
             'email' => 'one@ksc.in',
-            'planId' => 'plan-basic',
         ];
 
         $first = $this->postJson('/api/auth/register-org', $payload)->assertCreated();

@@ -33,6 +33,9 @@ export const OrgLiveScorerPage: React.FC = () => {
   const [wicketType, setWicketType] = useState<string>('bowled');
   const [commentary, setCommentary] = useState<string>('');
 
+  // Coin Toss state
+  const [isFlippingToss, setIsFlippingToss] = useState(false);
+
   const fetchMatch = async () => {
     try {
       setLoading(true);
@@ -118,6 +121,30 @@ export const OrgLiveScorerPage: React.FC = () => {
   /* =========================================================================
    * CRICKET ACTIONS
    * ========================================================================= */
+  const handleFlipToss = async () => {
+    if (!matchData) return;
+    setIsFlippingToss(true);
+    try {
+      await api.post(`/matches/${matchData.match.id}/cricket/toss/flip`);
+      await fetchMatch();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to flip the coin');
+    } finally {
+      // Let the spin animation play out before revealing the result.
+      setTimeout(() => setIsFlippingToss(false), 1400);
+    }
+  };
+
+  const handleTossDecision = async (decision: 'bat' | 'bowl') => {
+    if (!matchData) return;
+    try {
+      await api.post(`/matches/${matchData.match.id}/cricket/toss/decision`, { decision });
+      fetchMatch();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to record the toss decision');
+    }
+  };
+
   const handleRecordCricketBall = async (runs: number, extrasType: string = 'none', wicket: boolean = false) => {
     if (!matchData) return;
     const crick = matchData.cricket_state;
@@ -394,6 +421,76 @@ export const OrgLiveScorerPage: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* CRICKET COIN TOSS */}
+      {!isFootball && (
+        <div className="p-6 rounded-3xl glass-panel border border-slate-800 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Coin Toss</span>
+              <h3 className="text-lg font-bold text-white font-heading">Decide Who Bats First</h3>
+            </div>
+            {cricket_state?.toss_winner_team_id && match.status !== 'in_progress' && (
+              <button
+                onClick={handleFlipToss}
+                disabled={isFlippingToss}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs disabled:opacity-50"
+              >
+                Re-flip Coin
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-col items-center gap-4 py-2">
+            <div
+              className={`w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 border-4 border-amber-300/60 shadow-xl shadow-amber-500/20 flex items-center justify-center text-4xl ${isFlippingToss ? 'animate-coin-flip' : ''}`}
+            >
+              🪙
+            </div>
+
+            {isFlippingToss ? (
+              <span className="text-sm font-bold text-amber-300 uppercase tracking-wider">Flipping…</span>
+            ) : !cricket_state?.toss_winner_team_id ? (
+              <button
+                onClick={handleFlipToss}
+                className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/20 hover:scale-[1.02] transition-all"
+              >
+                FLIP COIN
+              </button>
+            ) : (
+              <div className="text-center space-y-3">
+                <p className="text-white font-bold">
+                  <span className="text-amber-400">
+                    {cricket_state.toss_winner_team_id === team_a.id ? team_a.name : team_b.name}
+                  </span>{' '}
+                  won the toss
+                </p>
+
+                {cricket_state.toss_decision ? (
+                  <p className="text-sm text-slate-300">
+                    and elected to <span className="font-bold text-white uppercase">{cricket_state.toss_decision}</span> first
+                  </p>
+                ) : match.status !== 'in_progress' ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => handleTossDecision('bat')}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20"
+                    >
+                      Elects to BAT
+                    </button>
+                    <button
+                      onClick={() => handleTossDecision('bowl')}
+                      className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md shadow-cyan-600/20"
+                    >
+                      Elects to BOWL
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
         </div>
       )}

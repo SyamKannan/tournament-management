@@ -1,19 +1,8 @@
 {
-    "$schema": "https://www.schemastore.org/package.json",
-    "private": true,
-    "type": "module",
-    "scripts": {
-        "build": "vite build",
-        "dev": "vite"
-    },
-    "devDependencies": {
-        "@tailwindcss/vite": "^4.0.0",
-        "concurrently": "^10.0.3",
-        "laravel-vite-plugin": "^3.1",
-        "tailwindcss": "^4.0.0",
-        "vite": "^8.0.0"
-    },
-    "optionalDependencies": {
-        "@laravel/multiplex": "^0.4.1"
-    }
+  "name": "sports-saas-backend",
+  "private": true,
+  "description": "Node side-dependency for Browsershot poster rendering only — the app itself is Laravel. puppeteer-core (no bundled Chromium download) so this stays small and Alpine-safe; point it at a real Chrome/Chromium via POSTER_CHROME_PATH.",
+  "dependencies": {
+    "puppeteer-core": "^23.9.0"
+  }
 }

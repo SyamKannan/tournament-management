@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { SHOW_DEMO_ACCOUNTS } from '../../config';
-import { 
-  Trophy, ShieldCheck, Building2, Lock, Mail, 
+import { AuthShowcase } from '../../components/AuthShowcase';
+import { SPORTS_CAROUSELS } from '../../lib/sportsImagery';
+import {
+  Trophy, ShieldCheck, Building2, Lock, Mail,
   ArrowRight, AlertCircle, Eye, EyeOff, User
 } from 'lucide-react';
 
@@ -91,8 +94,27 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
+    <div className="lg:flex">
+      <AuthShowcase
+        images={SPORTS_CAROUSELS.login}
+        eyebrow="Live Match Control"
+        title={<>Run your tournament like <span className="text-emerald-400">it's matchday.</span></>}
+        description="Live scoring with instant undo, automated standings, and 16:9 broadcast scoreboards — all from one dashboard."
+        stats={[
+          { value: '120+', label: 'Clubs Onboarded' },
+          { value: '500+', label: 'Matches Scored' },
+          { value: '16:9', label: 'TV Broadcast' },
+        ]}
+        accent="emerald"
+      />
+
+    <div className="min-h-[85vh] flex-1 flex items-center justify-center px-4 py-12">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.21, 1.02, 0.73, 1] }}
+        className="w-full max-w-md"
+      >
         {/* Brand Header */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2.5 group mb-3">
@@ -103,7 +125,7 @@ export const LoginPage: React.FC = () => {
             </div>
           </Link>
           <h1 className="text-2xl font-black font-heading text-white tracking-tight">
-            Sign In to Sports SaaS
+            Sign In to Sportivo
           </h1>
           <p className="text-sm text-slate-400 mt-1">
             Access your tournament dashboard, player profile, and live scoreboards
@@ -304,13 +326,22 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Footer Links */}
-        <div className="text-center mt-6 text-xs text-slate-400">
-          Want to register a new sports club or academy?{' '}
-          <Link to="/register-club" className="text-emerald-400 font-bold hover:underline">
-            Register Club Free ↗
-          </Link>
+        <div className="mt-6 p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+          <div>
+            Are you an athlete?{' '}
+            <Link to="/register-player" className="text-cyan-400 font-bold hover:underline">
+              Register as Player ↗
+            </Link>
+          </div>
+          <div>
+            Club or Academy?{' '}
+            <Link to="/register-club" className="text-emerald-400 font-bold hover:underline">
+              Register Club ↗
+            </Link>
+          </div>
         </div>
-      </div>
+      </motion.div>
+    </div>
     </div>
   );
 };

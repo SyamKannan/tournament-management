@@ -362,6 +362,78 @@ class ScoringEngine
     }
 
     /**
+     * Randomly decide who wins the toss. Can be re-flipped any time before the
+     * first ball is bowled — a fresh flip clears any decision already made.
+     *
+     * @throws \RuntimeException when the match does not exist or scoring has already started
+     */
+    public function flipCricketToss(string $matchId): CricketMatchState
+    {
+        $match = GameMatch::find($matchId);
+
+        if (! $match) {
+            throw new \RuntimeException('Match not found');
+        }
+
+        if (! in_array($match->status, ['scheduled', 'toss'], true)) {
+            throw new \RuntimeException('The toss can only be flipped before scoring starts');
+        }
+
+        return DB::transaction(function () use ($matchId, $match) {
+            $state = $this->cricketState($matchId);
+            $state->toss_winner_team_id = random_int(0, 1) === 0 ? $match->team_a_id : $match->team_b_id;
+            $state->toss_decision = null;
+            $state->batting_team_id = $match->team_a_id;
+            $state->bowling_team_id = $match->team_b_id;
+            $state->save();
+
+            if ($match->status === 'scheduled') {
+                $match->status = 'toss';
+                $match->save();
+            }
+
+            return $this->cricketState($matchId);
+        });
+    }
+
+    /**
+     * Record what the toss winner chose to do; derives the batting/bowling
+     * sides from it.
+     *
+     * @throws \RuntimeException when the match does not exist, scoring has already
+     *                            started, or the coin hasn't been flipped yet
+     */
+    public function recordCricketTossDecision(string $matchId, string $decision): CricketMatchState
+    {
+        $match = GameMatch::find($matchId);
+
+        if (! $match) {
+            throw new \RuntimeException('Match not found');
+        }
+
+        if (! in_array($match->status, ['scheduled', 'toss'], true)) {
+            throw new \RuntimeException('The toss decision can only be recorded before scoring starts');
+        }
+
+        return DB::transaction(function () use ($matchId, $match, $decision) {
+            $state = $this->cricketState($matchId);
+
+            if (! $state->toss_winner_team_id) {
+                throw new \RuntimeException('Flip the coin before recording a decision');
+            }
+
+            $otherTeamId = $state->toss_winner_team_id === $match->team_a_id ? $match->team_b_id : $match->team_a_id;
+
+            $state->toss_decision = $decision;
+            $state->batting_team_id = $decision === 'bat' ? $state->toss_winner_team_id : $otherTeamId;
+            $state->bowling_team_id = $decision === 'bat' ? $otherTeamId : $state->toss_winner_team_id;
+            $state->save();
+
+            return $this->cricketState($matchId);
+        });
+    }
+
+    /**
      * @param  array{matchId: string, innings: int, runsScored: int, extras: string, extrasRuns?: ?int, isWicket: bool, wicketType?: ?string, dismissedPlayerId?: ?string, fielderId?: ?string, commentary?: ?string, nextStrikerId?: ?string, strikerId?: ?string, nonStrikerId?: ?string, bowlerId?: ?string}  $params
      * @return array{state: CricketMatchState, delivery: CricketDelivery}
      *

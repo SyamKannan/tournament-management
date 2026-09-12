@@ -81,7 +81,9 @@ class TournamentPaymentService
             $customAmount = $params['customAmount'] ?? null;
 
             $amountToPay = match (true) {
-                $customAmount !== null && $customAmount > 0 => (float) $customAmount,
+                // An explicit amount (including 0, e.g. "pay at ground" — nothing
+                // collected now) always wins over the option-derived default.
+                $customAmount !== null => (float) $customAmount,
                 $paymentOption === 'partial' => (float) ($options['partialAmount'] ?: $options['totalFee']),
                 default => (float) $options['fullAmount'],
             };
@@ -154,7 +156,7 @@ class TournamentPaymentService
                     'total_fee' => $this->money((float) $payment->total_fee),
                     'paid_amount' => $this->money((float) $payment->paid_amount),
                     'remaining_balance' => $this->money((float) $payment->remaining_amount),
-                    'payment_method' => strtoupper((string) $paymentMethod),
+                    'payment_method' => strtoupper(str_replace('_', ' ', (string) $paymentMethod)),
                     'transaction_id' => $payment->transaction_id,
                     'status' => $payment->status,
                     'qr_code_signature' => sprintf(

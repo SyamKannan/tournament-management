@@ -1,21 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import type { Player, PlayerStats, Team, Tournament, Organization } from '../../types';
+import type { Player, PlayerStats, Team, Tournament, Organization, AuctionPlayer } from '../../types';
 import { useToast } from '../../components/ui/Toast';
 import { 
-  Trophy, Award, Activity, Flame, Download, Star
+  Trophy, Award, Activity, Flame, Download, Star, Camera,
+  Gavel, CheckCircle2, Clock
 } from 'lucide-react';
+import { ImageUploadModal } from '../../components/ImageUploadModal';
 
 export const PlayerDashboardPage: React.FC = () => {
   const toast = useToast();
-  const { } = useAuth();
+  const { user } = useAuth();
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [data, setData] = useState<{
     player: Player;
     team?: Team;
     tournament?: Tournament;
     organization?: Organization;
     stats: PlayerStats;
+    auction_entry?: AuctionPlayer | null;
   } | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -47,7 +51,7 @@ export const PlayerDashboardPage: React.FC = () => {
     );
   }
 
-  const { player, team, organization, stats } = data;
+  const { player, team, organization, stats, auction_entry } = data;
   const isFootball = stats.sport_code === 'football';
   const fbStats = stats.football;
   const crickStats = stats.cricket;
@@ -58,12 +62,21 @@ export const PlayerDashboardPage: React.FC = () => {
       <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-slate-800 shadow-2xl relative overflow-hidden">
         <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-6">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left">
-            <div className="relative">
+            <div className="relative group">
               <img
-                src={stats.photo || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=200&auto=format&fit=crop&q=80'}
+                src={stats.photo || user?.avatar || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=200&auto=format&fit=crop&q=80'}
                 alt={player.full_name}
                 className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-cover border-2 border-emerald-500/50 shadow-xl bg-slate-950"
               />
+              <button
+                type="button"
+                onClick={() => setShowPhotoModal(true)}
+                title="Change Profile Photo"
+                className="absolute inset-0 bg-black/60 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[11px] font-bold gap-1 cursor-pointer"
+              >
+                <Camera className="w-5 h-5 text-emerald-400" />
+                <span>Upload</span>
+              </button>
               <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-xl bg-emerald-600 text-white font-black font-mono text-sm flex items-center justify-center border-2 border-slate-950 shadow-md">
                 #{player.jersey_number || 10}
               </div>
@@ -102,6 +115,83 @@ export const PlayerDashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* AUCTION SETTLEMENT & REAL-MONEY DISBURSEMENT STATUS */}
+      {auction_entry && (auction_entry.sold_price || auction_entry.status === 'sold') && (
+        <div className="p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-amber-500/30 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-400">
+                <Gavel className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white font-heading">
+                  Tournament Player Auction & Payment Entitlement
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {data?.tournament?.name || 'Official Tournament'} • Real-money player settlement tracker
+                </p>
+              </div>
+            </div>
+
+            <div>
+              {auction_entry.payment_status === 'paid' ? (
+                <span className="px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>PAYMENT SETTLED (PAID)</span>
+                </span>
+              ) : (
+                <span className="px-3.5 py-1.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 animate-pulse">
+                  <Clock className="w-4 h-4" />
+                  <span>DISBURSEMENT PENDING</span>
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Entitled Auction Amount</span>
+              <div className="text-2xl font-black font-mono text-amber-400 mt-1">
+                ₹{(auction_entry.sold_price || auction_entry.base_price).toLocaleString()}
+              </div>
+              <span className="text-[11px] text-slate-500">Base Price: ₹{auction_entry.base_price.toLocaleString()}</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Drafted Squad / Team</span>
+              <div className="text-lg font-bold text-emerald-400 mt-1 truncate">
+                {auction_entry.sold_to_team_name || team?.name || 'Acquiring Team'}
+              </div>
+              <span className="text-[11px] text-slate-500">Category: {auction_entry.category}</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Real Payout Settlement</span>
+              {auction_entry.payment_status === 'paid' ? (
+                <div className="mt-1 space-y-0.5">
+                  <div className="font-bold text-emerald-400">
+                    Settled via {(auction_entry.payment_method || 'Cash').toUpperCase()}
+                  </div>
+                  {auction_entry.payment_reference && (
+                    <div className="font-mono text-[11px] text-cyan-400">Ref: {auction_entry.payment_reference}</div>
+                  )}
+                  {auction_entry.paid_at && (
+                    <div className="text-[11px] text-slate-500">Paid on {new Date(auction_entry.paid_at).toLocaleDateString()}</div>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-1">
+                  <div className="font-bold text-amber-400">Pending Committee Handover</div>
+                  <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                    Virtual bidding points will be settled in cash/UPI by the tournament committee.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* STATS OVERVIEW CARDS */}
       {isFootball && fbStats ? (
@@ -317,6 +407,29 @@ export const PlayerDashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Profile Photo Upload Modal */}
+      <ImageUploadModal
+        isOpen={showPhotoModal}
+        onClose={() => setShowPhotoModal(false)}
+        title="Upload Player Profile Photo"
+        subtitle="Choose a photo or select an athlete avatar"
+        currentImage={stats.photo || user?.avatar}
+        folder="players"
+        onSuccess={async (newUrl) => {
+          try {
+            await api.post('/players/me/profile', { avatar: newUrl });
+            setData(prev => prev ? {
+              ...prev,
+              stats: { ...prev.stats, photo: newUrl },
+              player: { ...prev.player, photo: newUrl }
+            } : prev);
+            toast.success('Player photo updated successfully!');
+          } catch (err) {
+            console.error('Failed to update player photo', err);
+          }
+        }}
+      />
     </div>
   );
 };

@@ -14,6 +14,7 @@ class GameMatch extends BaseModel
 
     protected $casts = [
         'match_number' => 'integer',
+        'toss_time' => 'datetime',
     ];
 
     public function tournament(): BelongsTo

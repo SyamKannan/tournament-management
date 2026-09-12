@@ -2,13 +2,33 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Tournament, Organization } from '../../types';
-import { 
-  ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, 
-  Plus, Trash2, CreditCard, QrCode, Download, IndianRupee
+import {
+  ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft,
+  Plus, Trash2, CreditCard, Download, Banknote, Camera
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ReceiptModal } from '../../components/ReceiptModal';
+import { ImageUploadModal } from '../../components/ImageUploadModal';
 import { useToast } from '../../components/ui/Toast';
+import type { PaymentMethod } from '../../types';
+import { openRazorpayCheckout, type RazorpayOrder, type RazorpayVerifiedPayment } from '../../utils/razorpay';
+
+const AVATAR_COLORS = [
+  'bg-rose-500/20 text-rose-300', 'bg-amber-500/20 text-amber-300', 'bg-emerald-500/20 text-emerald-300',
+  'bg-cyan-500/20 text-cyan-300', 'bg-blue-500/20 text-blue-300', 'bg-violet-500/20 text-violet-300',
+  'bg-fuchsia-500/20 text-fuchsia-300', 'bg-teal-500/20 text-teal-300',
+];
+
+const getInitials = (name: string) => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  return (parts[0][0] + (parts[1]?.[0] || '')).toUpperCase();
+};
+
+const PAYMENT_METHOD_INFO: Record<PaymentMethod, { label: string; icon: typeof CreditCard; blurb: string }> = {
+  upi: { label: 'Pay Online', icon: CreditCard, blurb: 'UPI, cards & netbanking via Razorpay' },
+  pay_at_ground: { label: 'Pay at Ground', icon: Banknote, blurb: 'Settle the fee in person on match day' }
+};
 
 interface PlayerRow {
   full_name: string;
@@ -19,6 +39,7 @@ interface PlayerRow {
   cricket_role?: string;
   cricket_bowling_style?: string;
   cricket_batting_style?: string;
+  photo?: string;
 }
 
 export const PublicTeamRegisterPage: React.FC = () => {
@@ -52,11 +73,16 @@ export const PublicTeamRegisterPage: React.FC = () => {
 
   // Step 3: Squad Players
   const [players, setPlayers] = useState<PlayerRow[]>([]);
+  const [photoUploadIndex, setPhotoUploadIndex] = useState<number | null>(null);
 
   // Step 4: Payment Option
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<'full' | 'partial'>('partial');
-  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'online' | 'card'>('upi');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  // Shown while the real Razorpay order is created / the payment is being
+  // confirmed after Checkout closes. Falls back to a plain registration
+  // submit (no overlay) when the backend has no Razorpay keys configured.
+  const [paymentStage, setPaymentStage] = useState<'idle' | 'verifying' | 'success'>('idle');
 
   // Step 5: Completed Receipt
   const [completedReceipt, setCompletedReceipt] = useState<any>(null);
@@ -70,6 +96,11 @@ export const PublicTeamRegisterPage: React.FC = () => {
         setTournament(res.tournament);
         setOrganization(res.organization);
         setPaymentOptions(res.payment_options);
+
+        const availableMethods: PaymentMethod[] = res.tournament.payment_config?.enabled_methods?.length
+          ? res.tournament.payment_config.enabled_methods
+          : ['upi', 'razorpay', 'stripe', 'pay_at_ground'];
+        setPaymentMethod(availableMethods[0]);
 
         // Prepopulate default players count (e.g. 7 for football sevens, 11 for cricket)
         const isFb = res.tournament.sport_code === 'football';
@@ -152,8 +183,8 @@ export const PublicTeamRegisterPage: React.FC = () => {
     return true;
   };
 
-  // Submit Final Registration and Payment
-  const handleFinalSubmit = async () => {
+  // Submit registration + record the ground-fee payment against it
+  const submitRegistration = async (verifiedPayment?: RazorpayVerifiedPayment) => {
     setIsProcessingPayment(true);
     try {
       const res = await api.post(`/teams/public/registration/${token}`, {
@@ -175,7 +206,11 @@ export const PublicTeamRegisterPage: React.FC = () => {
         })),
         payment_option: selectedPaymentOption,
         payment_method: paymentMethod,
-        transaction_id: `UPI-QR-${Date.now().toString(36).toUpperCase()}`
+        ...(verifiedPayment && {
+          razorpay_payment_id: verifiedPayment.razorpay_payment_id,
+          razorpay_order_id: verifiedPayment.razorpay_order_id,
+          razorpay_signature: verifiedPayment.razorpay_signature,
+        })
       });
 
       confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 } });
@@ -185,6 +220,44 @@ export const PublicTeamRegisterPage: React.FC = () => {
       toast.error(err.message || 'Registration failed');
     } finally {
       setIsProcessingPayment(false);
+      setPaymentStage('idle');
+    }
+  };
+
+  // Paying at the ground skips straight to registration. Everything else
+  // opens a real Razorpay Checkout (UPI/cards/netbanking) and only submits
+  // the registration once the payment is verified — unless the backend has
+  // no gateway keys configured, in which case it falls back to a plain
+  // registration submit (dev/CI mode, no real charge).
+  const handlePayAndRegister = async () => {
+    if (paymentMethod === 'pay_at_ground') {
+      await submitRegistration();
+      return;
+    }
+
+    setPaymentStage('verifying');
+    try {
+      const order: RazorpayOrder = await api.post(`/teams/public/registration/${token}/payment-order`, {
+        payment_option: selectedPaymentOption
+      });
+
+      if (!order.configured) {
+        await submitRegistration();
+        return;
+      }
+
+      const verified = await openRazorpayCheckout({
+        order,
+        name: tournament.name,
+        description: `Ground fee — ${teamName}`,
+        prefill: { name: managerName, contact: managerPhone, email: managerEmail }
+      });
+
+      setPaymentStage('success');
+      await submitRegistration(verified);
+    } catch (err: any) {
+      toast.error(err.message || 'Payment could not be completed');
+      setPaymentStage('idle');
     }
   };
 
@@ -215,8 +288,12 @@ export const PublicTeamRegisterPage: React.FC = () => {
   const isFootball = tournament.sport_code === 'football';
   const totalGroundFee = tournament.ground_fee || 0;
   const partialAmount = paymentOptions?.partialAmount || Math.round(totalGroundFee / 2);
-  const amountToPayNow = selectedPaymentOption === 'full' ? totalGroundFee : partialAmount;
+  const isPayAtGround = paymentMethod === 'pay_at_ground';
+  const amountToPayNow = isPayAtGround ? 0 : (selectedPaymentOption === 'full' ? totalGroundFee : partialAmount);
   const balanceDue = Math.max(0, totalGroundFee - amountToPayNow);
+  const availablePaymentMethods: PaymentMethod[] = tournament.payment_config?.enabled_methods?.length
+    ? tournament.payment_config.enabled_methods
+    : ['upi', 'pay_at_ground'];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-20">
@@ -470,6 +547,24 @@ export const PublicTeamRegisterPage: React.FC = () => {
               <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
                 {players.map((player, idx) => (
                   <div key={idx} className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPhotoUploadIndex(idx)}
+                      className="relative group w-10 h-10 rounded-full overflow-hidden shrink-0 border border-slate-700"
+                      title="Add player photo (optional)"
+                    >
+                      {player.photo ? (
+                        <img src={player.photo} alt={player.full_name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className={`w-full h-full flex items-center justify-center text-xs font-bold ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}>
+                          {getInitials(player.full_name || `P${idx + 1}`)}
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Camera className="w-3.5 h-3.5 text-white" />
+                      </div>
+                    </button>
+
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                       <span className="w-6 h-6 rounded-full bg-slate-800 text-[11px] font-bold text-slate-400 flex items-center justify-center font-mono">
                         {idx + 1}
@@ -602,78 +697,84 @@ export const PublicTeamRegisterPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Payment Options Selection */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
-                  Select Ground Fee Option
-                </label>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  {/* Full Payment Option */}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPaymentOption('full')}
-                    className={`p-4 rounded-2xl border text-left transition-all ${
-                      selectedPaymentOption === 'full'
-                        ? 'bg-emerald-500/15 border-emerald-500 text-white shadow-md shadow-emerald-500/10'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-bold text-sm">Full Payment (100%)</span>
-                      <span className="font-mono text-base font-black text-emerald-400">₹{totalGroundFee.toLocaleString()}</span>
-                    </div>
-                    <p className="text-[11px] text-slate-400">Pay complete ground fee in advance. Instant fully-paid confirmation.</p>
-                  </button>
-
-                  {/* Partial 50% Payment Option */}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPaymentOption('partial')}
-                    className={`p-4 rounded-2xl border text-left transition-all ${
-                      selectedPaymentOption === 'partial'
-                        ? 'bg-amber-500/15 border-amber-500 text-white shadow-md shadow-amber-500/10'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-bold text-sm">Partial Advance (50%)</span>
-                      <span className="font-mono text-base font-black text-amber-400">₹{partialAmount.toLocaleString()}</span>
-                    </div>
-                    <p className="text-[11px] text-slate-400">Pay ₹{partialAmount.toLocaleString()} now. Remaining ₹{balanceDue.toLocaleString()} due at match venue.</p>
-                  </button>
-                </div>
-              </div>
-
               {/* Payment Methods */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
                   Select Payment Method
                 </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { id: 'upi', label: 'UPI QR / GPay', icon: QrCode },
-                    { id: 'online', label: 'Debit / Credit Card', icon: CreditCard },
-                    { id: 'card', label: 'Net Banking', icon: IndianRupee }
-                  ].map(m => {
-                    const Icon = m.icon;
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {availablePaymentMethods.map(id => {
+                    const info = PAYMENT_METHOD_INFO[id];
+                    const Icon = info.icon;
                     return (
                       <button
-                        key={m.id}
+                        key={id}
                         type="button"
-                        onClick={() => setPaymentMethod(m.id as any)}
+                        onClick={() => setPaymentMethod(id)}
                         className={`p-3 rounded-2xl border text-center text-xs font-semibold flex flex-col items-center gap-1.5 transition-all ${
-                          paymentMethod === m.id
+                          paymentMethod === id
                             ? 'bg-slate-800 border-emerald-500 text-emerald-400'
                             : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
                         }`}
                       >
                         <Icon className="w-5 h-5" />
-                        <span>{m.label}</span>
+                        <span>{info.label}</span>
+                        <span className="text-[10px] font-normal text-slate-500">{info.blurb}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
+
+              {/* Payment Options Selection — not applicable when settling at the ground */}
+              {!isPayAtGround && (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
+                    Select Ground Fee Option
+                  </label>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {/* Full Payment Option */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPaymentOption('full')}
+                      className={`p-4 rounded-2xl border text-left transition-all ${
+                        selectedPaymentOption === 'full'
+                          ? 'bg-emerald-500/15 border-emerald-500 text-white shadow-md shadow-emerald-500/10'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold text-sm">Full Payment (100%)</span>
+                        <span className="font-mono text-base font-black text-emerald-400">₹{totalGroundFee.toLocaleString()}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">Pay complete ground fee in advance. Instant fully-paid confirmation.</p>
+                    </button>
+
+                    {/* Partial 50% Payment Option */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPaymentOption('partial')}
+                      className={`p-4 rounded-2xl border text-left transition-all ${
+                        selectedPaymentOption === 'partial'
+                          ? 'bg-amber-500/15 border-amber-500 text-white shadow-md shadow-amber-500/10'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold text-sm">Partial Advance (50%)</span>
+                        <span className="font-mono text-base font-black text-amber-400">₹{partialAmount.toLocaleString()}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">Pay ₹{partialAmount.toLocaleString()} now. Remaining ₹{balanceDue.toLocaleString()} due at match venue.</p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {isPayAtGround && (
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+                  You'll pay the full ₹{totalGroundFee.toLocaleString()} ground fee in cash or UPI when your team arrives at the venue. Nothing is charged now.
+                </div>
+              )}
 
               {/* Pay Now Callout */}
               <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-emerald-500/30 flex items-center justify-between">
@@ -685,12 +786,18 @@ export const PublicTeamRegisterPage: React.FC = () => {
 
                 <button
                   type="button"
-                  disabled={isProcessingPayment}
-                  onClick={handleFinalSubmit}
+                  disabled={isProcessingPayment || paymentStage !== 'idle'}
+                  onClick={handlePayAndRegister}
                   className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  <span>{isProcessingPayment ? 'Verifying...' : `Pay ₹${amountToPayNow.toLocaleString()} & Register`}</span>
+                  <span>
+                    {isProcessingPayment || paymentStage !== 'idle'
+                      ? 'Processing...'
+                      : isPayAtGround
+                        ? 'Register — Pay at Ground'
+                        : `Pay ₹${amountToPayNow.toLocaleString()} & Register`}
+                  </span>
                 </button>
               </div>
 
@@ -764,12 +871,64 @@ export const PublicTeamRegisterPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Player Photo Upload — optional, defaults to an initials avatar */}
+      {photoUploadIndex !== null && (
+        <ImageUploadModal
+          isOpen={photoUploadIndex !== null}
+          onClose={() => setPhotoUploadIndex(null)}
+          onSuccess={(url) => {
+            handlePlayerChange(photoUploadIndex, 'photo', url);
+            setPhotoUploadIndex(null);
+          }}
+          title="Upload Player Photo"
+          subtitle="Optional — leave unset to use a default avatar"
+          currentImage={players[photoUploadIndex]?.photo}
+          folder="players"
+          aspectRatio="square"
+        />
+      )}
+
       {/* Official Receipt Modal */}
       {showReceiptModal && (
         <ReceiptModal
           receipt={completedReceipt}
           onClose={() => setShowReceiptModal(false)}
         />
+      )}
+
+      {/* Shown while the Razorpay order is created / the payment is being
+          confirmed — the actual UPI/card checkout happens in Razorpay's own
+          popup, opened separately. */}
+      {paymentStage !== 'idle' && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-4 animate-in fade-in">
+          <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-8 text-center space-y-5">
+            {paymentStage === 'success' ? (
+              <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center mx-auto animate-in zoom-in-95">
+                <CheckCircle2 className="w-8 h-8" />
+              </div>
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center mx-auto relative">
+                {(() => {
+                  const Icon = PAYMENT_METHOD_INFO[paymentMethod].icon;
+                  return <Icon className="w-7 h-7 text-emerald-400" />;
+                })()}
+                <div className="absolute inset-0 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+              </div>
+            )}
+
+            <div>
+              <h3 className="text-sm font-bold text-white font-heading">
+                {paymentStage === 'verifying' && 'Processing Payment...'}
+                {paymentStage === 'success' && 'Payment Confirmed!'}
+              </h3>
+              <p className="text-xs text-slate-400 mt-1.5">
+                {paymentStage === 'success'
+                  ? `₹${amountToPayNow.toLocaleString()} received. Finishing your registration...`
+                  : `Completing your ₹${amountToPayNow.toLocaleString()} payment via ${PAYMENT_METHOD_INFO[paymentMethod].label}.`}
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

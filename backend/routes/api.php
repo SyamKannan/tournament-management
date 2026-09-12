@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SponsorController;
 use App\Http\Controllers\Api\TeamController;
 use App\Http\Controllers\Api\TournamentController;
+use App\Http\Controllers\Api\UploadController;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
@@ -33,6 +34,7 @@ use Illuminate\Support\Facades\Route;
 /* ------------------------------------------------------------------ Platform */
 
 Route::get('plans', [PlatformController::class, 'plans']);
+Route::get('sports', [PlatformController::class, 'sports']);
 Route::get('health', [PlatformController::class, 'health']);
 
 // Restores the demo dataset. Local and staging only — never expose in production.
@@ -53,6 +55,7 @@ Route::prefix('auth')->group(function () {
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
     Route::post('switch-demo-role', [AuthController::class, 'switchDemoRole'])->middleware('throttle:20,1');
     Route::post('register-org', [AuthController::class, 'registerOrganization'])->middleware('throttle:5,1');
+    Route::post('register-player', [AuthController::class, 'registerPlayer'])->middleware('throttle:10,1');
     Route::get('me', [AuthController::class, 'me']);
 });
 
@@ -66,9 +69,14 @@ Route::prefix('admin')->middleware(['auth.required', 'role:SUPER_ADMIN'])->group
     Route::put('plans/{id}', [AdminController::class, 'updatePlan']);
     Route::delete('plans/{id}', [AdminController::class, 'destroyPlan']);
 
+    Route::get('sports', [AdminController::class, 'listSports']);
+    Route::put('sports/{id}', [AdminController::class, 'updateSport']);
+
     Route::get('organizations', [AdminController::class, 'listOrganizations']);
     Route::post('organizations', [AdminController::class, 'storeOrganization']);
     Route::put('organizations/{id}/status', [AdminController::class, 'updateOrganizationStatus']);
+
+    Route::get('users', [AdminController::class, 'listUsers']);
 
     Route::get('subscriptions', [AdminController::class, 'listSubscriptions']);
     Route::get('invoices', [AdminController::class, 'listInvoices']);
@@ -76,6 +84,9 @@ Route::prefix('admin')->middleware(['auth.required', 'role:SUPER_ADMIN'])->group
 
     Route::get('settings', [AdminController::class, 'settings']);
     Route::put('settings', [AdminController::class, 'updateSettings']);
+
+    Route::post('impersonate', [AdminController::class, 'impersonate']);
+    Route::get('impersonate/targets', [AdminController::class, 'impersonationTargets']);
 });
 
 /* -------------------------------------------------------------- Organizations */
@@ -88,6 +99,7 @@ Route::prefix('organizations')->group(function () {
         Route::get('{id}', [OrganizationController::class, 'show']);
         Route::put('{id}', [OrganizationController::class, 'update']);
         Route::get('{id}/usage', [OrganizationController::class, 'usage']);
+        Route::post('{id}/subscribe/order', [OrganizationController::class, 'subscribeOrder']);
         Route::post('{id}/subscribe', [OrganizationController::class, 'subscribe']);
     });
 });
@@ -105,6 +117,7 @@ Route::prefix('tournaments')->group(function () {
         Route::delete('{id}', [TournamentController::class, 'destroy']);
         Route::put('{id}/auction', [TournamentController::class, 'configureAuction']);
         Route::post('{id}/registration-link', [TournamentController::class, 'registrationLink']);
+        Route::post('{id}/poster', [TournamentController::class, 'generatePoster']);
     });
 });
 
@@ -112,6 +125,7 @@ Route::prefix('tournaments')->group(function () {
 
 Route::prefix('teams')->group(function () {
     Route::get('public/registration/{token}', [TeamController::class, 'registrationPage']);
+    Route::post('public/registration/{token}/payment-order', [TeamController::class, 'paymentOrder'])->middleware('throttle:10,1');
     Route::post('public/registration/{token}', [TeamController::class, 'register'])->middleware('throttle:10,1');
 
     Route::get('tournament/{tournamentId}', [TeamController::class, 'forTournament'])->middleware('auth.required');
@@ -143,6 +157,8 @@ Route::prefix('matches')->group(function () {
         Route::post('{id}/football/timer', [MatchController::class, 'controlFootballTimer']);
         Route::post('{id}/football/undo', [MatchController::class, 'undoFootballEvent']);
 
+        Route::post('{id}/cricket/toss/flip', [MatchController::class, 'flipCricketToss']);
+        Route::post('{id}/cricket/toss/decision', [MatchController::class, 'recordCricketTossDecision']);
         Route::post('{id}/cricket/ball', [MatchController::class, 'recordCricketBall']);
         Route::post('{id}/cricket/undo', [MatchController::class, 'undoCricketBall']);
         Route::post('{id}/cricket/switch-innings', [MatchController::class, 'switchInnings']);
@@ -168,6 +184,7 @@ Route::prefix('auctions')->group(function () {
 
     Route::get('{id}', [AuctionController::class, 'show']);
     Route::get('{id}/summary', [AuctionController::class, 'summary']);
+    Route::get('{id}/payment-report', [AuctionController::class, 'paymentReport']);
 
     Route::middleware('auth.required')->group(function () {
         Route::post('{id}/status', [AuctionController::class, 'updateStatus']);
@@ -180,6 +197,8 @@ Route::prefix('auctions')->group(function () {
         Route::post('{id}/players/{playerId}/approve', [AuctionController::class, 'approvePlayer']);
         Route::post('{id}/players/{playerId}/reject', [AuctionController::class, 'rejectPlayer']);
         Route::delete('{id}/players/{playerId}', [AuctionController::class, 'removePlayer']);
+        Route::post('{id}/players/{playerId}/payment', [AuctionController::class, 'updatePlayerPayment']);
+        Route::post('{id}/payments/bulk-update', [AuctionController::class, 'bulkUpdatePayments']);
     });
 });
 
@@ -206,10 +225,24 @@ Route::prefix('sponsors')->group(function () {
     });
 });
 
+/* ------------------------------------------------------------------- Media Uploads */
+
+Route::post('upload', [UploadController::class, 'upload'])->middleware('throttle:60,1');
+
+/* ------------------------------------------------------------- Organizations */
+
+Route::prefix('organizations')->group(function () {
+    Route::get('{slug}/public', [OrganizationController::class, 'publicProfile']);
+    Route::get('{id}', [OrganizationController::class, 'show']);
+    Route::put('{id}', [OrganizationController::class, 'update'])->middleware('auth.required');
+    Route::get('{id}/usage', [OrganizationController::class, 'usage'])->middleware('auth.required');
+});
+
 /* ------------------------------------------------------------------- Players */
 
 Route::prefix('players')->group(function () {
     Route::get('me/dashboard', [PlayerController::class, 'dashboard'])->middleware('auth.required');
+    Route::post('me/profile', [PlayerController::class, 'updateProfile'])->middleware('auth.required');
     Route::get('tournament/{tournamentId}/leaderboard', [PlayerController::class, 'leaderboard']);
     Route::get('{id}/profile', [PlayerController::class, 'profile']);
 });

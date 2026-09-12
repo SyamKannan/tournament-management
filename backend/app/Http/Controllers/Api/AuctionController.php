@@ -97,6 +97,9 @@ class AuctionController extends Controller
         $players = AuctionPlayer::query()->where('auction_id', $auction->id)->get();
         $sold = $players->where('status', 'sold')->sortByDesc('sold_price')->values();
         $totalSpent = (float) $sold->sum('sold_price');
+        $paidPlayers = $sold->where('payment_status', 'paid');
+        $totalPaid = (float) $paidPlayers->sum(fn ($p) => (float) ($p->payment_amount ?? $p->sold_price ?? 0));
+        $totalPending = max(0, $totalSpent - $totalPaid);
 
         return response()->json([
             'auction' => $auction,
@@ -112,6 +115,12 @@ class AuctionController extends Controller
                 'average_price' => $sold->count() > 0 ? (int) round($totalSpent / $sold->count()) : 0,
                 'highest_bid' => $sold->first()->sold_price ?? 0,
                 'highest_bid_player' => $sold->first(),
+                'total_entitled_amount' => $totalSpent,
+                'total_paid_amount' => $totalPaid,
+                'total_pending_amount' => $totalPending,
+                'paid_players_count' => $paidPlayers->count(),
+                'pending_players_count' => $sold->where('payment_status', '!=', 'paid')->count(),
+                'settlement_percentage' => $totalSpent > 0 ? round(($totalPaid / $totalSpent) * 100, 1) : 0,
             ],
             'sold_players' => $sold,
             'unsold_players' => $players->where('status', 'unsold')->values(),
@@ -630,6 +639,8 @@ class AuctionController extends Controller
                 'sold_price' => $finalPrice,
                 'sold_to_team_id' => $auction->current_bid_team_id,
                 'sold_to_team_name' => $team?->name ?? 'Unknown Team',
+                'payment_status' => 'pending',
+                'payment_amount' => $finalPrice,
             ]);
 
             if ($team) {
@@ -806,6 +817,201 @@ class AuctionController extends Controller
         return response()->json([
             'message' => "Auction status updated to {$data['status']}",
             'auction' => $auction,
+        ]);
+    }
+
+    /**
+     * Post-auction player payment report and settlement summary.
+     *
+     * In virtual-money auctions, team purses are bidding points. After the auction
+     * finishes, the final hammer price forms the player's real-money entitlement.
+     * This endpoint produces the full disbursement roster and settlement status.
+     */
+    public function paymentReport(string $id): JsonResponse
+    {
+        $auction = Auction::find($id) ?? Auction::query()->first();
+
+        if (! $auction) {
+            return response()->json(['error' => 'Auction not found'], 404);
+        }
+
+        $tournament = Tournament::find($auction->tournament_id) ?? Tournament::query()->first();
+        $organization = Organization::find($auction->organization_id) ?? Organization::query()->first();
+        $players = AuctionPlayer::query()->where('auction_id', $auction->id)->get();
+        $soldPlayers = $players->where('status', 'sold')->sortByDesc('sold_price')->values();
+
+        $totalEntitled = (float) $soldPlayers->sum('sold_price');
+        $paidPlayers = $soldPlayers->where('payment_status', 'paid');
+        $pendingPlayers = $soldPlayers->where('payment_status', '!=', 'paid');
+        $totalPaid = (float) $paidPlayers->sum(fn ($p) => (float) ($p->payment_amount ?? $p->sold_price ?? 0));
+        $totalPending = max(0, $totalEntitled - $totalPaid);
+
+        // Group disbursements by acquiring team
+        $teams = Team::query()->where('tournament_id', $auction->tournament_id)->get();
+        if ($teams->isEmpty()) {
+            $teams = Team::query()->where('organization_id', $auction->organization_id)->get();
+        }
+
+        $teamSummaries = $teams->map(function (Team $team) use ($soldPlayers, $auction) {
+            $teamSold = $soldPlayers->where('sold_to_team_id', $team->id);
+            $entitled = (float) $teamSold->sum('sold_price');
+            $paid = (float) $teamSold->where('payment_status', 'paid')->sum(fn ($p) => (float) ($p->payment_amount ?? $p->sold_price ?? 0));
+            $pending = max(0, $entitled - $paid);
+
+            return [
+                'team_id' => $team->id,
+                'team_name' => $team->name,
+                'logo' => $team->logo,
+                'manager_name' => $team->manager_name ?? '',
+                'manager_phone' => $team->manager_phone ?? '',
+                'virtual_purse' => $auction->team_purse,
+                'virtual_spent' => $entitled,
+                'virtual_remaining' => max(0, $auction->team_purse - $entitled),
+                'players_acquired_count' => $teamSold->count(),
+                'total_player_entitlement' => $entitled,
+                'paid_amount' => $paid,
+                'pending_amount' => $pending,
+                'paid_count' => $teamSold->where('payment_status', 'paid')->count(),
+                'pending_count' => $teamSold->where('payment_status', '!=', 'paid')->count(),
+            ];
+        })->values()->all();
+
+        return response()->json([
+            'auction' => $auction,
+            'tournament' => $tournament,
+            'organization' => $organization,
+            'summary' => [
+                'total_sold_players' => $soldPlayers->count(),
+                'total_entitled_amount' => $totalEntitled,
+                'total_paid_amount' => $totalPaid,
+                'total_pending_amount' => $totalPending,
+                'paid_players_count' => $paidPlayers->count(),
+                'pending_players_count' => $pendingPlayers->count(),
+                'settlement_percentage' => $totalEntitled > 0 ? round(($totalPaid / $totalEntitled) * 100, 1) : 0,
+                'average_player_payout' => $soldPlayers->count() > 0 ? (int) round($totalEntitled / $soldPlayers->count()) : 0,
+                'highest_payout' => (float) ($soldPlayers->first()?->sold_price ?? 0),
+                'highest_payout_player' => $soldPlayers->first(),
+            ],
+            'team_summaries' => $teamSummaries,
+            'sold_players' => $soldPlayers,
+            'virtual_money_disclaimer' => 'Virtual money used during bidding has no cash value. Real-money disbursements to players are settled separately by the tournament organizer.',
+        ]);
+    }
+
+    /**
+     * Record or toggle a player's real-money payment settlement status.
+     */
+    public function updatePlayerPayment(Request $request, string $id, string $playerId): JsonResponse
+    {
+        $auction = Auction::find($id);
+
+        if (! $auction) {
+            return response()->json(['error' => 'Auction not found'], 404);
+        }
+
+        if ($denied = $this->denyNonAuctioneer($request, $auction)) {
+            return $denied;
+        }
+
+        $player = AuctionPlayer::query()->whereKey($playerId)->where('auction_id', $auction->id)->first();
+
+        if (! $player) {
+            return response()->json(['error' => 'Player not found in this auction pool'], 404);
+        }
+
+        $data = $request->validate([
+            'payment_status' => ['required', 'string', 'in:pending,paid'],
+            'payment_amount' => ['nullable', 'numeric', 'min:0'],
+            'payment_method' => ['nullable', 'string', 'in:cash,upi,bank_transfer,cheque,other'],
+            'payment_reference' => ['nullable', 'string', 'max:255'],
+            'payment_notes' => ['nullable', 'string', 'max:1000'],
+            'paid_at' => ['nullable', 'string'],
+        ]);
+
+        $status = $data['payment_status'];
+        $amount = isset($data['payment_amount']) ? (float) $data['payment_amount'] : ($player->sold_price ?? $player->base_price);
+        $paidAt = $status === 'paid' ? ($data['paid_at'] ?? now()->format('Y-m-d\TH:i:s.v\Z')) : null;
+
+        $player->fill([
+            'payment_status' => $status,
+            'payment_amount' => $amount,
+            'payment_method' => $status === 'paid' ? ($data['payment_method'] ?? $player->payment_method ?? 'cash') : null,
+            'payment_reference' => $status === 'paid' ? ($data['payment_reference'] ?? $player->payment_reference) : null,
+            'payment_notes' => $data['payment_notes'] ?? $player->payment_notes,
+            'paid_at' => $paidAt,
+            'paid_by_user_id' => $status === 'paid' ? $request->user()->id : null,
+        ])->save();
+
+        $this->realtime->toRoom("auction:{$auction->id}", 'PLAYER_PAYMENT_UPDATED', [
+            'player' => $player,
+            'payment_status' => $status,
+        ]);
+
+        return response()->json([
+            'message' => "Player payment marked as {$status}",
+            'player' => $player,
+        ]);
+    }
+
+    /**
+     * Batch update payment settlement status for multiple or all sold players.
+     */
+    public function bulkUpdatePayments(Request $request, string $id): JsonResponse
+    {
+        $auction = Auction::find($id);
+
+        if (! $auction) {
+            return response()->json(['error' => 'Auction not found'], 404);
+        }
+
+        if ($denied = $this->denyNonAuctioneer($request, $auction)) {
+            return $denied;
+        }
+
+        $data = $request->validate([
+            'player_ids' => ['nullable', 'array'],
+            'player_ids.*' => ['string'],
+            'payment_status' => ['required', 'string', 'in:pending,paid'],
+            'payment_method' => ['nullable', 'string', 'in:cash,upi,bank_transfer,cheque,other'],
+            'payment_reference' => ['nullable', 'string', 'max:255'],
+            'payment_notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $query = AuctionPlayer::query()
+            ->where('auction_id', $auction->id)
+            ->where('status', 'sold');
+
+        if (! empty($data['player_ids'])) {
+            $query->whereIn('id', $data['player_ids']);
+        }
+
+        $players = $query->get();
+        $status = $data['payment_status'];
+        $now = now()->format('Y-m-d\TH:i:s.v\Z');
+        $userId = $request->user()->id;
+
+        DB::transaction(function () use ($players, $status, $data, $now, $userId) {
+            foreach ($players as $player) {
+                $player->fill([
+                    'payment_status' => $status,
+                    'payment_amount' => $player->sold_price ?? $player->base_price,
+                    'payment_method' => $status === 'paid' ? ($data['payment_method'] ?? 'cash') : null,
+                    'payment_reference' => $status === 'paid' ? ($data['payment_reference'] ?? null) : null,
+                    'payment_notes' => $data['payment_notes'] ?? null,
+                    'paid_at' => $status === 'paid' ? $now : null,
+                    'paid_by_user_id' => $status === 'paid' ? $userId : null,
+                ])->save();
+            }
+        });
+
+        $this->realtime->toRoom("auction:{$auction->id}", 'PLAYER_PAYMENTS_BULK_UPDATED', [
+            'payment_status' => $status,
+            'count' => $players->count(),
+        ]);
+
+        return response()->json([
+            'message' => "Updated payment status to {$status} for {$players->count()} players",
+            'count' => $players->count(),
         ]);
     }
 

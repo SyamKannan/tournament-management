@@ -22,6 +22,8 @@ backend/storage/logs/*
 backend/bootstrap/cache/*
 backend/public/storage
 backend/public/hot
+backend/public/uploads/*
+!backend/public/uploads/.gitkeep
 
 # Local database
 *.sqlite

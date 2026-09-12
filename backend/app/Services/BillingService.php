@@ -79,6 +79,28 @@ class BillingService
         ], fn ($value) => $value !== null);
     }
 
+    /**
+     * The organization's current plan cap for a metered resource, or null when
+     * there is no active subscription (unlimited/ungated in that case).
+     */
+    public function planLimitFor(string $organizationId, string $resource): ?int
+    {
+        $subscription = $this->activeSubscription($organizationId);
+        $plan = $subscription ? Plan::find($subscription->plan_id) : null;
+
+        if (! $plan) {
+            return null;
+        }
+
+        return match ($resource) {
+            'tournaments' => $plan->tournament_limit,
+            'teams' => $plan->team_limit,
+            'players' => $plan->player_limit,
+            'ads' => $plan->ad_limit,
+            default => null,
+        };
+    }
+
     public function hasFeature(string $organizationId, string $feature): bool
     {
         $subscription = $this->activeSubscription($organizationId);
@@ -134,11 +156,18 @@ class BillingService
     /**
      * Start or change an organization's plan and raise the matching invoice.
      *
+     * @param  string|null  $verifiedTransactionReference  A gateway-verified payment
+     *                                                      reference (e.g. a Razorpay
+     *                                                      payment id). When omitted, a
+     *                                                      reference is fabricated —
+     *                                                      today's simulated behavior,
+     *                                                      used for free plans and while
+     *                                                      no payment gateway is configured.
      * @return array{subscription: Subscription, invoice: Invoice}
      *
      * @throws \RuntimeException when the plan or organization does not exist
      */
-    public function subscribePlan(string $organizationId, string $planId, string $paymentMethod = 'upi'): array
+    public function subscribePlan(string $organizationId, string $planId, string $paymentMethod = 'upi', ?string $verifiedTransactionReference = null): array
     {
         $plan = Plan::find($planId);
         $organization = Organization::find($organizationId);
@@ -147,7 +176,7 @@ class BillingService
             throw new \RuntimeException('Plan or Organization not found');
         }
 
-        return DB::transaction(function () use ($plan, $organization, $organizationId, $paymentMethod) {
+        return DB::transaction(function () use ($plan, $organization, $organizationId, $paymentMethod, $verifiedTransactionReference) {
             $isRecurring = $plan->billing_type === 'recurring';
             $durationDays = match ($plan->billing_interval) {
                 'yearly' => 365,
@@ -191,7 +220,7 @@ class BillingService
                 'currency' => $plan->currency,
                 'status' => 'paid',
                 'payment_method' => $paymentMethod,
-                'transaction_reference' => 'TXN-'.strtoupper(Ids::token(8)),
+                'transaction_reference' => $verifiedTransactionReference ?? 'TXN-'.strtoupper(Ids::token(8)),
                 'billing_name' => $organization->name,
                 'billing_email' => $organization->email,
                 'billing_address' => "{$organization->address}, {$organization->district}, {$organization->state}",

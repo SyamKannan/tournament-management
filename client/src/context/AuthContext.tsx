@@ -12,9 +12,12 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isWsConnected: boolean;
+  isImpersonating: boolean;
   latestAnnouncement: Announcement | null;
   login: (email: string, password: string) => Promise<{ user: User; organization: Organization | null }>;
   registerOrg: (data: any) => Promise<{ user: User; organization: Organization }>;
+  impersonate: (options: { userId?: string; organizationId?: string }) => Promise<{ user: User; organization: Organization | null }>;
+  stopImpersonating: () => Promise<void>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
 }
@@ -25,6 +28,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('sports_saas_token'));
+  const [isImpersonating, setIsImpersonating] = useState<boolean>(() => !!localStorage.getItem('sports_saas_impersonator_token'));
   const [role, setRole] = useState<UserRole>('PUBLIC_USER');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isWsConnected, setIsWsConnected] = useState<boolean>(false);
@@ -51,11 +55,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err) {
       console.warn('Session expired or invalid, logging out');
       localStorage.removeItem('sports_saas_token');
+      localStorage.removeItem('sports_saas_impersonator_token');
       localStorage.removeItem('sports_saas_demo_role');
       localStorage.removeItem('sports_saas_demo_org_id');
       setUser(null);
       setOrganization(null);
       setToken(null);
+      setIsImpersonating(false);
       setRole('PUBLIC_USER');
     } finally {
       setIsLoading(false);
@@ -106,10 +112,69 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const impersonate = async (options: { userId?: string; organizationId?: string }) => {
+    setIsLoading(true);
+    try {
+      const currentToken = localStorage.getItem('sports_saas_token');
+      if (!localStorage.getItem('sports_saas_impersonator_token') && currentToken) {
+        localStorage.setItem('sports_saas_impersonator_token', currentToken);
+      }
+
+      const res = await api.post('/admin/impersonate', {
+        user_id: options.userId,
+        organization_id: options.organizationId,
+      });
+
+      if (res.token) {
+        localStorage.setItem('sports_saas_token', res.token);
+        localStorage.setItem('sports_saas_demo_role', res.user.role);
+        if (res.user.organization_id) {
+          localStorage.setItem('sports_saas_demo_org_id', res.user.organization_id);
+        }
+        setToken(res.token);
+        setUser(res.user);
+        setOrganization(res.organization || null);
+        setRole(res.user.role);
+        setIsImpersonating(true);
+        return { user: res.user, organization: res.organization || null };
+      }
+      throw new Error('Impersonation failed to return a valid token');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const stopImpersonating = async () => {
+    setIsLoading(true);
+    try {
+      const originalToken = localStorage.getItem('sports_saas_impersonator_token');
+      if (originalToken) {
+        localStorage.setItem('sports_saas_token', originalToken);
+        localStorage.removeItem('sports_saas_impersonator_token');
+        localStorage.removeItem('sports_saas_demo_role');
+        localStorage.removeItem('sports_saas_demo_org_id');
+        setIsImpersonating(false);
+        setToken(originalToken);
+
+        const res = await api.get('/auth/me');
+        setUser(res.user);
+        setOrganization(res.organization || null);
+        setRole(res.user.role);
+      }
+    } catch (err) {
+      console.error('Failed to stop impersonation cleanly', err);
+      fetchCurrentUser();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('sports_saas_token');
+    localStorage.removeItem('sports_saas_impersonator_token');
     localStorage.removeItem('sports_saas_demo_role');
     localStorage.removeItem('sports_saas_demo_org_id');
+    setIsImpersonating(false);
     setUser(null);
     setOrganization(null);
     setToken(null);
@@ -176,9 +241,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isAuthenticated: !!user && !!token,
         isLoading,
         isWsConnected,
+        isImpersonating,
         latestAnnouncement,
         login,
         registerOrg,
+        impersonate,
+        stopImpersonating,
         logout,
         refreshProfile: fetchCurrentUser
       }}

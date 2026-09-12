@@ -11,12 +11,14 @@ use App\Models\GameMatch;
 use App\Models\Organization;
 use App\Models\RegistrationLink;
 use App\Models\Sponsor;
+use App\Models\Sport;
 use App\Models\Standing;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\Venue;
 use App\Services\AuctionService;
 use App\Services\BillingService;
+use App\Services\PosterService;
 use App\Support\Audit;
 use App\Support\Ids;
 use Illuminate\Http\JsonResponse;
@@ -28,6 +30,7 @@ class TournamentController extends Controller
     public function __construct(
         private readonly BillingService $billing,
         private readonly AuctionService $auctions,
+        private readonly PosterService $posters,
     ) {}
 
     /**
@@ -132,9 +135,13 @@ class TournamentController extends Controller
             ], 403);
         }
 
+        $teamLimit = $this->billing->planLimitFor($organizationId, 'teams');
+
+        $activeSportCodes = Sport::query()->where('is_active', true)->pluck('code')->all();
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'sport_code' => ['required', 'string', 'in:football,cricket'],
+            'sport_code' => ['required', 'string', 'in:'.implode(',', $activeSportCodes)],
             'sport_id' => ['nullable', 'string'],
             'description' => ['nullable', 'string'],
             'location' => ['nullable', 'string', 'max:255'],
@@ -150,9 +157,11 @@ class TournamentController extends Controller
             'registration_opening' => ['nullable', 'string'],
             'registration_closing' => ['nullable', 'string'],
             'format' => ['nullable', 'string', 'in:league,knockout,group_stage,league_knockout'],
-            'max_teams' => ['nullable', 'integer', 'min:2'],
+            'max_teams' => ['nullable', 'integer', 'min:2', $this->maxTeamsRule($teamLimit)],
             'ground_fee' => ['nullable', 'numeric', 'min:0'],
             'payment_config' => ['nullable', 'array'],
+            'payment_config.enabled_methods' => ['nullable', 'array'],
+            'payment_config.enabled_methods.*' => ['string', 'in:'.implode(',', Tournament::PAYMENT_METHODS)],
             'prize_money' => ['nullable', 'numeric', 'min:0'],
             'runner_up_prize' => ['nullable', 'numeric', 'min:0'],
             'contact_person' => ['nullable', 'string', 'max:255'],
@@ -201,6 +210,9 @@ class TournamentController extends Controller
                     'allow_partial' => (bool) ($paymentConfig['allow_partial'] ?? true),
                     'min_partial_type' => $paymentConfig['min_partial_type'] ?? 'percentage',
                     'min_partial_value' => (float) ($paymentConfig['min_partial_value'] ?? 50),
+                    'enabled_methods' => ! empty($paymentConfig['enabled_methods'])
+                        ? array_values(array_intersect($paymentConfig['enabled_methods'], Tournament::PAYMENT_METHODS))
+                        : Tournament::PAYMENT_METHODS,
                 ],
                 'prize_money' => (float) ($data['prize_money'] ?? 0),
                 'runner_up_prize' => (float) ($data['runner_up_prize'] ?? 0),
@@ -287,6 +299,8 @@ class TournamentController extends Controller
             return $denied;
         }
 
+        $teamLimit = $this->billing->planLimitFor($tournament->organization_id, 'teams');
+
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'description' => ['sometimes', 'nullable', 'string'],
@@ -303,7 +317,7 @@ class TournamentController extends Controller
             'registration_opening' => ['sometimes', 'string'],
             'registration_closing' => ['sometimes', 'string'],
             'format' => ['sometimes', 'string', 'in:league,knockout,group_stage,league_knockout'],
-            'max_teams' => ['sometimes', 'integer', 'min:2'],
+            'max_teams' => ['sometimes', 'integer', 'min:2', $this->maxTeamsRule($teamLimit)],
             'ground_fee' => ['sometimes', 'numeric', 'min:0'],
             'payment_config' => ['sometimes', 'array'],
             'prize_money' => ['sometimes', 'numeric', 'min:0'],
@@ -498,7 +512,71 @@ class TournamentController extends Controller
         return response()->json($link);
     }
 
+    /**
+     * Generate (or regenerate) a shareable poster for the tournament, laying
+     * out the organization's logo/name and the tournament's own details onto
+     * a template picked by sport. Saved on the tournament so it survives
+     * without regenerating on every page view.
+     */
+    public function generatePoster(Request $request, string $id): JsonResponse
+    {
+        $tournament = Tournament::find($id);
+
+        if (! $tournament) {
+            return response()->json(['error' => 'Tournament not found'], 404);
+        }
+
+        if ($denied = $this->denyForeignTenant($request, $tournament->organization_id)) {
+            return $denied;
+        }
+
+        $useAi = $request->boolean('use_ai', true);
+
+        $organization = Organization::find($tournament->organization_id);
+        $result = $this->posters->generate($tournament, $organization, $useAi);
+
+        $tournament->poster = $result['url'];
+        $tournament->save();
+
+        $user = $request->user();
+        Audit::log([
+            'organization_id' => $tournament->organization_id,
+            'user_id' => $user->id,
+            'user_name' => $user->name,
+            'user_role' => $user->role,
+            'action' => 'GENERATED_POSTER',
+            'entity_type' => 'Tournament',
+            'entity_id' => $tournament->id,
+            'details' => sprintf(
+                'Generated poster for tournament [%s]%s',
+                $tournament->name,
+                $result['used_ai'] ? ' with AI artwork' : ''
+            ),
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'tournament' => $tournament,
+            'poster' => $result['url'],
+            'used_ai' => $result['used_ai'],
+        ]);
+    }
+
     /* ------------------------------------------------------------- Helpers */
+
+    /**
+     * Rejects a `max_teams` value above the organizer's plan cap. `$teamLimit`
+     * is null when there is no active subscription, in which case this is a
+     * no-op — `checkLimit('tournaments')` already blocks creation in that case.
+     */
+    private function maxTeamsRule(?int $teamLimit): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) use ($teamLimit) {
+            if ($teamLimit !== null && (int) $value > $teamLimit) {
+                $fail("Max teams cannot exceed your plan's team limit ({$teamLimit}).");
+            }
+        };
+    }
 
     /**
      * Sport-aware squad and format defaults, so a tournament created with a bare
@@ -522,6 +600,11 @@ class TournamentController extends Controller
             'max_overs_per_bowler' => (int) ($settings['max_overs_per_bowler'] ?? 4),
             'enable_super_over' => ($settings['enable_super_over'] ?? true) !== false,
             'playing_xi_count' => (int) ($settings['playing_xi_count'] ?? 11),
+            'venue_name' => $settings['venue_name'] ?? '',
+            'venue_address' => $settings['venue_address'] ?? '',
+            'google_maps_url' => $settings['google_maps_url'] ?? '',
+            'latitude' => isset($settings['latitude']) ? (float) $settings['latitude'] : null,
+            'longitude' => isset($settings['longitude']) ? (float) $settings['longitude'] : null,
         ];
     }
 

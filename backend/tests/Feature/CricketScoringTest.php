@@ -158,6 +158,90 @@ class CricketScoringTest extends TestCase
         $this->assertStringContainsString('won by', $match->result_summary);
     }
 
+    public function test_flipping_the_toss_picks_a_winner_and_moves_the_match_to_toss_status(): void
+    {
+        $match = GameMatch::find(self::MATCH_ID);
+        $match->status = 'scheduled';
+        $match->save();
+
+        $state = $this->scoring->flipCricketToss(self::MATCH_ID);
+
+        $this->assertContains($state->toss_winner_team_id, [$match->team_a_id, $match->team_b_id]);
+        $this->assertNull($state->toss_decision);
+        $this->assertSame('toss', GameMatch::find(self::MATCH_ID)->status);
+    }
+
+    public function test_electing_to_bat_makes_the_toss_winner_the_batting_side(): void
+    {
+        $match = GameMatch::find(self::MATCH_ID);
+        $match->status = 'scheduled';
+        $match->save();
+
+        $flipped = $this->scoring->flipCricketToss(self::MATCH_ID);
+        $winner = $flipped->toss_winner_team_id;
+        $loser = $winner === $match->team_a_id ? $match->team_b_id : $match->team_a_id;
+
+        $state = $this->scoring->recordCricketTossDecision(self::MATCH_ID, 'bat');
+
+        $this->assertSame('bat', $state->toss_decision);
+        $this->assertSame($winner, $state->batting_team_id);
+        $this->assertSame($loser, $state->bowling_team_id);
+    }
+
+    public function test_electing_to_bowl_makes_the_toss_winner_the_bowling_side(): void
+    {
+        $match = GameMatch::find(self::MATCH_ID);
+        $match->status = 'scheduled';
+        $match->save();
+
+        $flipped = $this->scoring->flipCricketToss(self::MATCH_ID);
+        $winner = $flipped->toss_winner_team_id;
+        $loser = $winner === $match->team_a_id ? $match->team_b_id : $match->team_a_id;
+
+        $state = $this->scoring->recordCricketTossDecision(self::MATCH_ID, 'bowl');
+
+        $this->assertSame('bowl', $state->toss_decision);
+        $this->assertSame($loser, $state->batting_team_id);
+        $this->assertSame($winner, $state->bowling_team_id);
+    }
+
+    public function test_recording_a_decision_before_flipping_the_coin_is_rejected(): void
+    {
+        $match = GameMatch::find(self::MATCH_ID);
+        $match->status = 'scheduled';
+        $match->save();
+
+        // The seeded fixture already carries a toss result; clear it so this
+        // match starts from the "coin not yet flipped" state under test.
+        $state = $this->scoring->cricketState(self::MATCH_ID);
+        $state->toss_winner_team_id = null;
+        $state->save();
+
+        $this->expectException(\RuntimeException::class);
+        $this->scoring->recordCricketTossDecision(self::MATCH_ID, 'bat');
+    }
+
+    public function test_flipping_the_toss_once_scoring_has_started_is_rejected(): void
+    {
+        // match-crick-live-1 is seeded as in_progress with balls already bowled.
+        $this->expectException(\RuntimeException::class);
+        $this->scoring->flipCricketToss(self::MATCH_ID);
+    }
+
+    public function test_flipping_the_toss_over_http_returns_the_updated_state(): void
+    {
+        $match = GameMatch::find(self::MATCH_ID);
+        $match->status = 'scheduled';
+        $match->save();
+
+        $this->actingAsUser('admin@malabar.com');
+
+        $response = $this->postJson('/api/matches/'.self::MATCH_ID.'/cricket/toss/flip')->assertOk();
+
+        $this->assertContains($response->json('state.toss_winner_team_id'), [$match->team_a_id, $match->team_b_id]);
+        $this->assertSame('toss', $response->json('match.status'));
+    }
+
     public function test_scoring_a_ball_over_http_returns_the_updated_state(): void
     {
         $this->actingAsUser('admin@malabar.com');

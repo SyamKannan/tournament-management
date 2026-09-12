@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { PlatformConfigProvider } from './context/PlatformConfigContext';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -28,6 +29,7 @@ import { AdminPlansPage } from './pages/admin/AdminPlansPage';
 import { AdminOrganizationsPage } from './pages/admin/AdminOrganizationsPage';
 import { AdminSubscriptionsPage } from './pages/admin/AdminSubscriptionsPage';
 import { AdminAuditLogsPage } from './pages/admin/AdminAuditLogsPage';
+import { AdminSportsPage } from './pages/admin/AdminSportsPage';
 
 // Organization Admin Pages
 import { OrgDashboard } from './pages/organization/OrgDashboard';
@@ -38,6 +40,7 @@ import { OrgLiveScorerPage } from './pages/organization/OrgLiveScorerPage';
 import { OrgSponsorsAdsPage } from './pages/organization/OrgSponsorsAdsPage';
 import { OrgAnnouncementsPage } from './pages/organization/OrgAnnouncementsPage';
 import { OrgReportsPage } from './pages/organization/OrgReportsPage';
+import { OrgBillingPage } from './pages/organization/OrgBillingPage';
 import { OrgTournamentAuctionManagePage } from './pages/organization/OrgTournamentAuctionManagePage';
 
 // Team Manager Workspace
@@ -96,6 +99,7 @@ export const App: React.FC = () => {
   return (
     <ToastProvider>
       <ConfirmProvider>
+        <PlatformConfigProvider>
         <AuthProvider>
           <BrowserRouter>
             <AppLayout>
@@ -132,6 +136,11 @@ export const App: React.FC = () => {
                 <Route path="/admin/plans" element={
                   <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
                     <AdminPlansPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/sports" element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                    <AdminSportsPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/admin/organizations" element={
@@ -182,7 +191,17 @@ export const App: React.FC = () => {
                     <OrgTeamsPage />
                   </ProtectedRoute>
                 } />
+                <Route path="/organization/tournaments/:tournamentId/teams" element={
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                    <OrgTeamsPage />
+                  </ProtectedRoute>
+                } />
                 <Route path="/organization/fixtures" element={
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                    <OrgFixturesPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/organization/tournaments/:tournamentId/fixtures" element={
                   <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
                     <OrgFixturesPage />
                   </ProtectedRoute>
@@ -212,6 +231,11 @@ export const App: React.FC = () => {
                     <OrgReportsPage />
                   </ProtectedRoute>
                 } />
+                <Route path="/organization/billing" element={
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                    <OrgBillingPage />
+                  </ProtectedRoute>
+                } />
 
                 {/* Team Manager Workspace (Protected) */}
             <Route path="/team" element={<Navigate to="/team/auctions" replace />} />
@@ -232,6 +256,7 @@ export const App: React.FC = () => {
             </AppLayout>
           </BrowserRouter>
         </AuthProvider>
+        </PlatformConfigProvider>
       </ConfirmProvider>
     </ToastProvider>
   );

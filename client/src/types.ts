@@ -30,6 +30,13 @@ export type OrganizationStatus =
 
 export type BillingType = 'recurring' | 'one_time';
 export type BillingInterval = 'monthly' | 'quarterly' | 'yearly' | 'custom';
+
+/**
+ * Ground-fee methods an organizer can accept for a tournament, chosen at
+ * creation time. 'upi' opens a real Razorpay Checkout (UPI/cards/netbanking/
+ * wallets) once the backend has gateway keys configured.
+ */
+export type PaymentMethod = 'upi' | 'pay_at_ground';
 export type SubscriptionStatus = 'active' | 'trial' | 'past_due' | 'cancelled' | 'expired';
 
 export interface Plan {
@@ -130,6 +137,14 @@ export interface Invoice {
 
 export type SportCode = 'football' | 'cricket';
 
+export interface Sport {
+  id: string;
+  name: string;
+  code: SportCode;
+  icon: string;
+  is_active: boolean;
+}
+
 export type TournamentFormat = 'league' | 'knockout' | 'group_stage' | 'league_knockout';
 export type TournamentStatus = 
   | 'draft'
@@ -174,6 +189,7 @@ export interface Tournament {
   slug: string;
   logo: string;
   banner: string;
+  poster: string;
   description: string;
   location: string;
   village: string;
@@ -192,6 +208,7 @@ export interface Tournament {
     allow_partial: boolean;
     min_partial_type: 'percentage' | 'fixed';
     min_partial_value: number;
+    enabled_methods?: PaymentMethod[];
   };
   prize_money: number;
   runner_up_prize: number;
@@ -617,6 +634,13 @@ export interface AuctionPlayer {
   sold_to_team_id?: string;
   sold_to_team_name?: string;
   status: AuctionPlayerStatus;
+  payment_status?: 'pending' | 'paid';
+  payment_amount?: number;
+  payment_method?: 'cash' | 'upi' | 'bank_transfer' | 'cheque' | 'other';
+  payment_reference?: string;
+  payment_notes?: string;
+  paid_at?: string;
+  paid_by_user_id?: string;
   cricket_role?: CricketRole;
   cricket_batting_style?: CricketBattingStyle;
   cricket_bowling_style?: CricketBowlingStyle;
@@ -624,6 +648,46 @@ export interface AuctionPlayer {
   football_preferred_foot?: 'left' | 'right' | 'both';
   past_achievements?: string;
   created_at: string;
+}
+
+export interface TeamDisbursementSummary {
+  team_id: string;
+  team_name: string;
+  logo?: string;
+  manager_name?: string;
+  manager_phone?: string;
+  virtual_purse: number;
+  virtual_spent: number;
+  virtual_remaining: number;
+  players_acquired_count: number;
+  total_player_entitlement: number;
+  paid_amount: number;
+  pending_amount: number;
+  paid_count: number;
+  pending_count: number;
+}
+
+export interface AuctionPaymentSummary {
+  total_sold_players: number;
+  total_entitled_amount: number;
+  total_paid_amount: number;
+  total_pending_amount: number;
+  paid_players_count: number;
+  pending_players_count: number;
+  settlement_percentage: number;
+  average_player_payout: number;
+  highest_payout: number;
+  highest_payout_player?: AuctionPlayer;
+}
+
+export interface AuctionPaymentReport {
+  auction: Auction;
+  tournament?: Tournament;
+  organization?: Organization;
+  summary: AuctionPaymentSummary;
+  team_summaries: TeamDisbursementSummary[];
+  sold_players: AuctionPlayer[];
+  virtual_money_disclaimer?: string;
 }
 
 export interface TeamAuctionPurse {

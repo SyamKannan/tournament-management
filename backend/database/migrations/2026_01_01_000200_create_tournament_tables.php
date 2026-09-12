@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('slug')->unique();
             $table->text('logo')->nullable();
             $table->text('banner')->nullable();
+            $table->text('poster')->nullable();
             $table->text('description')->nullable();
             $table->string('location')->default('');
             $table->string('village')->default('');

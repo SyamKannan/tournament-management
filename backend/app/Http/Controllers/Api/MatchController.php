@@ -284,6 +284,19 @@ class MatchController extends Controller
             'bowler_id' => ['nullable', 'string'],
         ]);
 
+        $match = GameMatch::find($id);
+
+        if (! $match) {
+            return response()->json(['error' => 'Match not found'], 404);
+        }
+
+        // The batting order depends on who won the toss, so scoring stays
+        // locked until the toss (digital call+decision, or a manual entry)
+        // has been recorded.
+        if (! $match->toss_decision) {
+            return response()->json(['error' => 'Record the coin toss before scoring can start'], 422);
+        }
+
         try {
             $result = $this->scoring->recordCricketBall([
                 'matchId' => $id,
