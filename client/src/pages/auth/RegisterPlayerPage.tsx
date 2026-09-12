@@ -9,6 +9,7 @@ import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { ImageUploadModal } from '../../components/ImageUploadModal';
+import { PhoneInput } from '../../components/PhoneInput';
 import { AuthShowcase } from '../../components/AuthShowcase';
 import { SPORTS_CAROUSELS } from '../../lib/sportsImagery';
 import { usePlatformConfig } from '../../context/PlatformConfigContext';

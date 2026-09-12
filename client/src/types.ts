@@ -435,6 +435,14 @@ export interface Match {
   winner_team_id?: string;
   result_summary?: string;
   man_of_the_match_player_id?: string;
+  toss_caller_team_id?: string | null;
+  toss_call?: 'heads' | 'tails' | null;
+  toss_result?: 'heads' | 'tails' | null;
+  toss_winner_team_id?: string | null;
+  toss_decision?: 'bat' | 'bowl' | null;
+  toss_method?: 'digital' | 'manual' | null;
+  toss_time?: string | null;
+  batting_first_team_id?: string | null;
   created_at: string;
   updated_at: string;
   team_a?: Team;
@@ -442,6 +450,19 @@ export interface Match {
   venue?: Venue | null;
   football_state?: FootballMatchState | null;
   cricket_state?: CricketMatchState | null;
+}
+
+/** Response shape of GET/POST /matches/{id}/toss/* — mirrors the toss fields on `Match`. */
+export interface TossResult {
+  match_id: string;
+  toss_caller_team_id: string | null;
+  toss_call: 'heads' | 'tails' | null;
+  toss_result: 'heads' | 'tails' | null;
+  toss_winner_team_id: string | null;
+  toss_decision: 'bat' | 'bowl' | null;
+  toss_method: 'digital' | 'manual' | null;
+  toss_time: string | null;
+  batting_first_team_id: string | null;
 }
 
 export type FootballEventType = 

@@ -146,4 +146,66 @@ class AuthTest extends TestCase
         $this->assertNotSame($first->json('organization.slug'), $second->json('organization.slug'));
         $this->assertSame(2, Organization::query()->where('name', 'Kerala Sports Club')->count());
     }
+
+    public function test_a_user_can_update_their_own_name_phone_and_avatar(): void
+    {
+        $this->withHeaders($this->demoHeaders('ORG_ADMIN', 'org-green-valley'))
+            ->putJson('/api/auth/me', [
+                'name' => 'Updated Admin Name',
+                'phone' => '+91 90000 22222',
+                'avatar' => 'https://example.com/avatar.png',
+            ])
+            ->assertOk()
+            ->assertJsonPath('user.name', 'Updated Admin Name')
+            ->assertJsonPath('user.phone', '+91 90000 22222')
+            ->assertJsonPath('user.avatar', 'https://example.com/avatar.png');
+    }
+
+    public function test_updating_the_profile_email_rejects_an_email_already_in_use(): void
+    {
+        $this->withHeaders($this->demoHeaders('ORG_ADMIN', 'org-green-valley'))
+            ->putJson('/api/auth/me', ['email' => 'admin@malabar.com'])
+            ->assertStatus(422);
+    }
+
+    public function test_changing_password_requires_the_correct_current_password(): void
+    {
+        $token = $this->postJson('/api/auth/login', [
+            'email' => 'admin@greenvalley.com',
+            'password' => '12345678',
+        ])->json('token');
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->putJson('/api/auth/me', [
+                'current_password' => 'wrong-password',
+                'new_password' => 'a-new-secret',
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'Current password is incorrect');
+    }
+
+    public function test_a_user_can_change_their_password_with_the_correct_current_password(): void
+    {
+        $token = $this->postJson('/api/auth/login', [
+            'email' => 'admin@greenvalley.com',
+            'password' => '12345678',
+        ])->json('token');
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->putJson('/api/auth/me', [
+                'current_password' => '12345678',
+                'new_password' => 'a-new-secret',
+            ])
+            ->assertOk();
+
+        $this->postJson('/api/auth/login', [
+            'email' => 'admin@greenvalley.com',
+            'password' => 'a-new-secret',
+        ])->assertOk();
+    }
+
+    public function test_profile_update_is_unauthorized_without_a_credential(): void
+    {
+        $this->putJson('/api/auth/me', ['name' => 'Nobody'])->assertUnauthorized();
+    }
 }

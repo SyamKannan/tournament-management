@@ -22,6 +22,7 @@ import { LiveAuctionArenaPage } from './pages/auction/LiveAuctionArenaPage';
 import { AuctionTVPage } from './pages/auction/AuctionTVPage';
 import { PlayerDashboardPage } from './pages/player/PlayerDashboardPage';
 import { PublicPlayerProfilePage } from './pages/public/PublicPlayerProfilePage';
+import { MyProfilePage } from './pages/account/MyProfilePage';
 
 // Super Admin Pages
 import { AdminDashboard } from './pages/admin/AdminDashboard';
@@ -43,6 +44,7 @@ import { OrgAnnouncementsPage } from './pages/organization/OrgAnnouncementsPage'
 import { OrgReportsPage } from './pages/organization/OrgReportsPage';
 import { OrgBillingPage } from './pages/organization/OrgBillingPage';
 import { OrgTournamentAuctionManagePage } from './pages/organization/OrgTournamentAuctionManagePage';
+import { OrgPostersPage } from './pages/organization/OrgPostersPage';
 
 // Team Manager Workspace
 import { TeamAuctionPage, TeamAuctionsListPage } from './pages/team/TeamAuctionPage';
@@ -119,6 +121,13 @@ export const App: React.FC = () => {
                 <Route path="/auction/:id" element={<LiveAuctionArenaPage />} />
                 <Route path="/auction/tv/:id" element={<AuctionTVPage />} />
                 <Route path="/players/:id" element={<PublicPlayerProfilePage />} />
+
+                {/* Account Settings — every authenticated role manages their own profile here */}
+                <Route path="/account/profile" element={
+                  <ProtectedRoute>
+                    <MyProfilePage />
+                  </ProtectedRoute>
+                } />
 
                 {/* Player Personal Dashboard (Protected) */}
                 <Route path="/player/dashboard" element={
@@ -215,6 +224,11 @@ export const App: React.FC = () => {
                 <Route path="/organization/scorer" element={
                   <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN', 'SCORER']}>
                     <OrgLiveScorerPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/organization/posters" element={
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SCORER', 'SUPER_ADMIN']}>
+                    <OrgPostersPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/sponsors" element={

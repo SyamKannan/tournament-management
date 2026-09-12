@@ -274,17 +274,30 @@ export const PublicTournamentPage: React.FC = () => {
                 Upcoming Fixtures ({upcomingMatches.length})
               </h3>
               <div className="grid md:grid-cols-2 gap-4">
-                {upcomingMatches.map(m => (
-                  <div key={m.id} className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between text-xs">
-                    <div>
-                      <div className="font-bold text-white text-sm">{m.team_a?.name || m.team_a_id} vs {m.team_b?.name || m.team_b_id}</div>
-                      <div className="text-slate-400 mt-1">{m.round_name} • {new Date(m.scheduled_at).toLocaleString()}</div>
+                {upcomingMatches.map(m => {
+                  const tossWinnerName = m.toss_winner_team_id === m.team_a_id
+                    ? (m.team_a?.name || m.team_a_id)
+                    : m.toss_winner_team_id === m.team_b_id
+                      ? (m.team_b?.name || m.team_b_id)
+                      : null;
+
+                  return (
+                    <div key={m.id} className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between text-xs">
+                      <div>
+                        <div className="font-bold text-white text-sm">{m.team_a?.name || m.team_a_id} vs {m.team_b?.name || m.team_b_id}</div>
+                        <div className="text-slate-400 mt-1">{m.round_name} • {new Date(m.scheduled_at).toLocaleString()}</div>
+                        {tossWinnerName && m.toss_decision && (
+                          <div className="text-amber-400 mt-1 font-semibold">
+                            🪙 {tossWinnerName} won the toss and chose to {m.toss_decision}
+                          </div>
+                        )}
+                      </div>
+                      <span className="px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 text-slate-400 font-bold uppercase text-[11px]">
+                        Scheduled
+                      </span>
                     </div>
-                    <span className="px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 text-slate-400 font-bold uppercase text-[11px]">
-                      Scheduled
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

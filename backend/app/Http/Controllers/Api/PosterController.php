@@ -7,12 +7,17 @@ use App\Jobs\GeneratePoster;
 use App\Models\GameMatch;
 use App\Models\Poster;
 use App\Models\Tournament;
+use App\Services\BillingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 
 class PosterController extends Controller
 {
+    public function __construct(
+        private readonly BillingService $billing,
+    ) {}
+
     /**
      * Queues poster rendering — a full render (art director call, optional
      * AI background, headless Chrome) is too slow to hold an HTTP request
@@ -34,6 +39,12 @@ class PosterController extends Controller
 
         if ($denied = $this->denyForeignTenant($request, $match->organization_id)) {
             return $denied;
+        }
+
+        if (! $this->billing->hasFeature($match->organization_id, 'ai_tournament_poster')) {
+            return response()->json([
+                'error' => 'AI tournament poster creation is not available on your current plan. Upgrade to unlock it.',
+            ], 403);
         }
 
         $needsMatch = $data['poster_type'] !== 'points_table' && $data['poster_type'] !== 'tournament_announcement';

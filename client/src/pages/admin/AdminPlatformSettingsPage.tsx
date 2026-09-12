@@ -10,6 +10,33 @@ const PAYMENT_METHODS: { id: PaymentMethod; label: string; icon: typeof CreditCa
   { id: 'pay_at_ground', label: 'Pay at Ground', icon: Banknote, blurb: 'Teams settle the fee in person, organizer records it manually' },
 ];
 
+const COUNTRIES = [
+  'India', 'United States', 'United Kingdom', 'Australia', 'Canada',
+  'United Arab Emirates', 'Singapore', 'Pakistan', 'Bangladesh', 'Sri Lanka',
+  'Nepal', 'South Africa', 'New Zealand', 'Malaysia', 'Kenya', 'Nigeria',
+  'Ireland', 'Germany', 'France',
+];
+
+const CURRENCIES: { code: string; symbol: string; label: string }[] = [
+  { code: 'INR', symbol: '₹', label: 'Indian Rupee' },
+  { code: 'USD', symbol: '$', label: 'US Dollar' },
+  { code: 'GBP', symbol: '£', label: 'British Pound' },
+  { code: 'EUR', symbol: '€', label: 'Euro' },
+  { code: 'AUD', symbol: '$', label: 'Australian Dollar' },
+  { code: 'CAD', symbol: '$', label: 'Canadian Dollar' },
+  { code: 'AED', symbol: 'د.إ', label: 'UAE Dirham' },
+  { code: 'SGD', symbol: '$', label: 'Singapore Dollar' },
+  { code: 'PKR', symbol: '₨', label: 'Pakistani Rupee' },
+  { code: 'BDT', symbol: '৳', label: 'Bangladeshi Taka' },
+  { code: 'LKR', symbol: '₨', label: 'Sri Lankan Rupee' },
+  { code: 'NPR', symbol: '₨', label: 'Nepalese Rupee' },
+  { code: 'ZAR', symbol: 'R', label: 'South African Rand' },
+  { code: 'NZD', symbol: '$', label: 'New Zealand Dollar' },
+  { code: 'MYR', symbol: 'RM', label: 'Malaysian Ringgit' },
+  { code: 'KES', symbol: 'KSh', label: 'Kenyan Shilling' },
+  { code: 'NGN', symbol: '₦', label: 'Nigerian Naira' },
+];
+
 export const AdminPlatformSettingsPage: React.FC = () => {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
@@ -45,6 +72,13 @@ export const AdminPlatformSettingsPage: React.FC = () => {
         ? settings.enabled_payment_methods.filter(m => m !== id)
         : [...settings.enabled_payment_methods, id],
     });
+  };
+
+  const handleCurrencyChange = (code: string) => {
+    if (!settings) return;
+    const currency = CURRENCIES.find(c => c.code === code);
+    if (!currency) return;
+    setSettings({ ...settings, currency_code: currency.code, currency_symbol: currency.symbol });
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -92,13 +126,34 @@ export const AdminPlatformSettingsPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Currency Symbol</label>
-              <input
-                type="text"
-                value={settings.currency_symbol}
-                onChange={(e) => setSettings({ ...settings, currency_symbol: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl glass-input"
-              />
+              <label className="block text-slate-300 font-semibold mb-1">Country</label>
+              <select
+                value={settings.country}
+                onChange={(e) => setSettings({ ...settings, country: e.target.value })}
+                className="w-full px-3.5 py-2 rounded-xl glass-input bg-slate-900"
+              >
+                {!COUNTRIES.includes(settings.country) && (
+                  <option value={settings.country}>{settings.country}</option>
+                )}
+                {COUNTRIES.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-slate-300 font-semibold mb-1">Currency</label>
+              <select
+                value={settings.currency_code}
+                onChange={(e) => handleCurrencyChange(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-xl glass-input bg-slate-900"
+              >
+                {!CURRENCIES.some(c => c.code === settings.currency_code) && (
+                  <option value={settings.currency_code}>{settings.currency_symbol} {settings.currency_code}</option>
+                )}
+                {CURRENCIES.map(c => (
+                  <option key={c.code} value={c.code}>{c.symbol} {c.code} — {c.label}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-slate-300 font-semibold mb-1">Support Email</label>

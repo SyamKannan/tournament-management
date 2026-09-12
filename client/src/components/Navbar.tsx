@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Trophy, ShieldCheck, Building2, UserCircle, User,
   LogOut, ChevronDown, LogIn, Plus, Menu, X, Wifi, WifiOff, Gavel,
-  Sparkles, ArrowLeft
+  Sparkles, ArrowLeft, Settings
 } from 'lucide-react';
 import { ImpersonateModal } from './ImpersonateModal';
 
@@ -240,6 +240,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
                       >
                         <WorkspaceIcon className="w-4 h-4 text-emerald-400" aria-hidden="true" />
                         {workspace.label}
+                      </Link>
+
+                      <Link
+                        role="menuitem"
+                        to="/account/profile"
+                        className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-300 hover:text-white
+                                   hover:bg-slate-800 transition-colors flex items-center gap-2.5"
+                      >
+                        <Settings className="w-4 h-4 text-cyan-400" aria-hidden="true" />
+                        My Profile
                       </Link>
 
                       {role === 'SUPER_ADMIN' && !isImpersonating && (

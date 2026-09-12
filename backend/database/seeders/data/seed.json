@@ -172,7 +172,9 @@
         "standings",
         "break_ads",
         "sponsor_management",
-        "pdf_exports"
+        "pdf_exports",
+        "coin_toss",
+        "ai_tournament_poster"
       ],
       "status": "active",
       "created_at": "2026-07-25T02:47:55.948Z",

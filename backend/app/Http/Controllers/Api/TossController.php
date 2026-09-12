@@ -48,7 +48,13 @@ class TossController extends Controller
             'call' => ['required', 'string', 'in:heads,tails'],
         ]);
 
-        if ($denied = $this->denyMissingFeature($id)) {
+        $match = GameMatch::find($id);
+
+        if (! $match) {
+            return response()->json(['error' => 'Match not found'], 404);
+        }
+
+        if ($denied = $this->denyMissingFeature($match)) {
             return $denied;
         }
 
@@ -69,6 +75,16 @@ class TossController extends Controller
             'decision' => ['required', 'string', 'in:bat,bowl'],
         ]);
 
+        $existing = GameMatch::find($id);
+
+        if (! $existing) {
+            return response()->json(['error' => 'Match not found'], 404);
+        }
+
+        if ($denied = $this->denyMissingFeature($existing)) {
+            return $denied;
+        }
+
         try {
             $match = $this->toss->decide($id, $data['decision']);
         } catch (\RuntimeException $e) {
@@ -76,7 +92,10 @@ class TossController extends Controller
         }
 
         $this->broadcast($id, 'TOSS_DECIDED', $this->tossPayload($match));
-        GeneratePoster::dispatch($match->tournament_id, $match->id, 'toss', $request->user()?->id);
+
+        if ($this->billing->hasFeature($match->organization_id, 'ai_tournament_poster')) {
+            GeneratePoster::dispatch($match->tournament_id, $match->id, 'toss', $request->user()?->id);
+        }
 
         return response()->json($this->tossPayload($match));
     }
@@ -88,6 +107,16 @@ class TossController extends Controller
             'decision' => ['required', 'string', 'in:bat,bowl'],
         ]);
 
+        $existing = GameMatch::find($id);
+
+        if (! $existing) {
+            return response()->json(['error' => 'Match not found'], 404);
+        }
+
+        if ($denied = $this->denyMissingFeature($existing)) {
+            return $denied;
+        }
+
         try {
             $match = $this->toss->recordManual($id, $data['winner_team_id'], $data['decision']);
         } catch (\RuntimeException $e) {
@@ -95,9 +124,27 @@ class TossController extends Controller
         }
 
         $this->broadcast($id, 'TOSS_RECORDED', $this->tossPayload($match));
-        GeneratePoster::dispatch($match->tournament_id, $match->id, 'toss', $request->user()?->id);
+
+        if ($this->billing->hasFeature($match->organization_id, 'ai_tournament_poster')) {
+            GeneratePoster::dispatch($match->tournament_id, $match->id, 'toss', $request->user()?->id);
+        }
 
         return response()->json($this->tossPayload($match));
+    }
+
+    /**
+     * `coin_toss` is a plan-gated feature — organizers on plans that don't
+     * include it can't record a toss at all (digital, manual, or otherwise).
+     */
+    private function denyMissingFeature(GameMatch $match): ?JsonResponse
+    {
+        if ($this->billing->hasFeature($match->organization_id, 'coin_toss')) {
+            return null;
+        }
+
+        return response()->json([
+            'error' => 'Coin toss is not available on your current plan. Upgrade to unlock it.',
+        ], 403);
     }
 
     private function tossPayload(GameMatch $match): array

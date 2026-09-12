@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, CreditCard, Building2, Trophy, Users, Calendar,
-  Radio, Megaphone, FileText, Settings, History, X, Gamepad2
+  Radio, Megaphone, FileText, Settings, History, X, Gamepad2, Image as ImageIcon
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -29,6 +29,7 @@ const ORG_LINKS = [
   { to: '/organization/tournaments', label: 'Tournaments', icon: Trophy },
   { to: '/organization/teams', label: 'Teams & Approvals', icon: Users },
   { to: '/organization/fixtures', label: 'Fixtures & Brackets', icon: Calendar },
+  { to: '/organization/posters', label: 'Posters', icon: ImageIcon },
   { to: '/organization/sponsors', label: 'Sponsors & Ads', icon: Megaphone },
   { to: '/organization/announcements', label: 'Announcements', icon: Radio },
   { to: '/organization/reports', label: 'Financials & Reports', icon: FileText },

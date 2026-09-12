@@ -14,6 +14,7 @@ use App\Models\Sponsor;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\Venue;
+use App\Services\BillingService;
 use App\Services\RealtimeBroadcaster;
 use App\Services\ScoringEngine;
 use App\Support\Audit;
@@ -34,6 +35,7 @@ class MatchController extends Controller
     public function __construct(
         private readonly ScoringEngine $scoring,
         private readonly RealtimeBroadcaster $realtime,
+        private readonly BillingService $billing,
     ) {}
 
     /* ------------------------------------------------------------ Fixtures */
@@ -188,7 +190,7 @@ class MatchController extends Controller
         // Auto-generate the result (and player-of-match, if recorded) poster
         // the moment a match is marked completed — not on every subsequent
         // edit to an already-completed match.
-        if (! $wasCompleted && $match->status === 'completed') {
+        if (! $wasCompleted && $match->status === 'completed' && $this->billing->hasFeature($match->organization_id, 'ai_tournament_poster')) {
             GeneratePoster::dispatch($match->tournament_id, $match->id, 'result', $request->user()->id);
 
             if ($match->man_of_the_match_player_id) {

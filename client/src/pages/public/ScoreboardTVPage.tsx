@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Match, Tournament, Team, Advertisement, Sponsor, Announcement } from '../../types';
 import { websocketUrl } from '../../config';
-import { 
+import { CoinFlip } from '../../components/CoinFlip';
+import {
   Radio, Clock, Flame, Maximize2, Minimize2, MapPin, Sparkles, Phone
 } from 'lucide-react';
 
@@ -132,13 +133,13 @@ export const ScoreboardTVPage: React.FC = () => {
             });
           } else if (msg.type === 'EMERGENCY_ANNOUNCEMENT') {
             setUrgentAnnouncement(msg.payload?.announcement || null);
-          } else if (msg.type === 'TOSS_FLIPPED') {
+          } else if (msg.type === 'TOSS_CALLED') {
             setTossFlipping(true);
             setTimeout(() => {
               fetchScoreboard();
               setTossFlipping(false);
             }, 2200);
-          } else if (msg.type === 'TOSS_DECISION_SET') {
+          } else if (msg.type === 'TOSS_DECIDED' || msg.type === 'TOSS_RECORDED') {
             fetchScoreboard();
           }
         } catch (e) {}
@@ -488,9 +489,10 @@ export const ScoreboardTVPage: React.FC = () => {
          * REDESIGNED BROADCAST CRICKET SCOREBOARD
          * =================================================================== */
         <div className="my-auto max-w-5xl mx-auto w-full py-4 space-y-4">
-          {match.status === 'toss' ? (
+          {match.status === 'scheduled' ? (
             /* =================================================================
-             * COIN TOSS REVEAL
+             * COIN TOSS REVEAL — shown pre-match, before the first ball flips
+             * the match to `in_progress`.
              * =============================================================== */
             <div className="p-10 sm:p-16 rounded-3xl bg-gradient-to-b from-slate-900/95 to-slate-950/95 border border-amber-500/30 shadow-2xl backdrop-blur-xl text-center">
               <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-black uppercase tracking-widest">
@@ -498,25 +500,21 @@ export const ScoreboardTVPage: React.FC = () => {
               </span>
 
               <div className="flex flex-col items-center gap-6 mt-8">
-                <div
-                  className={`w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 border-8 border-amber-300/60 shadow-2xl shadow-amber-500/30 flex items-center justify-center text-7xl sm:text-8xl ${tossFlipping ? 'animate-coin-flip' : ''}`}
-                >
-                  🪙
-                </div>
+                <CoinFlip isFlipping={tossFlipping} size="lg" />
 
                 {tossFlipping ? (
                   <span className="text-2xl font-black text-amber-300 uppercase tracking-widest animate-pulse-subtle">
                     Flipping the coin…
                   </span>
-                ) : cricket_state?.toss_winner_team_id ? (
+                ) : match.toss_winner_team_id ? (
                   <div className="space-y-3">
                     <h2 className="text-3xl sm:text-5xl font-black font-heading text-white">
-                      {cricket_state.toss_winner_team_id === team_a.id ? team_a.name : team_b.name}
+                      {match.toss_winner_team_id === team_a.id ? team_a.name : team_b.name}
                       <span className="text-amber-400"> won the toss!</span>
                     </h2>
-                    {cricket_state.toss_decision ? (
+                    {match.toss_decision ? (
                       <p className="text-lg sm:text-2xl font-bold text-slate-300">
-                        Elected to <span className="text-white uppercase">{cricket_state.toss_decision}</span> first
+                        Elected to <span className="text-white uppercase">{match.toss_decision}</span> first
                       </p>
                     ) : (
                       <p className="text-lg text-slate-400 animate-pulse-subtle">Deciding whether to bat or bowl…</p>

@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
@@ -252,6 +253,75 @@ class AuthController extends Controller
             'player' => $player,
             'message' => 'Athlete profile registered successfully!',
         ], 201);
+    }
+
+    /**
+     * Self-service account update, available to every authenticated role
+     * (super admin, org admin, scorer, team manager, player). Organization
+     * fields (name, logo, address, ...) are edited separately via
+     * OrganizationController::update() — this only touches the caller's own
+     * identity: name, email, phone, avatar and password.
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'name' => ['sometimes', 'string', 'max:255'],
+            'phone' => ['sometimes', 'string', 'max:64'],
+            'avatar' => ['sometimes', 'nullable', 'string'],
+            'email' => [
+                'sometimes', 'email', 'max:255',
+                Rule::unique('users', 'email')->ignore($user->id),
+            ],
+            'current_password' => ['required_with:new_password', 'string'],
+            'new_password' => ['sometimes', 'string', 'min:6'],
+        ]);
+
+        if (isset($data['new_password'])) {
+            if (! $this->passwordMatches($user, $data['current_password'])) {
+                return response()->json(['error' => 'Current password is incorrect'], 422);
+            }
+            $user->password_hash = Hash::make($data['new_password']);
+        }
+
+        foreach (['name', 'phone', 'avatar', 'email'] as $field) {
+            if (isset($data[$field])) {
+                $user->{$field} = $data[$field];
+            }
+        }
+
+        $user->save();
+
+        // Player identity fields (name/phone/avatar) mirror onto the linked
+        // player record so the two never drift apart — same rule
+        // PlayerController::updateProfile() follows.
+        $player = Player::query()->where('id', $user->id)->first();
+        if ($player) {
+            $playerUpdates = [];
+            if (isset($data['name'])) $playerUpdates['full_name'] = $data['name'];
+            if (isset($data['avatar'])) $playerUpdates['photo'] = $data['avatar'];
+            if (isset($data['phone'])) $playerUpdates['mobile'] = $data['phone'];
+            if ($playerUpdates) {
+                $player->update($playerUpdates);
+            }
+        }
+
+        Audit::log([
+            'organization_id' => $user->organization_id ?? '',
+            'user_id' => $user->id,
+            'user_name' => $user->name,
+            'user_role' => $user->role,
+            'action' => 'UPDATED_OWN_PROFILE',
+            'entity_type' => 'User',
+            'entity_id' => $user->id,
+            'details' => sprintf('%s updated their account profile', $user->name),
+        ]);
+
+        return response()->json([
+            'user' => $user->fresh()->toAuthPayload(),
+            'organization' => $user->organization_id ? Organization::find($user->organization_id) : null,
+        ]);
     }
 
     private function identityPayload(User $user): array

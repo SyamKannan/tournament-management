@@ -60,6 +60,7 @@ Route::prefix('auth')->group(function () {
     Route::post('register-org', [AuthController::class, 'registerOrganization'])->middleware('throttle:5,1');
     Route::post('register-player', [AuthController::class, 'registerPlayer'])->middleware('throttle:10,1');
     Route::get('me', [AuthController::class, 'me']);
+    Route::put('me', [AuthController::class, 'updateProfile'])->middleware('auth.required');
 });
 
 /* --------------------------------------------------------------- Super admin */
