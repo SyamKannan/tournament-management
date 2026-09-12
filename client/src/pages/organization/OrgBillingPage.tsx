@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
+import { subscribeToPlan } from '../../services/billing';
 import type { Plan, Subscription, Invoice } from '../../types';
 import { CreditCard, ShieldCheck, Receipt, Check, RefreshCw, LayoutGrid } from 'lucide-react';
 import { PlanPickerModal } from '../../components/PlanPickerModal';
@@ -74,10 +75,7 @@ export const OrgBillingPage: React.FC = () => {
     if (!organization || !plan) return;
     setRenewing(true);
     try {
-      await api.post(`/organizations/${organization.id}/subscribe`, {
-        plan_id: plan.id,
-        payment_method: 'upi',
-      });
+      await subscribeToPlan(organization.id, plan);
       toast.success('Plan renewed!');
       fetchData();
     } catch (err: any) {

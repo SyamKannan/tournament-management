@@ -3,9 +3,10 @@
   "version": "2.0.0",
   "description": "Multi-Tenant Sports Tournament SaaS Platform \u2014 Laravel API + React client",
   "scripts": {
-    "dev": "concurrently -n \"API,WS,CLIENT\" -c \"cyan,magenta,emerald\" \"npm run dev:api\" \"npm run dev:ws\" \"npm run dev:client\"",
+    "dev": "concurrently -n \"API,WS,QUEUE,CLIENT\" -c \"cyan,magenta,yellow,emerald\" \"npm run dev:api\" \"npm run dev:ws\" \"npm run dev:queue\" \"npm run dev:client\"",
     "dev:api": "php backend/artisan serve --host=127.0.0.1 --port=8000",
     "dev:ws": "php backend/artisan websocket:serve",
+    "dev:queue": "php backend/artisan queue:work --tries=1",
     "dev:client": "npm --prefix client run dev",
     "setup": "npm run setup:api && npm --prefix client install",
     "setup:api": "cd backend && composer install && php artisan migrate:fresh --seed",

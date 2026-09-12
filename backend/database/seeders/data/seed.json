@@ -1,14 +1,17 @@
 {
   "platform_settings": {
     "platform_name": "Antigravity Sports SaaS",
+    "country": "India",
     "support_email": "support@sports-saas.com",
     "support_phone": "+91 98460 12345",
     "currency_symbol": "₹",
+    "currency_code": "INR",
     "enable_public_signup": true,
     "require_admin_approval_for_orgs": false,
     "default_trial_days": 14,
     "grace_period_days": 7,
-    "payment_gateway_mode": "sandbox"
+    "payment_gateway_mode": "sandbox",
+    "enabled_payment_methods": ["upi", "pay_at_ground"]
   },
   "sports": [
     {
@@ -54,7 +57,9 @@
         "offline_payments_tracking",
         "pdf_exports",
         "advanced_analytics",
-        "custom_branding"
+        "custom_branding",
+        "coin_toss",
+        "ai_tournament_poster"
       ],
       "status": "active",
       "created_at": "2026-07-25T02:47:55.948Z",
@@ -106,7 +111,9 @@
         "break_ads",
         "sponsor_management",
         "pdf_exports",
-        "offline_payments_tracking"
+        "offline_payments_tracking",
+        "coin_toss",
+        "ai_tournament_poster"
       ],
       "status": "active",
       "created_at": "2026-07-25T02:47:55.948Z",
@@ -137,7 +144,9 @@
         "advanced_analytics",
         "custom_branding",
         "pdf_exports",
-        "offline_payments_tracking"
+        "offline_payments_tracking",
+        "coin_toss",
+        "ai_tournament_poster"
       ],
       "status": "active",
       "created_at": "2026-07-25T02:47:55.948Z",
@@ -1220,6 +1229,11 @@
       "venue_id": "venue-calicut-beach",
       "scheduled_at": "2026-08-24T02:47:55.949Z",
       "status": "in_progress",
+      "toss_winner_team_id": "team-kozhikode-kings",
+      "toss_decision": "bat",
+      "toss_method": "manual",
+      "toss_time": "2026-08-24T02:40:00.000Z",
+      "batting_first_team_id": "team-kozhikode-kings",
       "created_at": "2026-07-25T02:47:55.948Z",
       "updated_at": "2026-08-24T02:47:55.943Z"
     }

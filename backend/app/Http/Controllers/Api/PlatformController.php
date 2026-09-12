@@ -13,9 +13,14 @@ use Illuminate\Http\JsonResponse;
  */
 class PlatformController extends Controller
 {
+    /**
+     * The plans organizers may currently subscribe to. Deactivated/archived
+     * plans are omitted entirely, not flagged — organizations already on one
+     * keep their limits, but it can no longer be newly chosen.
+     */
     public function plans(): JsonResponse
     {
-        return response()->json(Plan::query()->get());
+        return response()->json(Plan::query()->where('status', 'active')->get());
     }
 
     /**
@@ -26,6 +31,17 @@ class PlatformController extends Controller
     public function sports(): JsonResponse
     {
         return response()->json(Sport::query()->where('is_active', true)->get());
+    }
+
+    /**
+     * The payment methods organizers may currently offer teams at
+     * registration (e.g. "upi", "pay_at_ground"). Mirrors sports(): a
+     * disabled method disappears from the list rather than being flagged,
+     * so tournaments already using it keep working.
+     */
+    public function paymentMethods(): JsonResponse
+    {
+        return response()->json(PlatformSetting::current()->enabled_payment_methods ?? []);
     }
 
     public function health(): JsonResponse

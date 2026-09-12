@@ -20,7 +20,7 @@ server/    old Express/TypeScript backend — dead, not used
 
 ```bash
 npm run setup       # composer install + migrate:fresh --seed + client npm install
-npm run dev         # API :8000, WebSocket gateway :4000, client :5173 (concurrently)
+npm run dev         # API :8000, WebSocket gateway :4000, queue worker, client :5173 (concurrently)
 npm test            # backend/php artisan test — the only test suite
 npm run db:reset    # migrate:fresh --seed, restores demo dataset
 npm run build       # production client bundle
@@ -43,8 +43,10 @@ npm run typecheck   # tsc -b --force
 npm run build       # tsc -b && vite build
 ```
 
-`npm run dev` at the root always starts all three processes together — there is no
-root-level flag to run just one; use the per-package scripts above for that.
+`npm run dev` at the root always starts all four processes together — there is no
+root-level flag to run just one; use the per-package scripts above for that. The queue
+worker (`database` queue connection) exists for `GeneratePoster`; nothing else in the
+app queues jobs, so skipping it only breaks poster generation.
 
 ## Architecture
 

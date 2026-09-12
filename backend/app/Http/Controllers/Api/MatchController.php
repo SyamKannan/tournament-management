@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\GeneratePoster;
 use App\Models\Advertisement;
 use App\Models\Announcement;
 use App\Models\CricketMatchState;
@@ -178,9 +179,22 @@ class MatchController extends Controller
             'man_of_the_match_player_id' => ['sometimes', 'nullable', 'string'],
         ]);
 
+        $wasCompleted = $match->status === 'completed';
+
         $match->fill($data)->save();
 
         $this->broadcast($match->id, 'MATCH_STATUS_CHANGED', ['match' => $match]);
+
+        // Auto-generate the result (and player-of-match, if recorded) poster
+        // the moment a match is marked completed — not on every subsequent
+        // edit to an already-completed match.
+        if (! $wasCompleted && $match->status === 'completed') {
+            GeneratePoster::dispatch($match->tournament_id, $match->id, 'result', $request->user()->id);
+
+            if ($match->man_of_the_match_player_id) {
+                GeneratePoster::dispatch($match->tournament_id, $match->id, 'player_of_match', $request->user()->id);
+            }
+        }
 
         return response()->json($match);
     }

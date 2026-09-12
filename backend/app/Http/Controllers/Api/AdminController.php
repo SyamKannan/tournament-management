@@ -393,18 +393,25 @@ class AdminController extends Controller
     {
         $data = $request->validate([
             'platform_name' => ['sometimes', 'string', 'max:255'],
+            'country' => ['sometimes', 'string', 'max:100'],
             'support_email' => ['sometimes', 'email', 'max:255'],
             'support_phone' => ['sometimes', 'string', 'max:64'],
             'currency_symbol' => ['sometimes', 'string', 'max:8'],
+            'currency_code' => ['sometimes', 'string', 'max:8'],
             'enable_public_signup' => ['sometimes', 'boolean'],
             'require_admin_approval_for_orgs' => ['sometimes', 'boolean'],
             'default_trial_days' => ['sometimes', 'integer', 'min:0'],
             'grace_period_days' => ['sometimes', 'integer', 'min:0'],
             'payment_gateway_mode' => ['sometimes', 'string', 'in:sandbox,live'],
+            'enabled_payment_methods' => ['sometimes', 'array', 'min:1'],
+            'enabled_payment_methods.*' => ['string', 'in:upi,pay_at_ground'],
         ]);
 
         $settings = PlatformSetting::current();
         $settings->fill($data)->save();
+
+        $this->audit($request, 'UPDATED_PLATFORM_SETTINGS', 'PlatformSetting', (string) $settings->id,
+            'Updated platform settings');
 
         return response()->json($settings);
     }

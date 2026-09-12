@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, CreditCard, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
+import { subscribeToPlan } from '../services/billing';
 import type { Plan } from '../types';
 import { useToast } from './ui/Toast';
 
@@ -50,15 +51,13 @@ export const PlanPickerModal: React.FC<PlanPickerModalProps> = ({
   }, []);
 
   const handleSubscribe = async () => {
-    if (!selectedPlanId) return;
+    const plan = plans.find(p => p.id === selectedPlanId);
+    if (!plan) return;
     setSubscribing(true);
     try {
-      await api.post(`/organizations/${organizationId}/subscribe`, {
-        plan_id: selectedPlanId,
-        payment_method: 'upi'
-      });
+      await subscribeToPlan(organizationId, plan);
       toast.success('Plan activated!');
-      onSubscribed(selectedPlanId);
+      onSubscribed(plan.id);
     } catch (err: any) {
       toast.error(err.message || 'Failed to activate plan. Please try again.');
       setSubscribing(false);

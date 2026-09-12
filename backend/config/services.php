@@ -58,4 +58,11 @@ return [
         'model' => env('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001'),
     ],
 
+    // Browsershot's Chrome. Required for poster rendering regardless of any
+    // API key above — see GeneratePoster::resolveChromePath() for the local
+    // auto-detect fallback used when this is left blank.
+    'poster' => [
+        'chrome_path' => env('POSTER_CHROME_PATH'),
+    ],
+
 ];

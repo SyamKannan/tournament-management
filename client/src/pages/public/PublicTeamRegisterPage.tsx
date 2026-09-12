@@ -99,7 +99,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
 
         const availableMethods: PaymentMethod[] = res.tournament.payment_config?.enabled_methods?.length
           ? res.tournament.payment_config.enabled_methods
-          : ['upi', 'razorpay', 'stripe', 'pay_at_ground'];
+          : ['upi', 'pay_at_ground'];
         setPaymentMethod(availableMethods[0]);
 
         // Prepopulate default players count (e.g. 7 for football sevens, 11 for cricket)

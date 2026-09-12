@@ -1,11 +1,12 @@
 #!/bin/sh
-# Entrypoint for both roles this image can play:
+# Entrypoint for every role this image can play:
 #
-#   api  -> the HTTP API, served by FrankenPHP
-#   ws   -> the real-time WebSocket gateway
+#   api    -> the HTTP API, served by FrankenPHP
+#   ws     -> the real-time WebSocket gateway
+#   queue  -> the database-driven queue worker (currently just GeneratePoster)
 #
 # They share an image because they share the application code; only the process
-# differs. Run them as two containers from the same build.
+# differs. Run them as separate containers from the same build.
 set -e
 
 role="${1:-api}"

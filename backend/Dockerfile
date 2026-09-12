@@ -29,7 +29,8 @@ RUN composer dump-autoload --optimize --classmap-authoritative
 FROM dunglas/frankenphp:1-php8.3-alpine AS runtime
 
 # pcntl, posix and sockets are what the WebSocket gateway needs; pdo_mysql and
-# pdo_pgsql cover the supported databases.
+# pdo_pgsql cover the supported databases; gd is league/color-extractor's
+# dependency for the poster feature's club-color extraction.
 RUN install-php-extensions \
       pcntl \
       posix \
@@ -38,7 +39,16 @@ RUN install-php-extensions \
       pdo_pgsql \
       intl \
       opcache \
-      zip
+      zip \
+      gd
+
+# Node + a real Chromium for Browsershot (poster PNG rendering). Browsershot's
+# bundled script hardcodes `require('puppeteer')`, so the full package is
+# installed below, but .puppeteerrc.cjs skips its own Chromium download —
+# POSTER_CHROME_PATH's auto-detect (see GeneratePoster::resolveChromePath())
+# picks up this system package instead, whichever binary name this Alpine
+# version ships (chromium vs chromium-browser).
+RUN apk add --no-cache nodejs npm chromium
 
 RUN { \
       echo 'opcache.enable=1'; \
@@ -58,10 +68,14 @@ WORKDIR /app
 
 COPY --from=vendor /app /app
 
+# puppeteer (skipDownload via .puppeteerrc.cjs — no bundled Chromium fetch,
+# the apk package above is what actually runs).
+RUN npm install --omit=dev
+
 # The application only ever writes to these two trees.
 RUN adduser -u 1000 -D -S -G www-data app \
  && mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
- && chown -R app:www-data storage bootstrap/cache \
+ && chown -R app:www-data storage bootstrap/cache node_modules \
  && chmod -R 775 storage bootstrap/cache
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint

@@ -4,9 +4,9 @@ import type { Plan, BillingInterval } from '../../types';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { Skeleton, SkeletonStats } from '../../components/ui/Feedback';
-import { 
-  Plus, Edit2, Trash2, CheckCircle2, 
-  X, Check
+import {
+  Plus, Edit2, Trash2, CheckCircle2,
+  X, Check, Power, PowerOff
 } from 'lucide-react';
 
 export const AdminPlansPage: React.FC = () => {
@@ -45,7 +45,9 @@ export const AdminPlansPage: React.FC = () => {
     { id: 'offline_payments_tracking', label: 'Offline Cash / UPI Payment Recording' },
     { id: 'pdf_exports', label: 'Official Registration Receipts & PDF Exports' },
     { id: 'advanced_analytics', label: 'Advanced Tournament Analytics' },
-    { id: 'custom_branding', label: 'Custom Organization Branding' }
+    { id: 'custom_branding', label: 'Custom Organization Branding' },
+    { id: 'coin_toss', label: 'Pre-Match Coin Toss' },
+    { id: 'ai_tournament_poster', label: 'AI-Generated Tournament Posters' }
   ];
 
   const fetchPlans = async () => {
@@ -135,6 +137,25 @@ export const AdminPlansPage: React.FC = () => {
     }
   };
 
+  const handleToggleStatus = async (plan: Plan) => {
+    const activating = plan.status !== 'active';
+    const proceed = await confirm({
+      title: activating ? 'Activate this plan?' : 'Deactivate this plan?',
+      message: activating
+        ? 'Organizers will be able to newly subscribe to this plan again.'
+        : 'Organizers already on this plan keep their current limits, but it can no longer be newly chosen.',
+      confirmLabel: activating ? 'Activate plan' : 'Deactivate plan',
+      tone: activating ? 'default' : 'danger',
+    });
+    if (!proceed) return;
+    try {
+      await api.put(`/admin/plans/${plan.id}`, { status: activating ? 'active' : 'inactive' });
+      fetchPlans();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update plan status');
+    }
+  };
+
   const handleDeletePlan = async (planId: string) => {
     const proceed = await confirm({
       title: 'Delete this plan?',
@@ -180,9 +201,12 @@ export const AdminPlansPage: React.FC = () => {
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {plans.map(plan => {
           const isRecurring = plan.billing_type === 'recurring';
+          const isActive = plan.status === 'active';
 
           return (
-            <div key={plan.id} className="p-6 rounded-3xl glass-card border border-slate-800 flex flex-col justify-between hover:border-slate-700 transition-all">
+            <div key={plan.id} className={`p-6 rounded-3xl glass-card border flex flex-col justify-between transition-all ${
+              isActive ? 'border-slate-800 hover:border-slate-700' : 'border-slate-800/60 opacity-60 hover:opacity-100'
+            }`}>
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
@@ -191,6 +215,15 @@ export const AdminPlansPage: React.FC = () => {
                     {isRecurring ? `${plan.billing_interval} Recurring` : 'One-Time Payment'}
                   </span>
                   <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleToggleStatus(plan)}
+                      title={isActive ? 'Deactivate plan' : 'Activate plan'}
+                      className={`p-1.5 rounded-lg transition-colors hover:bg-slate-800 ${
+                        isActive ? 'text-slate-400 hover:text-rose-400' : 'text-slate-400 hover:text-emerald-400'
+                      }`}
+                    >
+                      {isActive ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
+                    </button>
                     <button
                       onClick={() => openEditModal(plan)}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
@@ -249,7 +282,7 @@ export const AdminPlansPage: React.FC = () => {
 
               <div className="mt-6 pt-4 border-t border-slate-800/80 text-[11px] text-slate-500 flex justify-between">
                 <span>{plan.trial_days > 0 ? `${plan.trial_days}-Day Free Trial` : 'Instant Activation'}</span>
-                <span className="text-emerald-400 font-semibold uppercase">{plan.status}</span>
+                <span className={`font-semibold uppercase ${isActive ? 'text-emerald-400' : 'text-rose-400'}`}>{plan.status}</span>
               </div>
             </div>
           );

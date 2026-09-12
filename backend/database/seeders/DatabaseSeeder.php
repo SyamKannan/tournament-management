@@ -98,6 +98,7 @@ class DatabaseSeeder extends Seeder
     {
         DB::table('platform_settings')->insert([
             ...$seed['platform_settings'],
+            'enabled_payment_methods' => json_encode($seed['platform_settings']['enabled_payment_methods']),
             'created_at' => now(),
             'updated_at' => now(),
         ]);

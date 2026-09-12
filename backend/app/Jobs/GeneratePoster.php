@@ -1,0 +1,400 @@
+<?php
+
+namespace App\Jobs;
+
+use App\Models\GameMatch;
+use App\Models\Player;
+use App\Models\Poster;
+use App\Models\Standing;
+use App\Models\Team;
+use App\Models\Tournament;
+use App\Models\Venue;
+use App\Services\Poster\ArtDirectorService;
+use App\Services\Poster\BackgroundService;
+use App\Services\Poster\PaletteService;
+use App\Services\RealtimeBroadcaster;
+use App\Support\Ids;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
+use Spatie\Browsershot\Browsershot;
+
+/**
+ * Chains PaletteService -> ArtDirectorService -> BackgroundService -> Blade
+ * -> Browsershot into one PNG, then writes the `posters` row and broadcasts
+ * it. Queued (not synchronous) because a full render — LLM call, optional
+ * image generation, headless Chrome — easily takes 10-20 seconds, far too
+ * slow to hold open the HTTP request that triggered it (a manual "Generate"
+ * click, or the toss/match-completed automation hooks).
+ *
+ * Unlike the AI copy/artwork steps, there is no fallback for the render
+ * step itself — Chrome is required infrastructure. A missing/broken Chrome
+ * throws and the job lands in `failed_jobs`, rather than silently no-op'ing.
+ */
+class GeneratePoster implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, SerializesModels;
+
+    public int $tries = 1;
+
+    public int $timeout = 90;
+
+    public function __construct(
+        private readonly string $tournamentId,
+        private readonly ?string $matchId,
+        private readonly string $posterType,
+        private readonly ?string $createdBy = null,
+    ) {}
+
+    public function handle(
+        PaletteService $palette,
+        ArtDirectorService $artDirector,
+        BackgroundService $background,
+        RealtimeBroadcaster $realtime,
+    ): void {
+        $tournament = Tournament::find($this->tournamentId);
+
+        if (! $tournament) {
+            Log::warning('GeneratePoster: tournament not found', ['tournament_id' => $this->tournamentId]);
+
+            return;
+        }
+
+        $match = $this->matchId ? GameMatch::find($this->matchId) : null;
+        $colors = $palette->extract($tournament);
+
+        $copy = $artDirector->direct($this->buildMatchData($tournament, $match), $this->posterType, $colors);
+        $backgroundImage = null;
+
+        if ($copy) {
+            $backgroundImage = $background->generate($copy['mood_prompt']);
+        } else {
+            $copy = $this->fallbackCopy($tournament, $match, $palette->toTemplatePalette($colors));
+        }
+
+        $viewData = [
+            ...$this->viewDataFor($tournament, $match),
+            'palette' => $copy['palette'],
+            'layout' => $copy['layout'],
+            'headline' => $copy['headline'],
+            'subhead' => $copy['subhead'],
+            'backgroundImage' => $backgroundImage,
+            'antonFontBase64' => $this->fontBase64('Anton-Regular.ttf'),
+            'interFontBase64' => $this->fontBase64('Inter-Variable.ttf'),
+        ];
+
+        $html = view('posters.partials.'.$this->posterType, $viewData)->render();
+
+        $targetDir = public_path('uploads/match-posters');
+        if (! File::isDirectory($targetDir)) {
+            File::makeDirectory($targetDir, 0755, true, true);
+        }
+
+        $id = Ids::unique('poster');
+        $outputPath = "{$targetDir}/{$id}.png";
+
+        $shot = Browsershot::html($html)
+            ->windowSize(1080, 1350)
+            ->deviceScaleFactor(2)
+            ->waitUntilNetworkIdle()
+            ->noSandbox()
+            ->setNodeModulePath(base_path('node_modules'))
+            ->timeout(60);
+
+        if ($chromePath = $this->resolveChromePath()) {
+            $shot->setChromePath($chromePath);
+        }
+
+        $shot->save($outputPath);
+
+        $imageUrl = url("uploads/match-posters/{$id}.png");
+
+        $poster = Poster::create([
+            'id' => $id,
+            'tournament_id' => $tournament->id,
+            'match_id' => $match?->id,
+            'poster_type' => $this->posterType,
+            'image_path' => $imageUrl,
+            'created_by' => $this->createdBy,
+        ]);
+
+        $realtime->toRoom("tournament:{$tournament->id}", 'POSTER_CREATED', ['poster' => $poster]);
+    }
+
+    /**
+     * Facts handed to the art director — real match/tournament data so its
+     * headline can reference something specific instead of generic hype.
+     */
+    private function buildMatchData(Tournament $tournament, ?GameMatch $match): array
+    {
+        $data = [
+            'tournament_name' => $tournament->name,
+            'sport' => $tournament->sport_code,
+        ];
+
+        if (! $match) {
+            if ($this->posterType === 'points_table') {
+                $data['standings'] = Standing::query()
+                    ->where('tournament_id', $tournament->id)
+                    ->orderBy('rank')
+                    ->limit(5)
+                    ->get(['team_id', 'points', 'won', 'lost', 'played'])
+                    ->map(fn (Standing $s) => [
+                        'team_name' => Team::find($s->team_id)?->name,
+                        'points' => $s->points,
+                        'played' => $s->played,
+                    ])->all();
+            } else {
+                $data['format'] = $tournament->format;
+                $data['max_teams'] = $tournament->max_teams;
+                $data['prize_money'] = $tournament->prize_money;
+                $data['dates'] = [$tournament->start_date, $tournament->end_date];
+            }
+
+            return $data;
+        }
+
+        $teamA = Team::find($match->team_a_id);
+        $teamB = Team::find($match->team_b_id);
+
+        $data['team_a'] = $teamA?->name;
+        $data['team_b'] = $teamB?->name;
+        $data['round'] = $match->round_name;
+        $data['venue'] = $match->venue_id ? Venue::find($match->venue_id)?->name : null;
+        $data['scheduled_at'] = $match->scheduled_at;
+
+        if ($this->posterType === 'toss') {
+            $data['toss_winner'] = $match->toss_winner_team_id ? Team::find($match->toss_winner_team_id)?->name : null;
+            $data['toss_decision'] = $match->toss_decision;
+        }
+
+        if (in_array($this->posterType, ['result', 'player_of_match'], true)) {
+            $data['winner'] = $match->winner_team_id ? Team::find($match->winner_team_id)?->name : null;
+            $data['result_summary'] = $match->result_summary;
+        }
+
+        if ($this->posterType === 'player_of_match') {
+            $player = $match->man_of_the_match_player_id ? Player::find($match->man_of_the_match_player_id) : null;
+            $data['player_name'] = $player?->full_name;
+            $data['player_team'] = $player ? Team::find($player->team_id)?->name : null;
+        }
+
+        return $data;
+    }
+
+    /**
+     * Everything each Blade partial actually renders — independent of
+     * whether the art director succeeded, so this always runs.
+     */
+    private function viewDataFor(Tournament $tournament, ?GameMatch $match): array
+    {
+        $tournamentArr = [
+            'name' => $tournament->name,
+            'logo' => $tournament->logo,
+            'sport_code' => $tournament->sport_code,
+        ];
+        $dateRange = $this->formatDateRange($tournament->start_date, $tournament->end_date);
+
+        if ($this->posterType === 'points_table') {
+            $standings = Standing::query()
+                ->where('tournament_id', $tournament->id)
+                ->orderBy('rank')
+                ->get();
+
+            return [
+                'tournament' => $tournamentArr,
+                'dateRange' => $dateRange,
+                'standings' => $standings->map(fn (Standing $s) => [
+                    'team_name' => Team::find($s->team_id)?->name ?: 'Unknown',
+                    'played' => $s->played,
+                    'won' => $s->won,
+                    'lost' => $s->lost,
+                    'points' => $s->points,
+                ])->all(),
+            ];
+        }
+
+        if ($this->posterType === 'tournament_announcement') {
+            return [
+                'tournament' => $tournamentArr,
+                'dateRange' => $dateRange,
+                'chips' => array_values(array_filter([
+                    ['label' => 'Dates', 'value' => $dateRange],
+                    $tournament->location ? ['label' => 'Venue', 'value' => $tournament->location] : null,
+                    ['label' => 'Format', 'value' => ucwords(str_replace('_', ' ', $tournament->format ?: 'League'))],
+                    $tournament->prize_money > 0 ? ['label' => 'Prize', 'value' => '₹'.number_format($tournament->prize_money)] : null,
+                ])),
+            ];
+        }
+
+        // Every remaining poster type (matchday, toss, result, player_of_match)
+        // is tied to a specific match.
+        $teamA = $this->teamArray(Team::find($match?->team_a_id));
+        $teamB = $this->teamArray(Team::find($match?->team_b_id));
+        $venue = $match?->venue_id ? Venue::find($match->venue_id) : null;
+        $matchMeta = trim(implode(' · ', array_filter([
+            $venue?->name,
+            $this->formatDateRange($match?->scheduled_at, $match?->scheduled_at),
+        ])));
+
+        $common = [
+            'tournament' => $tournamentArr,
+            'dateRange' => $dateRange,
+            'match' => ['round_name' => $match?->round_name],
+            'teamA' => $teamA,
+            'teamB' => $teamB,
+            'matchMeta' => $matchMeta,
+        ];
+
+        if ($this->posterType === 'toss') {
+            $winnerTeamModel = $match?->toss_winner_team_id ? Team::find($match->toss_winner_team_id) : null;
+
+            return [
+                ...$common,
+                'winnerTeam' => $this->teamArray($winnerTeamModel) ?: $teamA,
+                'decision' => $match?->toss_decision ?: 'bat',
+            ];
+        }
+
+        if ($this->posterType === 'result') {
+            $winnerTeamModel = $match?->winner_team_id ? Team::find($match->winner_team_id) : null;
+            $cricketState = $match?->cricketState;
+            $footballState = $match?->footballState;
+
+            return [
+                ...$common,
+                'winnerTeam' => $this->teamArray($winnerTeamModel) ?: $teamA,
+                'resultSummary' => $match?->result_summary ?: '',
+                'teamAScore' => $cricketState
+                    ? "{$cricketState->team_a_runs}/{$cricketState->team_a_wickets}"
+                    : (string) ($footballState?->team_a_score ?? ''),
+                'teamBScore' => $cricketState
+                    ? "{$cricketState->team_b_runs}/{$cricketState->team_b_wickets}"
+                    : (string) ($footballState?->team_b_score ?? ''),
+            ];
+        }
+
+        if ($this->posterType === 'player_of_match') {
+            $player = $match?->man_of_the_match_player_id ? Player::find($match->man_of_the_match_player_id) : null;
+
+            return [
+                ...$common,
+                'player' => $player ? ['full_name' => $player->full_name, 'photo' => $player->photo] : ['full_name' => 'Player of the Match', 'photo' => ''],
+                'team' => $player ? ($this->teamArray(Team::find($player->team_id)) ?: []) : [],
+            ];
+        }
+
+        return $common;
+    }
+
+    /**
+     * @return array{name: string, short_name: string, logo: string}
+     */
+    private function teamArray(?Team $team): array
+    {
+        if (! $team) {
+            return ['name' => 'TBD', 'short_name' => 'TBD', 'logo' => ''];
+        }
+
+        return ['name' => $team->name, 'short_name' => $team->short_name, 'logo' => $team->logo];
+    }
+
+    /**
+     * Used only when the art director is unconfigured or fails — plain,
+     * real-data copy so the poster is still meaningful, just not as sharp as
+     * an AI-written headline.
+     *
+     * @param  array{bg: string, accent: string, text: string}  $templatePalette
+     */
+    private function fallbackCopy(Tournament $tournament, ?GameMatch $match, array $templatePalette): array
+    {
+        $teamA = Team::find($match?->team_a_id)?->name ?: 'Team A';
+        $teamB = Team::find($match?->team_b_id)?->name ?: 'Team B';
+
+        [$headline, $subhead, $layout] = match ($this->posterType) {
+            'matchday' => ["{$teamA} vs {$teamB}", $match?->round_name ?: $tournament->name, 'split_vs'],
+            'toss' => [
+                (Team::find($match?->toss_winner_team_id)?->name ?: $teamA).' Win The Toss',
+                'Elect to '.ucfirst($match?->toss_decision ?: 'bat'),
+                'centered',
+            ],
+            'result' => [
+                (Team::find($match?->winner_team_id)?->name ?: $teamA).' Win!',
+                $match?->result_summary ?: "{$teamA} vs {$teamB}",
+                'stat_hero',
+            ],
+            'player_of_match' => ['Player of the Match', $tournament->name, 'centered'],
+            'points_table' => ['Points Table', $tournament->name, 'centered'],
+            'tournament_announcement' => [$tournament->name, 'Registrations Open Now', 'centered'],
+            default => [$tournament->name, '', 'centered'],
+        };
+
+        return [
+            'headline' => $headline,
+            'subhead' => $subhead,
+            'palette' => $templatePalette,
+            'layout' => $layout,
+            'mood_prompt' => '',
+        ];
+    }
+
+    private function formatDateRange(?string $start, ?string $end): string
+    {
+        if (! $start) {
+            return '';
+        }
+
+        try {
+            $startDate = Carbon::parse($start);
+            $endDate = $end ? Carbon::parse($end) : $startDate;
+        } catch (\Throwable) {
+            return $start;
+        }
+
+        return $startDate->isSameDay($endDate)
+            ? $startDate->format('jS M Y')
+            : $startDate->format('jS M').' – '.$endDate->format('jS M Y');
+    }
+
+    private function fontBase64(string $filename): string
+    {
+        return Cache::rememberForever(
+            "poster_font_b64:{$filename}",
+            fn () => base64_encode(File::get(resource_path("fonts/{$filename}")))
+        );
+    }
+
+    /**
+     * `POSTER_CHROME_PATH` is required in production; this auto-detect only
+     * exists so local dev works with zero config on a machine that already
+     * has a browser installed.
+     */
+    private function resolveChromePath(): ?string
+    {
+        if ($configured = config('services.poster.chrome_path')) {
+            return $configured;
+        }
+
+        foreach ([
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/google-chrome',
+            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+            'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+            'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        ] as $candidate) {
+            if (File::exists($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+}

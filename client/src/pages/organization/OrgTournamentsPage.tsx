@@ -19,7 +19,7 @@ import type { PaymentMethod } from '../../types';
 export const OrgTournamentsPage: React.FC = () => {
   const toast = useToast();
   const { organization } = useAuth();
-  const { enabledSports } = usePlatformConfig();
+  const { enabledSports, enabledPaymentMethods } = usePlatformConfig();
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -59,7 +59,7 @@ export const OrgTournamentsPage: React.FC = () => {
   const [groundFee, setGroundFee] = useState<number>(5000);
   const [allowPartial, setAllowPartial] = useState<boolean>(true);
   const [partialValue, setPartialValue] = useState<number>(50); // 50%
-  const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[]>(['upi', 'razorpay', 'stripe', 'pay_at_ground']);
+  const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[]>(['upi', 'pay_at_ground']);
   const [prizeMoney, setPrizeMoney] = useState<number>(50000);
   const [footballFormat, setFootballFormat] = useState('7-a-side');
   const [cricketFormat, setCricketFormat] = useState('T20');
@@ -96,6 +96,16 @@ export const OrgTournamentsPage: React.FC = () => {
       setSportCode(enabledSports[0].code);
     }
   }, [enabledSports, editingId]);
+
+  // Keep the payment method selection on platform-enabled methods when
+  // creating a tournament — an admin can disable a method at any time.
+  useEffect(() => {
+    if (editingId || enabledPaymentMethods.length === 0) return;
+    setEnabledMethods(prev => {
+      const filtered = prev.filter(m => enabledPaymentMethods.includes(m));
+      return filtered.length ? filtered : [enabledPaymentMethods[0]];
+    });
+  }, [enabledPaymentMethods, editingId]);
 
   useEffect(() => {
     if (!organization) return;
@@ -242,7 +252,7 @@ export const OrgTournamentsPage: React.FC = () => {
     setGroundFee(Number(t.ground_fee) || 0);
     setAllowPartial(paymentConfig.allow_partial !== false);
     setPartialValue(Number(paymentConfig.min_partial_value) || 50);
-    setEnabledMethods(paymentConfig.enabled_methods?.length ? paymentConfig.enabled_methods : ['upi', 'razorpay', 'stripe', 'pay_at_ground']);
+    setEnabledMethods(paymentConfig.enabled_methods?.length ? paymentConfig.enabled_methods : ['upi', 'pay_at_ground']);
     setPrizeMoney(Number(t.prize_money) || 0);
     setFootballFormat(settings.football_format || '7-a-side');
     setCricketFormat(settings.cricket_format || 'T20');
@@ -775,13 +785,13 @@ export const OrgTournamentsPage: React.FC = () => {
                   <span className="block text-slate-400 text-[11px] mb-2">
                     Accepted Payment Methods (at least one required)
                   </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {([
-                      { id: 'upi', label: 'UPI / QR' },
-                      { id: 'razorpay', label: 'Razorpay' },
-                      { id: 'stripe', label: 'Stripe' },
+                      { id: 'upi', label: 'Pay Online (UPI/Card)' },
                       { id: 'pay_at_ground', label: 'Pay at Ground' }
-                    ] as { id: PaymentMethod; label: string }[]).map(m => {
+                    ] as { id: PaymentMethod; label: string }[])
+                      .filter(m => enabledPaymentMethods.includes(m.id) || enabledMethods.includes(m.id))
+                      .map(m => {
                       const isChecked = enabledMethods.includes(m.id);
                       return (
                         <label

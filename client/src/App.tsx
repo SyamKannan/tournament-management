@@ -29,6 +29,7 @@ import { AdminPlansPage } from './pages/admin/AdminPlansPage';
 import { AdminOrganizationsPage } from './pages/admin/AdminOrganizationsPage';
 import { AdminSubscriptionsPage } from './pages/admin/AdminSubscriptionsPage';
 import { AdminAuditLogsPage } from './pages/admin/AdminAuditLogsPage';
+import { AdminPlatformSettingsPage } from './pages/admin/AdminPlatformSettingsPage';
 import { AdminSportsPage } from './pages/admin/AdminSportsPage';
 
 // Organization Admin Pages
@@ -155,7 +156,7 @@ export const App: React.FC = () => {
                 } />
                 <Route path="/admin/settings" element={
                   <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
-                    <AdminAuditLogsPage />
+                    <AdminPlatformSettingsPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/admin/audit-logs" element={

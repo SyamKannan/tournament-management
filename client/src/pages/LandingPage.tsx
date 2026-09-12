@@ -113,7 +113,9 @@ export const LandingPage: React.FC = () => {
     offline_payments_tracking: 'Offline Cash & UPI Payment Tracker',
     pdf_exports: 'Official Registration Receipts & PDF Exports',
     advanced_analytics: 'Advanced Analytics & Insights',
-    custom_branding: 'Custom Organization Branding'
+    custom_branding: 'Custom Organization Branding',
+    coin_toss: 'Pre-Match Coin Toss',
+    ai_tournament_poster: 'AI-Generated Tournament Posters'
   };
 
   const filteredPlans = plans.filter(p => {

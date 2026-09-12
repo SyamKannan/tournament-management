@@ -2,19 +2,18 @@
 
 @section('content')
 <div class="eyebrow">{{ $tournament['name'] }} &middot; TOSS</div>
-<div class="headline" style="margin-top:20px;">{{ $headline }}</div>
-<div class="subhead" style="margin-top:16px;">{{ $subhead }}</div>
 
-{{-- Hero: the toss decision, the one fact this poster exists to announce. --}}
-<div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px;">
-    @include('posters.partials._logo-circle', ['team' => $winnerTeam, 'size' => 220])
-    <div class="body-text" style="text-align:center; font-size:34px; font-weight:700;">{{ $winnerTeam['name'] }}</div>
-    <div style="font-family:'Anton',sans-serif; font-size:88px; color:var(--accent); text-align:center; text-transform:uppercase;">
-        ELECTED TO {{ strtoupper($decision) }}
-    </div>
+<div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:32px;">
+    @include('posters.partials._logo-circle', ['team' => $winnerTeam, 'size' => 180])
+
+    {{-- Hero: the toss decision — the one fact this poster exists to announce. --}}
+    <div class="headline" style="text-align:center;">{{ $headline }}</div>
+    <div class="subhead" style="text-align:center;">{{ $subhead }}</div>
+
+    <div class="body-text">{{ $winnerTeam['name'] }} elected to {{ $decision }}</div>
 </div>
 
-<div class="body-text" style="text-align:center;">{{ $matchMeta }}</div>
+<div class="meta" style="text-align:center;">{{ $matchMeta }}</div>
 @endsection
 
 @section('footer')

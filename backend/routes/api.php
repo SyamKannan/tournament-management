@@ -7,9 +7,11 @@ use App\Http\Controllers\Api\MatchController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\PlatformController;
 use App\Http\Controllers\Api\PlayerController;
+use App\Http\Controllers\Api\PosterController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SponsorController;
 use App\Http\Controllers\Api\TeamController;
+use App\Http\Controllers\Api\TossController;
 use App\Http\Controllers\Api\TournamentController;
 use App\Http\Controllers\Api\UploadController;
 use Illuminate\Support\Facades\Artisan;
@@ -35,6 +37,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('plans', [PlatformController::class, 'plans']);
 Route::get('sports', [PlatformController::class, 'sports']);
+Route::get('payment-methods', [PlatformController::class, 'paymentMethods']);
 Route::get('health', [PlatformController::class, 'health']);
 
 // Restores the demo dataset. Local and staging only — never expose in production.
@@ -149,6 +152,7 @@ Route::prefix('matches')->group(function () {
     Route::post('auto-generate-fixtures', [MatchController::class, 'generateFixtures'])->middleware('auth.required');
 
     Route::get('{id}', [MatchController::class, 'show']);
+    Route::get('{id}/toss', [TossController::class, 'show']);
 
     Route::middleware('auth.required')->group(function () {
         Route::put('{id}', [MatchController::class, 'update']);
@@ -157,12 +161,35 @@ Route::prefix('matches')->group(function () {
         Route::post('{id}/football/timer', [MatchController::class, 'controlFootballTimer']);
         Route::post('{id}/football/undo', [MatchController::class, 'undoFootballEvent']);
 
-        Route::post('{id}/cricket/toss/flip', [MatchController::class, 'flipCricketToss']);
-        Route::post('{id}/cricket/toss/decision', [MatchController::class, 'recordCricketTossDecision']);
+        // Same role list as poster generation below — the organizer, the
+        // on-ground scorer, or a super admin; not a team manager, who only
+        // manages their own team's roster.
+        Route::middleware('role:ORG_ADMIN,SCORER,SUPER_ADMIN')->group(function () {
+            Route::post('{id}/toss/call', [TossController::class, 'call']);
+            Route::post('{id}/toss/decision', [TossController::class, 'decision']);
+            Route::post('{id}/toss/manual', [TossController::class, 'manual']);
+        });
+
         Route::post('{id}/cricket/ball', [MatchController::class, 'recordCricketBall']);
         Route::post('{id}/cricket/undo', [MatchController::class, 'undoCricketBall']);
         Route::post('{id}/cricket/switch-innings', [MatchController::class, 'switchInnings']);
     });
+});
+
+/* ------------------------------------------------------------------- Posters */
+
+Route::prefix('posters')->group(function () {
+    // Share-ready promotional images — same visibility as the public hub.
+    Route::get('/', [PosterController::class, 'index']);
+
+    // ORG_ADMIN (the organizer) and SCORER (running the match on the ground,
+    // best placed to trigger a toss/result poster) — not TEAM_MANAGER, who
+    // only manages their own team's roster, not tournament-wide promotion.
+    Route::middleware(['auth.required', 'role:ORG_ADMIN,SCORER,SUPER_ADMIN'])->group(function () {
+        Route::post('generate', [PosterController::class, 'generate']);
+    });
+
+    Route::delete('{id}', [PosterController::class, 'destroy'])->middleware(['auth.required', 'role:ORG_ADMIN,SUPER_ADMIN']);
 });
 
 /* ------------------------------------------------------------------ Auctions */

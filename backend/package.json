@@ -1,8 +1,8 @@
 {
   "name": "sports-saas-backend",
   "private": true,
-  "description": "Node side-dependency for Browsershot poster rendering only — the app itself is Laravel. puppeteer-core (no bundled Chromium download) so this stays small and Alpine-safe; point it at a real Chrome/Chromium via POSTER_CHROME_PATH.",
+  "description": "Node side-dependency for Browsershot poster rendering only — the app itself is Laravel. Browsershot's bundled script requires the full `puppeteer` package by name (not puppeteer-core), but .puppeteerrc.cjs skips its Chromium download — POSTER_CHROME_PATH always points it at a real system Chrome/Chromium instead.",
   "dependencies": {
-    "puppeteer-core": "^23.9.0"
+    "puppeteer": "^25.10.0"
   }
 }

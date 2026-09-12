@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\GeneratePoster;
 use App\Models\GameMatch;
+use App\Services\BillingService;
 use App\Services\RealtimeBroadcaster;
 use App\Services\TossService;
 use Illuminate\Http\JsonResponse;
@@ -21,6 +23,7 @@ class TossController extends Controller
     public function __construct(
         private readonly TossService $toss,
         private readonly RealtimeBroadcaster $realtime,
+        private readonly BillingService $billing,
     ) {}
 
     /**
@@ -44,6 +47,10 @@ class TossController extends Controller
             'team_id' => ['required', 'string'],
             'call' => ['required', 'string', 'in:heads,tails'],
         ]);
+
+        if ($denied = $this->denyMissingFeature($id)) {
+            return $denied;
+        }
 
         try {
             $match = $this->toss->call($id, $data['team_id'], $data['call']);
@@ -69,6 +76,7 @@ class TossController extends Controller
         }
 
         $this->broadcast($id, 'TOSS_DECIDED', $this->tossPayload($match));
+        GeneratePoster::dispatch($match->tournament_id, $match->id, 'toss', $request->user()?->id);
 
         return response()->json($this->tossPayload($match));
     }
@@ -87,6 +95,7 @@ class TossController extends Controller
         }
 
         $this->broadcast($id, 'TOSS_RECORDED', $this->tossPayload($match));
+        GeneratePoster::dispatch($match->tournament_id, $match->id, 'toss', $request->user()?->id);
 
         return response()->json($this->tossPayload($match));
     }

@@ -20,6 +20,7 @@ class PlatformSetting extends Model
         'require_admin_approval_for_orgs' => 'boolean',
         'default_trial_days' => 'integer',
         'grace_period_days' => 'integer',
+        'enabled_payment_methods' => 'array',
     ];
 
     public static function current(): self

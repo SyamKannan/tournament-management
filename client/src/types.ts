@@ -59,6 +59,21 @@ export interface Plan {
   updated_at: string;
 }
 
+export interface PlatformSettings {
+  platform_name: string;
+  country: string;
+  support_email: string;
+  support_phone: string;
+  currency_symbol: string;
+  currency_code: string;
+  enable_public_signup: boolean;
+  require_admin_approval_for_orgs: boolean;
+  default_trial_days: number;
+  grace_period_days: number;
+  payment_gateway_mode: 'sandbox' | 'live';
+  enabled_payment_methods: PaymentMethod[];
+}
+
 export interface Organization {
   id: string;
   name: string;
