@@ -24,7 +24,7 @@ class DatabaseSeeder extends Seeder
     private const FIXTURE_ANCHOR = '2026-08-24T02:47:55.943Z';
 
     /** Columns that are real timestamps rather than ISO strings. */
-    private const TIMESTAMP_COLUMNS = ['created_at', 'updated_at'];
+    private const TIMESTAMP_COLUMNS = ['created_at', 'updated_at', 'toss_time', 'scoreboard_stage_at'];
 
     private int $shiftSeconds = 0;
 
