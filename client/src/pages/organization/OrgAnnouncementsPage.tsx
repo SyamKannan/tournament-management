@@ -1,104 +1,120 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../services/api';
-import type { Announcement, Tournament } from '../../types';
-import { Radio, Trash2 } from 'lucide-react';
+import type { Announcement, Match } from '../../types';
+import { Clock, Radio, Trash2, Tv } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
-import { Skeleton, SkeletonCard } from '../../components/ui/Feedback';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { MatchPicker } from '../../components/MatchPicker';
 
+const DURATION_CHOICES = [0, 10, 15, 20, 30, 45, 60, 120, 300, 600];
+
+const durationLabel = (seconds: number) =>
+  seconds === 0 ? 'Hold until switched back' : seconds < 60 ? `${seconds} seconds` : `${seconds / 60} minute${seconds === 60 ? '' : 's'}`;
+
+const TYPE_LABELS: Record<Announcement['type'], string> = {
+  urgent_match_delay: '⚠️ Rain / Match Delay',
+  venue_change: '📍 Venue Changed',
+  general: '📢 General Update',
+  registration_alert: '📝 Registration',
+};
+
+/**
+ * Announcements are written here for one match. They reach the big screen
+ * only when someone running that match presses Show in the scorer console.
+ */
 export const OrgAnnouncementsPage: React.FC = () => {
   const toast = useToast();
+  const confirm = useConfirm();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [match, setMatch] = useState<Match | null>(null);
 
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [type, setType] = useState<'general' | 'urgent_match_delay' | 'venue_change'>('urgent_match_delay');
-  const [activeOnScoreboard, setActiveOnScoreboard] = useState(true);
-  const [selectedTourneyId, setSelectedTourneyId] = useState('');
+  const [durationSeconds, setDurationSeconds] = useState(30);
+  const [saving, setSaving] = useState(false);
 
-  const fetchData = async () => {
+  const loadAnnouncements = useCallback(async () => {
+    if (!match) {
+      setAnnouncements([]);
+      return;
+    }
     try {
-      setLoading(true);
-      const [annRes, tourneysRes] = await Promise.all([
-        api.get('/sponsors/announcements'),
-        api.get('/tournaments')
-      ]);
-      setAnnouncements(annRes);
-      setTournaments(tourneysRes);
-      if (tourneysRes.length > 0 && !selectedTourneyId) {
-        setSelectedTourneyId(tourneysRes[0].id);
-      }
+      setAnnouncements(await api.get(`/sponsors/announcements?matchId=${encodeURIComponent(match.id)}`));
     } catch (err) {
       console.error('Failed to load announcements', err);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [match?.id]);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { loadAnnouncements(); }, [loadAnnouncements]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!match) return;
+    setSaving(true);
     try {
       await api.post('/sponsors/announcements', {
-        tournament_id: selectedTourneyId || undefined,
+        match_id: match.id,
         title,
         message,
         type,
-        is_active_on_scoreboard: activeOnScoreboard
+        duration_seconds: durationSeconds,
       });
       setTitle('');
       setMessage('');
-      fetchData();
+      loadAnnouncements();
+      toast.success('Announcement saved. Show it from the Big Screen Director.');
     } catch (err: any) {
       toast.error(err.message || 'Failed to create announcement');
-    }
-  };
-
-  const handleToggleScoreboard = async (annId: string, currentState: boolean) => {
-    try {
-      await api.put(`/sponsors/announcements/${annId}/scoreboard-toggle`, {
-        is_active_on_scoreboard: !currentState
-      });
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to toggle');
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async (annId: string) => {
+    const proceed = await confirm({
+      title: 'Delete this announcement?',
+      message: 'If it is on the big screen right now it comes off immediately.',
+      confirmLabel: 'Delete announcement',
+      tone: 'danger',
+    });
+    if (!proceed) return;
     try {
       await api.delete(`/sponsors/announcements/${annId}`);
-      fetchData();
+      loadAnnouncements();
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete');
     }
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-72" />
-        <SkeletonCard lines={3} />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-black font-heading text-white">Emergency Announcements & Alerts</h1>
-        <p className="text-xs text-slate-400 mt-1">Broadcast urgent messages (e.g. Rain delays, Venue changes) directly to public pages and 16:9 TV scoreboards</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-black font-heading text-white">Match Announcements</h1>
+          <p className="text-xs text-slate-400 mt-1">Write announcements for a match here, then show them full screen from that match's Big Screen Director</p>
+        </div>
+        {match && (
+          <Link
+            to={`/organization/scorer/${match.id}`}
+            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-colors w-fit"
+          >
+            <Tv className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Open Big Screen Director</span>
+          </Link>
+        )}
+      </div>
+
+      <div className="p-5 rounded-3xl glass-panel border border-slate-800">
+        <MatchPicker onChange={next => setMatch(next)} />
       </div>
 
       <div className="grid md:grid-cols-12 gap-6">
         {/* Create Form */}
         <div className="md:col-span-5">
           <div className="p-6 rounded-3xl glass-panel border border-slate-800 space-y-4">
-            <h3 className="text-sm font-bold text-white font-heading">Broadcast New Alert</h3>
+            <h3 className="text-sm font-bold text-white font-heading">New Announcement</h3>
 
             <form onSubmit={handleCreate} className="space-y-3.5 text-xs">
               <div>
@@ -133,85 +149,72 @@ export const OrgAnnouncementsPage: React.FC = () => {
                     onChange={(e) => setType(e.target.value as any)}
                     className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900"
                   >
-                    <option value="urgent_match_delay">⚠️ Rain / Match Delay</option>
-                    <option value="venue_change">📍 Venue Changed</option>
-                    <option value="general">📢 General Update</option>
+                    <option value="urgent_match_delay">{TYPE_LABELS.urgent_match_delay}</option>
+                    <option value="venue_change">{TYPE_LABELS.venue_change}</option>
+                    <option value="general">{TYPE_LABELS.general}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Tournament</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Time on Big Screen</label>
                   <select
-                    value={selectedTourneyId}
-                    onChange={(e) => setSelectedTourneyId(e.target.value)}
+                    value={durationSeconds}
+                    onChange={(e) => setDurationSeconds(Number(e.target.value))}
                     className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900"
                   >
-                    <option value="">All Tournaments</option>
-                    {tournaments.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
+                    {DURATION_CHOICES.map(seconds => (
+                      <option key={seconds} value={seconds}>{durationLabel(seconds)}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 text-slate-300 cursor-pointer pt-1">
-                <input
-                  type="checkbox"
-                  checked={activeOnScoreboard}
-                  onChange={(e) => setActiveOnScoreboard(e.target.checked)}
-                  className="rounded text-rose-500"
-                />
-                <span className="text-rose-400 font-semibold">Broadcast immediately on Big Screen TV Scoreboard</span>
-              </label>
-
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-bold text-xs shadow-md shadow-rose-600/20"
+                disabled={!match || saving}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-bold text-xs shadow-md shadow-rose-600/20 disabled:opacity-50"
               >
-                Broadcast Announcement
+                {saving ? 'Saving…' : 'Save Announcement'}
               </button>
             </form>
           </div>
         </div>
 
-        {/* Existing Announcements List */}
+        {/* This match's announcements */}
         <div className="md:col-span-7 space-y-3">
-          {announcements.map(ann => (
+          {!match ? (
+            <div className="p-8 rounded-2xl border border-dashed border-slate-800 text-center text-xs text-slate-500">
+              Pick a match to see its announcements.
+            </div>
+          ) : announcements.length === 0 ? (
+            <div className="p-8 rounded-2xl border border-dashed border-slate-800 text-center text-xs text-slate-500">
+              No announcements for this match yet.
+            </div>
+          ) : announcements.map(ann => (
             <div key={ann.id} className="p-4 rounded-2xl glass-card border border-slate-800 flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <Radio className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
-                  ann.is_active_on_scoreboard ? 'text-rose-400 animate-pulse' : 'text-slate-500'
-                }`} />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-bold text-white">{ann.title}</h4>
-                    {ann.is_active_on_scoreboard && (
-                      <span className="px-2 py-0.5 rounded bg-rose-500/20 border border-rose-500/30 text-rose-400 text-[11px] font-bold uppercase">
-                        Active On Scoreboard TV
-                      </span>
-                    )}
+              <div className="flex items-start gap-3 min-w-0">
+                <Radio className="w-5 h-5 flex-shrink-0 mt-0.5 text-slate-500" />
+                <div className="min-w-0">
+                  <h4 className="text-sm font-bold text-white">{ann.title}</h4>
+                  <p className="text-xs text-slate-300 mt-1 [overflow-wrap:anywhere]">{ann.message}</p>
+                  <div className="text-[11px] text-slate-500 mt-2 font-mono flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span>{TYPE_LABELS[ann.type] ?? ann.type}</span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {ann.duration_seconds === 0 ? 'Hold' : `${ann.duration_seconds}s`}
+                    </span>
+                    <span>{new Date(ann.created_at).toLocaleString()}</span>
                   </div>
-                  <p className="text-xs text-slate-300 mt-1">{ann.message}</p>
-                  <div className="text-[11px] text-slate-500 mt-2 font-mono">{new Date(ann.created_at).toLocaleString()}</div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleToggleScoreboard(ann.id, ann.is_active_on_scoreboard)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                    ann.is_active_on_scoreboard ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-800 text-slate-400'
-                  }`}
-                >
-                  {ann.is_active_on_scoreboard ? 'Hide from TV' : 'Push to TV'}
-                </button>
-                <button
-                  onClick={() => handleDelete(ann.id)}
-                  className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-800"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              <button
+                onClick={() => handleDelete(ann.id)}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-800 shrink-0"
+                title="Delete announcement"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             </div>
           ))}
         </div>

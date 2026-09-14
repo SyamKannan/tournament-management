@@ -23,7 +23,6 @@ export const AdminPlansPage: React.FC = () => {
   const [price, setPrice] = useState<number>(1999);
   const [billingType, setBillingType] = useState<'recurring' | 'one_time'>('recurring');
   const [billingInterval, setBillingInterval] = useState<BillingInterval>('monthly');
-  const [trialDays, setTrialDays] = useState<number>(14);
   const [tournamentLimit, setTournamentLimit] = useState<number>(3);
   const [teamLimit, setTeamLimit] = useState<number>(50);
   const [playerLimit, setPlayerLimit] = useState<number>(800);
@@ -73,7 +72,6 @@ export const AdminPlansPage: React.FC = () => {
     setPrice(1999);
     setBillingType('recurring');
     setBillingInterval('monthly');
-    setTrialDays(14);
     setTournamentLimit(3);
     setTeamLimit(50);
     setPlayerLimit(800);
@@ -89,7 +87,6 @@ export const AdminPlansPage: React.FC = () => {
     setPrice(plan.price);
     setBillingType(plan.billing_type);
     setBillingInterval(plan.billing_interval || 'monthly');
-    setTrialDays(plan.trial_days || 0);
     setTournamentLimit(plan.tournament_limit);
     setTeamLimit(plan.team_limit);
     setPlayerLimit(plan.player_limit);
@@ -116,7 +113,6 @@ export const AdminPlansPage: React.FC = () => {
         currency: '₹',
         billing_type: billingType,
         billing_interval: billingType === 'recurring' ? billingInterval : undefined,
-        trial_days: Number(trialDays),
         tournament_limit: Number(tournamentLimit),
         team_limit: Number(teamLimit),
         player_limit: Number(playerLimit),
@@ -281,7 +277,7 @@ export const AdminPlansPage: React.FC = () => {
               </div>
 
               <div className="mt-6 pt-4 border-t border-slate-800/80 text-[11px] text-slate-500 flex justify-between">
-                <span>{plan.trial_days > 0 ? `${plan.trial_days}-Day Free Trial` : 'Instant Activation'}</span>
+                <span>{plan.price === 0 ? 'Free Tournament' : 'Instant Activation'}</span>
                 <span className={`font-semibold uppercase ${isActive ? 'text-emerald-400' : 'text-rose-400'}`}>{plan.status}</span>
               </div>
             </div>
@@ -340,7 +336,7 @@ export const AdminPlansPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">Billing Type</label>
                   <select
@@ -367,17 +363,6 @@ export const AdminPlansPage: React.FC = () => {
                     </select>
                   </div>
                 )}
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Trial Days</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={trialDays}
-                    onChange={(e) => setTrialDays(Number(e.target.value))}
-                    className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
-                  />
-                </div>
               </div>
 
               {/* Resource Limits */}

@@ -129,9 +129,12 @@ export const App: React.FC = () => {
                   </ProtectedRoute>
                 } />
 
-                {/* Player Personal Dashboard (Protected) */}
+                {/* Player Personal Dashboard (Protected) — a club/org account has no
+                    personal player identity, so only an actual player role (or an
+                    admin/org session that has impersonated one, which swaps the
+                    session's role to PLAYER) can land here. */}
                 <Route path="/player/dashboard" element={
-                  <ProtectedRoute allowedRoles={['PLAYER', 'ORG_ADMIN', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['PLAYER']}>
                     <PlayerDashboardPage />
                   </ProtectedRoute>
                 } />

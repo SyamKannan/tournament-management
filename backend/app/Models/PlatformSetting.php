@@ -13,14 +13,16 @@ class PlatformSetting extends Model
 
     protected $guarded = [];
 
-    protected $hidden = ['id', 'created_at', 'updated_at'];
+    /** payment_gateways holds encrypted keys — exposed only via PaymentGatewayService::adminConfig(). */
+    protected $hidden = ['id', 'created_at', 'updated_at', 'payment_gateways'];
 
     protected $casts = [
         'enable_public_signup' => 'boolean',
         'require_admin_approval_for_orgs' => 'boolean',
-        'default_trial_days' => 'integer',
         'grace_period_days' => 'integer',
         'enabled_payment_methods' => 'array',
+        'subscription_payment_methods' => 'array',
+        'payment_gateways' => 'array',
     ];
 
     public static function current(): self

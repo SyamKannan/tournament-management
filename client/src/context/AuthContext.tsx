@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import type { User, Organization, UserRole, Announcement } from '../types';
+import type { User, Organization, UserRole } from '../types';
 import { api } from '../services/api';
 import { websocketUrl } from '../config';
 
@@ -13,7 +13,6 @@ interface AuthContextType {
   isLoading: boolean;
   isWsConnected: boolean;
   isImpersonating: boolean;
-  latestAnnouncement: Announcement | null;
   login: (email: string, password: string) => Promise<{ user: User; organization: Organization | null }>;
   registerOrg: (data: any) => Promise<{ user: User; organization: Organization }>;
   impersonate: (options: { userId?: string; organizationId?: string }) => Promise<{ user: User; organization: Organization | null }>;
@@ -32,7 +31,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [role, setRole] = useState<UserRole>('PUBLIC_USER');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isWsConnected, setIsWsConnected] = useState<boolean>(false);
-  const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
 
   const fetchCurrentUser = useCallback(async () => {
     const storedToken = localStorage.getItem('sports_saas_token');
@@ -185,7 +183,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     fetchCurrentUser();
   }, [fetchCurrentUser]);
 
-  // WebSocket Global Connection for live updates and emergency alerts
+  // Gateway connection status. Announcements are no longer broadcast
+  // platform-wide; each one reaches only its own match's big screen.
   useEffect(() => {
     const wsUrl = websocketUrl();
     let ws: WebSocket | null = null;
@@ -197,17 +196,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         ws.onopen = () => {
           setIsWsConnected(true);
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'EMERGENCY_ANNOUNCEMENT') {
-              setLatestAnnouncement(data.payload?.announcement || null);
-            }
-          } catch (e) {
-            // ignore non-json
-          }
         };
 
         ws.onclose = () => {
@@ -242,7 +230,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isLoading,
         isWsConnected,
         isImpersonating,
-        latestAnnouncement,
         login,
         registerOrg,
         impersonate,

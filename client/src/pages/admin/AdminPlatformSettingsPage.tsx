@@ -1,20 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import type { PlatformSettings, PaymentMethod } from '../../types';
+import type { PlatformSettings, PaymentMethod, PaymentFlow, PaymentProvider } from '../../types';
 import { useToast } from '../../components/ui/Toast';
 import { Skeleton, SkeletonStats } from '../../components/ui/Feedback';
-import { Save, CreditCard, Banknote } from 'lucide-react';
+import { Save, Receipt, Users, FlaskConical, KeyRound, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { PhoneInput } from '../../components/PhoneInput';
+import { COUNTRIES } from '../../lib/countries';
 
-const PAYMENT_METHODS: { id: PaymentMethod; label: string; icon: typeof CreditCard; blurb: string }[] = [
-  { id: 'upi', label: 'Pay Online (UPI/Card)', icon: CreditCard, blurb: 'Razorpay Checkout for ground fees and plan subscriptions' },
-  { id: 'pay_at_ground', label: 'Pay at Ground', icon: Banknote, blurb: 'Teams settle the fee in person, organizer records it manually' },
+import { ALL_PAYMENT_METHODS, ONLINE_PAYMENT_METHODS, PAYMENT_METHOD_META } from '../../lib/paymentMethods';
+
+const FLOWS: { id: PaymentFlow; title: string; blurb: string; icon: typeof Receipt }[] = [
+  {
+    id: 'subscription',
+    title: 'Plan Purchases & Renewals',
+    blurb: 'What clubs pay the platform when they buy, switch or renew a plan.',
+    icon: Receipt,
+  },
+  {
+    id: 'registration',
+    title: 'Team Registration Fees',
+    blurb: 'Ground fees teams pay clubs when registering. Each club picks which of these methods a tournament shows.',
+    icon: Users,
+  },
 ];
 
-const COUNTRIES = [
-  'India', 'United States', 'United Kingdom', 'Australia', 'Canada',
-  'United Arab Emirates', 'Singapore', 'Pakistan', 'Bangladesh', 'Sri Lanka',
-  'Nepal', 'South Africa', 'New Zealand', 'Malaysia', 'Kenya', 'Nigeria',
-  'Ireland', 'Germany', 'France',
+const PROVIDERS: { id: PaymentProvider; label: string; sub: string; icon: typeof KeyRound }[] = [
+  { id: 'demo', label: 'Demo checkout', sub: 'Test cards, no real money', icon: FlaskConical },
+  { id: 'razorpay', label: 'Razorpay', sub: 'UPI, cards, netbanking', icon: KeyRound },
 ];
 
 const CURRENCIES: { code: string; symbol: string; label: string }[] = [
@@ -59,18 +71,22 @@ export const AdminPlatformSettingsPage: React.FC = () => {
     fetchSettings();
   }, []);
 
-  const handleTogglePaymentMethod = (id: PaymentMethod) => {
+  const toggleMethod = (key: 'enabled_payment_methods' | 'subscription_payment_methods', id: PaymentMethod) => {
     if (!settings) return;
-    const enabled = settings.enabled_payment_methods.includes(id);
-    if (enabled && settings.enabled_payment_methods.length === 1) {
+    const current = settings[key] as PaymentMethod[];
+    const enabled = current.includes(id);
+    if (enabled && current.length === 1) {
       toast.error('At least one payment method must stay enabled');
       return;
     }
+    setSettings({ ...settings, [key]: enabled ? current.filter(m => m !== id) : [...current, id] });
+  };
+
+  const updateGateway = (flow: PaymentFlow, patch: Partial<PlatformSettings['payment_gateways'][PaymentFlow]>) => {
+    if (!settings) return;
     setSettings({
       ...settings,
-      enabled_payment_methods: enabled
-        ? settings.enabled_payment_methods.filter(m => m !== id)
-        : [...settings.enabled_payment_methods, id],
+      payment_gateways: { ...settings.payment_gateways, [flow]: { ...settings.payment_gateways[flow], ...patch } },
     });
   };
 
@@ -86,7 +102,16 @@ export const AdminPlatformSettingsPage: React.FC = () => {
     if (!settings) return;
     setSaving(true);
     try {
-      const res = await api.put('/admin/settings', settings);
+      const res = await api.put('/admin/settings', {
+        ...settings,
+        // The secret is write-only: send it only when the admin typed a new one.
+        payment_gateways: Object.fromEntries(
+          FLOWS.map(({ id }) => {
+            const g = settings.payment_gateways[id];
+            return [id, { provider: g.provider, key_id: g.key_id, ...(g.key_secret ? { key_secret: g.key_secret } : {}) }];
+          })
+        ),
+      });
       setSettings(res);
       toast.success('Platform settings saved');
     } catch (err: any) {
@@ -166,10 +191,9 @@ export const AdminPlatformSettingsPage: React.FC = () => {
             </div>
             <div>
               <label className="block text-slate-300 font-semibold mb-1">Support Phone</label>
-              <input
-                type="text"
+              <PhoneInput
                 value={settings.support_phone}
-                onChange={(e) => setSettings({ ...settings, support_phone: e.target.value })}
+                onChange={(support_phone) => setSettings({ ...settings, support_phone })}
                 className="w-full px-3.5 py-2 rounded-xl glass-input"
               />
             </div>
@@ -198,16 +222,6 @@ export const AdminPlatformSettingsPage: React.FC = () => {
               <span>Require admin approval for new organizations</span>
             </label>
             <div>
-              <label className="block text-slate-400 mb-1">Default Trial Days</label>
-              <input
-                type="number"
-                min="0"
-                value={settings.default_trial_days}
-                onChange={(e) => setSettings({ ...settings, default_trial_days: Number(e.target.value) })}
-                className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
-              />
-            </div>
-            <div>
               <label className="block text-slate-400 mb-1">Grace Period Days</label>
               <input
                 type="number"
@@ -220,53 +234,138 @@ export const AdminPlatformSettingsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-6 rounded-3xl glass-card border border-slate-800 space-y-4">
-          <h3 className="text-sm font-bold text-white font-heading">Payments</h3>
-
+        <div className="space-y-4">
           <div>
-            <label className="block text-slate-300 font-semibold mb-1 text-xs">Razorpay Gateway Mode</label>
-            <select
-              value={settings.payment_gateway_mode}
-              onChange={(e) => setSettings({ ...settings, payment_gateway_mode: e.target.value as 'sandbox' | 'live' })}
-              className="w-full sm:w-64 px-3 py-2 rounded-xl glass-input bg-slate-900 text-xs"
-            >
-              <option value="sandbox">Sandbox (test keys)</option>
-              <option value="live">Live (real charges)</option>
-            </select>
+            <h3 className="text-sm font-bold text-white font-heading">Payments</h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Each payment flow has its own gateway. Use <b className="text-slate-300">Demo checkout</b> to try the full flow with test cards,
+              or <b className="text-slate-300">Razorpay</b> with your API keys (rzp_test_… for testing, rzp_live_… for real charges).
+            </p>
           </div>
 
-          <div>
-            <span className="block text-slate-400 text-[11px] mb-2">
-              Payment Methods Enabled Platform-Wide (at least one required)
-            </span>
-            <p className="text-[11px] text-slate-500 mb-2">
-              Controls which methods organizers can offer teams when configuring a tournament's ground fee.
-              Disabling one here removes it from every organizer's picker without affecting tournaments already using it.
-            </p>
-            <div className="grid sm:grid-cols-2 gap-2">
-              {PAYMENT_METHODS.map(m => {
-                const isEnabled = settings.enabled_payment_methods.includes(m.id);
-                const Icon = m.icon;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => handleTogglePaymentMethod(m.id)}
-                    className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all ${
-                      isEnabled
-                        ? 'bg-emerald-500/15 border-emerald-500/60 text-white'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                    }`}
-                  >
-                    <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${isEnabled ? 'text-emerald-400' : 'text-slate-500'}`} />
-                    <span>
-                      <span className="block text-xs font-semibold">{m.label}</span>
-                      <span className="block text-[11px] text-slate-500 mt-0.5">{m.blurb}</span>
+          <div className="grid lg:grid-cols-2 gap-4">
+            {FLOWS.map(flow => {
+              const gateway = settings.payment_gateways[flow.id];
+              const FlowIcon = flow.icon;
+              const methodKey = flow.id === 'subscription' ? 'subscription_payment_methods' : 'enabled_payment_methods';
+              const methodOptions: PaymentMethod[] = flow.id === 'subscription' ? ONLINE_PAYMENT_METHODS : ALL_PAYMENT_METHODS;
+              const selectedMethods = settings[methodKey] as PaymentMethod[];
+              const keyMode = gateway.key_id.startsWith('rzp_live_') ? 'live' : gateway.key_id.startsWith('rzp_test_') ? 'test' : null;
+
+              return (
+                <div key={flow.id} className="p-5 rounded-3xl glass-card border border-slate-800 space-y-4 text-xs">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+                      <FlowIcon className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-sm font-bold text-white">{flow.title}</h4>
+                        {gateway.ready ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold uppercase">
+                            <CheckCircle2 className="w-3 h-3" /> Ready
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-bold uppercase">
+                            <AlertTriangle className="w-3 h-3" /> Not ready — save keys
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{flow.blurb}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="block text-slate-300 font-semibold mb-1.5">Gateway</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      {PROVIDERS.map(p => {
+                        const active = gateway.provider === p.id;
+                        const Icon = p.icon;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => updateGateway(flow.id, { provider: p.id })}
+                            className={`p-3 rounded-xl border text-left flex items-start gap-2 transition-all ${
+                              active ? 'bg-emerald-500/15 border-emerald-500/60 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                            }`}
+                          >
+                            <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${active ? 'text-emerald-400' : 'text-slate-500'}`} />
+                            <span>
+                              <span className="block font-semibold">{p.label}</span>
+                              <span className="block text-[10px] text-slate-500">{p.sub}</span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {gateway.provider === 'razorpay' && (
+                    <div className="grid gap-3">
+                      <div>
+                        <label className="flex items-center justify-between text-slate-300 font-semibold mb-1">
+                          <span>Key ID</span>
+                          {keyMode && (
+                            <span className={`text-[10px] font-bold uppercase ${keyMode === 'live' ? 'text-rose-300' : 'text-cyan-300'}`}>
+                              {keyMode === 'live' ? 'Live — real charges' : 'Test mode'}
+                            </span>
+                          )}
+                        </label>
+                        <input
+                          type="text"
+                          value={gateway.key_id}
+                          placeholder="rzp_test_xxxxxxxxxxxx"
+                          onChange={(e) => updateGateway(flow.id, { key_id: e.target.value.trim() })}
+                          className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">Key Secret</label>
+                        <input
+                          type="password"
+                          autoComplete="new-password"
+                          value={gateway.key_secret ?? ''}
+                          placeholder={gateway.has_key_secret ? '•••••••• saved — type to replace' : 'Paste your key secret'}
+                          onChange={(e) => updateGateway(flow.id, { key_secret: e.target.value })}
+                          className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
+                        />
+                        <p className="text-[10px] text-slate-500 mt-1">Stored encrypted and never shown again. Find keys in Razorpay Dashboard → Account &amp; Settings → API Keys.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <span className="block text-slate-300 font-semibold mb-1">
+                      {flow.id === 'subscription' ? 'Methods offered at checkout' : 'Methods clubs can offer teams'}
                     </span>
-                  </button>
-                );
-              })}
-            </div>
+                    {flow.id === 'registration' && (
+                      <p className="text-[10px] text-slate-500 mb-1.5">Turning one off hides it from clubs' pickers; tournaments already using it keep it.</p>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      {methodOptions.map(id => {
+                        const meta = PAYMENT_METHOD_META[id];
+                        const Icon = meta.icon;
+                        const isEnabled = selectedMethods.includes(id);
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => toggleMethod(methodKey, id)}
+                            className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all ${
+                              isEnabled ? 'bg-emerald-500/15 border-emerald-500/60 text-white' : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'
+                            }`}
+                          >
+                            <Icon className={`w-4 h-4 shrink-0 ${isEnabled ? 'text-emerald-400' : 'text-slate-600'}`} />
+                            <span className="font-semibold">{meta.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

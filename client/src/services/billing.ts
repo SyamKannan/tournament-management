@@ -1,12 +1,13 @@
 import { api } from './api';
-import { openRazorpayCheckout, type RazorpayOrder } from '../utils/razorpay';
+import { openCheckout } from '../utils/checkout';
+import type { RazorpayOrder } from '../utils/razorpay';
 import type { Plan } from '../types';
 
 /**
- * Activates a plan for an organization. Paid plans go through a real
- * Razorpay Checkout (order create -> popup -> verified subscribe); free
- * plans and the keys-not-configured fallback subscribe directly, same as
- * before. Shared by PlanPickerModal and OrgBillingPage's renew action.
+ * Activates a plan for an organization. Paid plans always go through the
+ * subscription flow's checkout (Razorpay or the demo checkout, whichever the
+ * super admin configured) and are only activated with a verified result;
+ * free plans activate directly. Shared by PlanPickerModal and OrgBillingPage.
  */
 export async function subscribeToPlan(organizationId: string, plan: Plan): Promise<void> {
   if (plan.price > 0) {
@@ -15,18 +16,18 @@ export async function subscribeToPlan(organizationId: string, plan: Plan): Promi
     });
 
     if (order.configured) {
-      const verified = await openRazorpayCheckout({
+      const verified = await openCheckout({
         order,
-        name: 'Sportivo Subscription',
+        name: 'Plan Subscription',
         description: `${plan.name} plan`
       });
 
       await api.post(`/organizations/${organizationId}/subscribe`, {
         plan_id: plan.id,
-        payment_method: 'upi',
         razorpay_payment_id: verified.razorpay_payment_id,
         razorpay_order_id: verified.razorpay_order_id,
-        razorpay_signature: verified.razorpay_signature
+        razorpay_signature: verified.razorpay_signature,
+        payment_method: verified.method ?? 'upi'
       });
       return;
     }

@@ -274,16 +274,214 @@
   background: linear-gradient(180deg, rgba(5, 8, 20, 0.3) 0%, rgba(5, 8, 20, 0.62) 55%, rgba(5, 8, 20, 0.97) 100%);
 }
 
-/* Coin toss: a spinning flip landing on the settled result. */
-@keyframes coin-flip {
-  0%   { transform: rotateY(0deg) scale(1); }
-  50%  { transform: rotateY(900deg) scale(1.18); }
-  100% { transform: rotateY(1800deg) scale(1); }
+/* Coin toss: a real two-sided coin (distinct Heads/Tails faces) that spins on
+   rotateY and lands on the actual server-decided face — see CoinFlip.tsx,
+   which drives `transform`/`transition` inline so it can land on an exact
+   angle rather than a fixed keyframe endpoint. */
+.coin-3d-wrap {
+  perspective: 1400px;
 }
 
-.animate-coin-flip {
-  animation: coin-flip 1.4s cubic-bezier(0.45, 0.05, 0.55, 0.95);
+.coin-3d {
+  position: relative;
+  width: 100%;
+  height: 100%;
   transform-style: preserve-3d;
+}
+
+.coin-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* A coin tumbles end-over-end, so the flip runs on X — rotateY reads as a
+   revolving door and makes the coin look like it's swinging away. */
+.coin-face-back {
+  transform: rotateX(180deg);
+}
+
+/* Phase 1 — spins in place while the server decides. Driven by a keyframe
+   rather than a transition so it starts on the very first painted frame. */
+@keyframes coin-spin {
+  from { transform: rotateX(0deg); }
+  to   { transform: rotateX(360deg); }
+}
+
+.coin-spinning {
+  animation: coin-spin 0.5s linear infinite;
+}
+
+/* Phase 2 — settles onto the face the server returned: a whole number of
+   turns for heads, a half turn more for tails. The turn count scales with the
+   duration so the coin still leaves the hand fast and only slows as it lands;
+   keep both in step with COIN_FLIP_MS in CoinFlip.tsx. */
+@keyframes coin-land-heads {
+  from { transform: rotateX(0deg); }
+  to   { transform: rotateX(3600deg); }
+}
+
+@keyframes coin-land-tails {
+  from { transform: rotateX(0deg); }
+  to   { transform: rotateX(3420deg); }
+}
+
+.coin-landing-heads {
+  animation: coin-land-heads 3.6s cubic-bezier(0.22, 0.61, 0.2, 1) forwards;
+}
+
+.coin-landing-tails {
+  animation: coin-land-tails 3.6s cubic-bezier(0.22, 0.61, 0.2, 1) forwards;
+}
+
+/* ---------------------------------------------------------------------------
+   Squad reveal — the post-toss walk-out on the stadium display.
+
+   The spotlight card is keyed on the player id in React, so each new player
+   remounts and re-runs the entrance animation; a transition would only move
+   between values on an element that never changes. Same reasoning as the coin.
+   --------------------------------------------------------------------------- */
+@keyframes lineup-card-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 2.5rem, 0) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.lineup-card-in {
+  animation: lineup-card-in 0.55s cubic-bezier(0.22, 0.61, 0.2, 1) both;
+}
+
+/* Players already announced slide into the strip from the side they entered. */
+@keyframes lineup-chip-in {
+  from {
+    opacity: 0;
+    transform: translate3d(-0.75rem, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.lineup-chip-in {
+  animation: lineup-chip-in 0.4s ease-out both;
+}
+
+/* A slow sweep behind the spotlight card, so a held reveal still has life. */
+@keyframes lineup-glow {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50%      { opacity: 0.8; transform: scale(1.06); }
+}
+
+.lineup-glow {
+  animation: lineup-glow 3.2s ease-in-out infinite;
+}
+
+/* ---------------------------------------------------------------------------
+   Stadium display typography.
+
+   The big screen is read from across a ground, not from a desk, so its type is
+   sized against the viewport rather than in fixed steps: clamp() keeps it
+   legible on a laptop preview and lets it grow to fill a 55-inch panel without
+   a breakpoint for every size. Only the display uses these — the scorer
+   console beside it stays at normal reading sizes.
+   --------------------------------------------------------------------------- */
+.tv-score {
+  font-size: clamp(3rem, 8vw, 8.5rem);
+  line-height: 0.95;
+}
+
+/* Team names sit a clear step above player names — the side is the headline,
+   the individual is the detail. Both wrap rather than clip: a name cut off
+   with an ellipsis on a stadium screen tells the crowd less than two lines. */
+.tv-team {
+  font-size: clamp(1.4rem, 3.4vw, 4rem);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.tv-name {
+  font-size: clamp(1rem, 2vw, 2.4rem);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.tv-headline {
+  font-size: clamp(1.8rem, 4.6vw, 5.25rem);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.tv-sub {
+  font-size: clamp(0.95rem, 1.7vw, 2rem);
+  line-height: 1.2;
+}
+
+.tv-body {
+  font-size: clamp(0.85rem, 1.25vw, 1.5rem);
+  line-height: 1.35;
+}
+
+/* Scorecard rows on the display: a step under player names so eleven
+   batters and a bowling attack still fit one screen. */
+.tv-table {
+  font-size: clamp(0.8rem, 1.15vw, 1.45rem);
+  line-height: 1.25;
+}
+
+.tv-label {
+  font-size: clamp(0.7rem, 0.95vw, 1.15rem);
+  letter-spacing: 0.16em;
+}
+
+/* ---------------------------------------------------------------------------
+   Event flash — the full-screen call the crowd looks up for.
+
+   A boundary, a wide or a wicket takes the whole display for a few seconds and
+   then hands it straight back to the scoreline, so nobody has to read a small
+   number to know what just happened.
+   --------------------------------------------------------------------------- */
+@keyframes tv-flash-in {
+  0%   { opacity: 0; transform: scale(0.55); }
+  55%  { opacity: 1; transform: scale(1.06); }
+  70%  { transform: scale(0.98); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.tv-flash-in {
+  animation: tv-flash-in 0.5s cubic-bezier(0.18, 0.79, 0.28, 1.2) both;
+}
+
+@keyframes tv-flash-backdrop {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.tv-flash-backdrop {
+  animation: tv-flash-backdrop 0.25s ease-out both;
+}
+
+/* The call itself — as large as the screen will take. */
+/* The call is never split — "FOU / R!" stacked at this size runs off the top
+   and bottom of the screen. Instead the size is fitted to the word: a longer
+   call gets smaller so it still spans at most 90% of the width
+   (--flash-chars is the label's length, 0.7em an Outfit Black capital), and
+   no call is ever taller than the screen can hold. */
+.tv-flash-word {
+  font-size: min(calc(90vw / (var(--flash-chars, 5) * 0.7)), 45vh);
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 /* Respect the reader's motion preference: keep state changes, drop the movement. */

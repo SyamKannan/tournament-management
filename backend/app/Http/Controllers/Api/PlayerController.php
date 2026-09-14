@@ -80,8 +80,7 @@ class PlayerController extends Controller
         $player = Player::query()
             ->where('id', $user->id)
             ->orWhere(fn ($query) => $query->whereNotNull('mobile')->where('mobile', $user->phone))
-            ->first()
-            ?? Player::query()->first();
+            ->first();
 
         if (! $player) {
             return response()->json(['error' => 'Player profile not found'], 404);

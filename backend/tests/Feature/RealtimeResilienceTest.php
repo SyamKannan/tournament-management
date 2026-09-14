@@ -47,32 +47,37 @@ class RealtimeResilienceTest extends TestCase
         ], $broadcaster->rooms);
     }
 
-    public function test_pinning_an_announcement_publishes_to_every_connected_screen(): void
+    public function test_creating_an_announcement_does_not_interrupt_any_screen(): void
     {
         $broadcaster = $this->spyBroadcaster();
         $this->actingAsUser('admin@greenvalley.com');
 
         $this->postJson('/api/sponsors/announcements', [
+            'match_id' => 'match-fb-live-1',
             'title' => 'Match delayed',
             'message' => 'Heavy rain — play resumes at 17:00.',
             'type' => 'urgent_match_delay',
-            'is_active_on_scoreboard' => true,
         ])->assertCreated();
 
-        $this->assertSame(['EMERGENCY_ANNOUNCEMENT'], $broadcaster->global);
+        $this->assertSame([], $broadcaster->global);
+        $this->assertSame([], $broadcaster->rooms);
     }
 
-    public function test_an_unpinned_announcement_does_not_interrupt_screens(): void
+    public function test_pushing_an_announcement_reaches_only_its_own_match(): void
     {
         $broadcaster = $this->spyBroadcaster();
         $this->actingAsUser('admin@greenvalley.com');
 
-        $this->postJson('/api/sponsors/announcements', [
-            'title' => 'Routine notice',
-            'message' => 'Team meeting at 09:00.',
-        ])->assertCreated();
+        $this->postJson('/api/matches/match-fb-live-1/scoreboard/stage', [
+            'stage' => 'announcement',
+            'item_id' => 'ann-2',
+        ])->assertOk();
 
         $this->assertSame([], $broadcaster->global);
+        $this->assertSame([
+            ['match:match-fb-live-1', 'SCOREBOARD_STAGE_CHANGED'],
+            ['scoreboard:match-fb-live-1', 'SCOREBOARD_STAGE_CHANGED'],
+        ], $broadcaster->rooms);
     }
 
     public function test_placing_a_bid_publishes_to_the_auction_room(): void

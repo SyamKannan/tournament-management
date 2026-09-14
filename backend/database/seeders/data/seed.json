@@ -8,10 +8,14 @@
     "currency_code": "INR",
     "enable_public_signup": true,
     "require_admin_approval_for_orgs": false,
-    "default_trial_days": 14,
     "grace_period_days": 7,
     "payment_gateway_mode": "sandbox",
-    "enabled_payment_methods": ["upi", "pay_at_ground"]
+    "enabled_payment_methods": ["upi", "card", "netbanking", "pay_at_ground"],
+    "subscription_payment_methods": ["upi", "card", "netbanking"],
+    "payment_gateways": {
+      "subscription": { "provider": "demo", "key_id": "" },
+      "registration": { "provider": "demo", "key_id": "" }
+    }
   },
   "sports": [
     {
@@ -38,7 +42,6 @@
       "currency": "₹",
       "billing_type": "recurring",
       "billing_interval": "monthly",
-      "trial_days": 0,
       "tournament_limit": 1,
       "team_limit": 999,
       "player_limit": 10000,
@@ -73,7 +76,6 @@
       "currency": "₹",
       "billing_type": "recurring",
       "billing_interval": "monthly",
-      "trial_days": 7,
       "tournament_limit": 2,
       "team_limit": 16,
       "player_limit": 250,
@@ -97,7 +99,6 @@
       "currency": "₹",
       "billing_type": "recurring",
       "billing_interval": "monthly",
-      "trial_days": 14,
       "tournament_limit": 5,
       "team_limit": 80,
       "player_limit": 1200,
@@ -127,7 +128,6 @@
       "currency": "₹",
       "billing_type": "recurring",
       "billing_interval": "yearly",
-      "trial_days": 14,
       "tournament_limit": 999,
       "team_limit": 999,
       "player_limit": 10000,
@@ -159,7 +159,6 @@
       "price": 2999,
       "currency": "₹",
       "billing_type": "one_time",
-      "trial_days": 0,
       "tournament_limit": 1,
       "team_limit": 32,
       "player_limit": 500,
@@ -800,6 +799,7 @@
       "tournament_id": "tourney-football-sevens",
       "organization_id": "org-green-valley",
       "full_name": "Shameer Babu",
+      "mobile": "+91 98471 88881",
       "jersey_number": 1,
       "is_captain": false,
       "football_position": "Goalkeeper",
@@ -968,6 +968,7 @@
       "tournament_id": "tourney-cricket-t20",
       "organization_id": "org-malabar-cricket",
       "full_name": "Rahul R. Menon",
+      "mobile": "+91 94470 77772",
       "jersey_number": 18,
       "is_captain": true,
       "is_wicketkeeper": false,
@@ -1531,6 +1532,7 @@
     {
       "id": "ad-1",
       "organization_id": "org-green-valley",
+      "match_id": "match-fb-live-1",
       "title": "Festive Gold Jewellery Mega Sale",
       "business_name": "Malabar Gold & Diamonds",
       "media_type": "full_screen",
@@ -1548,6 +1550,7 @@
     {
       "id": "ad-2",
       "organization_id": "org-green-valley",
+      "match_id": "match-fb-live-1",
       "title": "Grand Super Weekend Grocery Deals",
       "business_name": "Grand Mart Hypermarket",
       "media_type": "image",
@@ -1563,6 +1566,7 @@
     {
       "id": "ad-3",
       "organization_id": "org-green-valley",
+      "match_id": "match-fb-sched-2",
       "title": "Premium Football Studs & Cricket Bats",
       "business_name": "Kallada Sports Arena",
       "media_type": "banner",
@@ -1580,20 +1584,22 @@
       "id": "ann-1",
       "organization_id": "org-green-valley",
       "tournament_id": "tourney-football-sevens",
+      "match_id": "match-fb-sched-2",
       "title": "Semi-Finals Time Rescheduled",
       "message": "Semi-finals scheduled for Saturday will now kick off under lights at 7:30 PM due to weather precautions.",
       "type": "general",
-      "is_active_on_scoreboard": false,
+      "duration_seconds": 30,
       "created_at": "2026-07-25T02:47:55.948Z"
     },
     {
       "id": "ann-2",
       "organization_id": "org-green-valley",
       "tournament_id": "tourney-football-sevens",
+      "match_id": "match-fb-live-1",
       "title": "MATCH DELAY NOTICE",
       "message": "Light evening drizzle has paused match 1. Drainage in progress, match resumes in 10 minutes.",
       "type": "urgent_match_delay",
-      "is_active_on_scoreboard": false,
+      "duration_seconds": 0,
       "created_at": "2026-08-24T02:47:55.943Z"
     }
   ],

@@ -96,6 +96,32 @@ export const OrgTeamsPage: React.FC = () => {
     }
   };
 
+  const outstandingFor = (team: Team) =>
+    team.payment ? team.payment.remaining_amount : (activeTournament?.ground_fee || 0);
+
+  const handleMarkPaid = async (team: Team) => {
+    const amount = outstandingFor(team);
+    const ok = await confirm({
+      title: `Mark ${team.name} as paid?`,
+      message: `Records ₹${amount.toLocaleString()} collected in cash and clears the team's ground fee balance. A receipt will be issued.`,
+      confirmLabel: 'Mark as Paid',
+    });
+    if (!ok) return;
+
+    try {
+      await api.post(`/teams/${team.id}/record-payment`, {
+        payment_method: 'cash',
+        amount,
+        payment_option: 'full',
+        notes: 'Marked as paid by organizer',
+      });
+      toast.success(`${team.name} marked as paid`);
+      fetchTeams(selectedTourneyId);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to mark team as paid');
+    }
+  };
+
   const handlePaymentSuccess = () => {
     setPaymentTeam(null);
     fetchTeams(selectedTourneyId);
@@ -113,6 +139,7 @@ export const OrgTeamsPage: React.FC = () => {
   const isFootball = activeTournament?.sport_code === 'football';
   const pendingCount = teams.filter(t => t.status === 'pending').length;
   const approvedCount = teams.filter(t => t.status === 'approved').length;
+  const unpaidCount = teams.filter(t => outstandingFor(t) > 0).length;
 
   return (
     <div className="space-y-6">
@@ -154,6 +181,11 @@ export const OrgTeamsPage: React.FC = () => {
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[11px] font-bold flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
                     {approvedCount} approved
+                  </span>
+                )}
+                {unpaidCount > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 text-[11px] font-bold">
+                    {unpaidCount} fee{unpaidCount === 1 ? '' : 's'} outstanding
                   </span>
                 )}
               </div>
@@ -207,7 +239,9 @@ export const OrgTeamsPage: React.FC = () => {
             <tbody className="divide-y divide-slate-800">
               {teams.map(team => {
                 const pay = team.payment;
-                const hasPending = pay && pay.remaining_amount > 0;
+                const remaining = outstandingFor(team);
+                const paidAmount = pay?.paid_amount || 0;
+                const feeState = remaining <= 0 ? 'paid' : paidAmount > 0 ? 'partial' : 'unpaid';
 
                 return (
                   <tr key={team.id} className="hover:bg-slate-800/40 transition-colors">
@@ -239,20 +273,38 @@ export const OrgTeamsPage: React.FC = () => {
                     </td>
 
                     <td className="px-4 py-4 font-mono font-bold text-emerald-400">
-                      ₹{pay ? pay.paid_amount.toLocaleString() : '0'}
-                      <div className="text-[11px] text-slate-500 font-normal uppercase">{pay?.payment_method || 'N/A'}</div>
+                      ₹{paidAmount.toLocaleString()}
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className={`px-1.5 py-px rounded text-[10px] font-bold uppercase ${
+                          feeState === 'paid' ? 'bg-emerald-500/20 text-emerald-400' :
+                          feeState === 'partial' ? 'bg-amber-500/20 text-amber-400' : 'bg-rose-500/20 text-rose-400'
+                        }`}>
+                          {feeState}
+                        </span>
+                        {pay?.payment_method && paidAmount > 0 && (
+                          <span className="text-[11px] text-slate-500 font-normal uppercase">{pay.payment_method.replace('_', ' ')}</span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="px-4 py-4">
-                      {hasPending ? (
+                      {remaining > 0 ? (
                         <div>
-                          <span className="font-mono font-bold text-amber-400">₹{pay.remaining_amount.toLocaleString()}</span>
-                          <button
-                            onClick={() => setPaymentTeam(team)}
-                            className="block text-[11px] text-emerald-400 hover:underline font-bold mt-0.5"
-                          >
-                            + Record Cash/UPI
-                          </button>
+                          <span className="font-mono font-bold text-amber-400">₹{remaining.toLocaleString()}</span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <button
+                              onClick={() => handleMarkPaid(team)}
+                              className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-[11px] font-bold"
+                            >
+                              Mark as Paid
+                            </button>
+                            <button
+                              onClick={() => setPaymentTeam(team)}
+                              className="text-[11px] text-slate-400 hover:text-white hover:underline font-semibold"
+                            >
+                              Record partial / UPI
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <span className="text-slate-500 font-mono">₹0 (Cleared)</span>
@@ -347,6 +399,7 @@ export const OrgTeamsPage: React.FC = () => {
       {paymentTeam && (
         <OfflinePaymentModal
           team={paymentTeam}
+          totalFee={activeTournament?.ground_fee || 0}
           onClose={() => setPaymentTeam(null)}
           onSuccess={handlePaymentSuccess}
         />

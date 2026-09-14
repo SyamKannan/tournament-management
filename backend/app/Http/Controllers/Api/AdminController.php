@@ -14,6 +14,7 @@ use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\User;
 use App\Services\BillingService;
+use App\Services\PaymentGatewayService;
 use App\Services\TokenService;
 use App\Support\Audit;
 use App\Support\Ids;
@@ -33,6 +34,7 @@ class AdminController extends Controller
     public function __construct(
         private readonly BillingService $billing,
         private readonly TokenService $tokens,
+        private readonly PaymentGatewayService $gateway,
     ) {}
 
     public function metrics(): JsonResponse
@@ -56,7 +58,6 @@ class AdminController extends Controller
             'description' => ['nullable', 'string'],
             'currency' => ['nullable', 'string', 'max:8'],
             'billing_interval' => ['nullable', 'string', 'in:monthly,quarterly,yearly,custom'],
-            'trial_days' => ['nullable', 'integer', 'min:0'],
             'tournament_limit' => ['nullable', 'integer', 'min:0'],
             'team_limit' => ['nullable', 'integer', 'min:0'],
             'player_limit' => ['nullable', 'integer', 'min:0'],
@@ -76,7 +77,6 @@ class AdminController extends Controller
             'billing_interval' => $data['billing_type'] === 'recurring'
                 ? ($data['billing_interval'] ?? 'monthly')
                 : null,
-            'trial_days' => (int) ($data['trial_days'] ?? 0),
             'tournament_limit' => (int) ($data['tournament_limit'] ?? 1),
             'team_limit' => (int) ($data['team_limit'] ?? 16),
             'player_limit' => (int) ($data['player_limit'] ?? 250),
@@ -107,7 +107,6 @@ class AdminController extends Controller
             'currency' => ['sometimes', 'string', 'max:8'],
             'billing_type' => ['sometimes', 'string', 'in:recurring,one_time'],
             'billing_interval' => ['sometimes', 'nullable', 'string', 'in:monthly,quarterly,yearly,custom'],
-            'trial_days' => ['sometimes', 'integer', 'min:0'],
             'tournament_limit' => ['sometimes', 'integer', 'min:0'],
             'team_limit' => ['sometimes', 'integer', 'min:0'],
             'player_limit' => ['sometimes', 'integer', 'min:0'],
@@ -386,11 +385,14 @@ class AdminController extends Controller
 
     public function settings(): JsonResponse
     {
-        return response()->json(PlatformSetting::current());
+        return response()->json($this->settingsPayload());
     }
 
     public function updateSettings(Request $request): JsonResponse
     {
+        $online = implode(',', PaymentGatewayService::ONLINE_METHODS);
+        $providers = app()->isProduction() ? 'razorpay' : implode(',', PaymentGatewayService::PROVIDERS);
+
         $data = $request->validate([
             'platform_name' => ['sometimes', 'string', 'max:255'],
             'country' => ['sometimes', 'string', 'max:100'],
@@ -400,20 +402,42 @@ class AdminController extends Controller
             'currency_code' => ['sometimes', 'string', 'max:8'],
             'enable_public_signup' => ['sometimes', 'boolean'],
             'require_admin_approval_for_orgs' => ['sometimes', 'boolean'],
-            'default_trial_days' => ['sometimes', 'integer', 'min:0'],
             'grace_period_days' => ['sometimes', 'integer', 'min:0'],
             'payment_gateway_mode' => ['sometimes', 'string', 'in:sandbox,live'],
             'enabled_payment_methods' => ['sometimes', 'array', 'min:1'],
-            'enabled_payment_methods.*' => ['string', 'in:upi,pay_at_ground'],
+            'enabled_payment_methods.*' => ['string', 'in:'.implode(',', Tournament::PAYMENT_METHODS)],
+            'subscription_payment_methods' => ['sometimes', 'array', 'min:1'],
+            'subscription_payment_methods.*' => ['string', 'in:'.$online],
+            'payment_gateways' => ['sometimes', 'array'],
+            'payment_gateways.*.provider' => ['required_with:payment_gateways', 'string', 'in:'.$providers],
+            'payment_gateways.*.key_id' => ['nullable', 'string', 'max:64'],
+            'payment_gateways.*.key_secret' => ['nullable', 'string', 'max:128'],
+        ], [
+            'payment_gateways.*.provider.in' => 'The demo checkout cannot be used in production. Choose Razorpay.',
         ]);
+
+        $gateways = $data['payment_gateways'] ?? null;
+        unset($data['payment_gateways']);
 
         $settings = PlatformSetting::current();
         $settings->fill($data)->save();
 
+        if ($gateways !== null) {
+            $this->gateway->updateConfig(array_intersect_key($gateways, array_flip(PaymentGatewayService::FLOWS)));
+        }
+
         $this->audit($request, 'UPDATED_PLATFORM_SETTINGS', 'PlatformSetting', (string) $settings->id,
             'Updated platform settings');
 
-        return response()->json($settings);
+        return response()->json($this->settingsPayload());
+    }
+
+    private function settingsPayload(): array
+    {
+        return [
+            ...PlatformSetting::current()->toArray(),
+            'payment_gateways' => $this->gateway->adminConfig(),
+        ];
     }
 
     /* --------------------------------------------------------- Impersonation */

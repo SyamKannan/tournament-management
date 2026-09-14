@@ -9,19 +9,27 @@ use App\Models\GameMatch;
 use App\Models\Sponsor;
 use App\Services\BillingService;
 use App\Services\RealtimeBroadcaster;
+use App\Services\ScoreboardDirector;
 use App\Support\Ids;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Sponsors, advertising creative, and the live controls that push break-time
- * rotations, sponsor pop-ups and emergency announcements to stadium screens.
+ * Sponsors, and the ads and announcements that belong to a single match.
+ *
+ * Nothing here puts anything on a stadium screen: an ad or announcement goes up
+ * full screen only when someone running its match pushes it from the scorer
+ * console (`POST /matches/{id}/scoreboard/stage`).
  */
 class SponsorController extends Controller
 {
+    /** Longest on-screen time an ad or announcement may be given; 0 holds it. */
+    private const MAX_DURATION_SECONDS = 3600;
+
     public function __construct(
         private readonly RealtimeBroadcaster $realtime,
         private readonly BillingService $billing,
+        private readonly ScoreboardDirector $director,
     ) {}
 
     /* ------------------------------------------------------------ Sponsors */
@@ -85,51 +93,55 @@ class SponsorController extends Controller
 
     public function listAds(Request $request): JsonResponse
     {
-        return response()->json(
-            $this->scopedQuery($request, Advertisement::query())->get()
-        );
+        $query = $this->scopedQuery($request, Advertisement::query())->orderByDesc('created_at');
+
+        if ($matchId = $request->query('matchId')) {
+            $query->where('match_id', $matchId);
+        }
+
+        return response()->json($query->get());
     }
 
     public function storeAd(Request $request): JsonResponse
     {
         $data = $request->validate([
+            'match_id' => ['required', 'string'],
             'title' => ['required', 'string', 'max:255'],
             'business_name' => ['required', 'string', 'max:255'],
             'media_url' => ['required', 'string'],
             'media_type' => ['nullable', 'string', 'in:image,banner,video_card,sponsor_card,full_screen'],
-            'display_placement' => ['nullable', 'string', 'in:ticker_banner,break_screen,goal_popup,all'],
             'logo_url' => ['nullable', 'string'],
             'description' => ['nullable', 'string'],
             'phone' => ['nullable', 'string', 'max:64'],
             'whatsapp' => ['nullable', 'string', 'max:64'],
             'website' => ['nullable', 'string'],
             'priority' => ['nullable', 'integer'],
-            'duration_seconds' => ['nullable', 'integer', 'min:1'],
+            'duration_seconds' => ['nullable', 'integer', 'min:0', 'max:'.self::MAX_DURATION_SECONDS],
             'status' => ['nullable', 'string', 'in:active,inactive,scheduled'],
-            'organization_id' => ['nullable', 'string'],
         ], [
+            'match_id.required' => 'Choose the match this ad belongs to',
             'title.required' => 'Title, business name, and media URL are required',
             'business_name.required' => 'Title, business name, and media URL are required',
             'media_url.required' => 'Title, business name, and media URL are required',
         ]);
 
-        $organizationId = $data['organization_id'] ?? $request->user()->organization_id;
-        $limit = $this->billing->checkLimit($organizationId, 'ads');
+        [$match, $denied] = $this->ownedMatch($request, $data['match_id']);
 
-        if (! $limit['allowed']) {
-            return response()->json([
-                'error' => $limit['reason'] ?? 'Advertisement limit reached for your current subscription plan.',
-                'limit' => $limit,
-            ], 403);
+        if ($denied) {
+            return $denied;
+        }
+
+        if ($limited = $this->denyOverAdLimit($match->organization_id, 1)) {
+            return $limited;
         }
 
         $ad = Advertisement::create([
             'id' => Ids::timestamped('ad'),
-            'organization_id' => $organizationId,
+            'organization_id' => $match->organization_id,
+            'match_id' => $match->id,
             'title' => $data['title'],
             'business_name' => $data['business_name'],
             'media_type' => $data['media_type'] ?? 'image',
-            'display_placement' => $data['display_placement'] ?? 'all',
             'media_url' => $data['media_url'],
             'logo_url' => $data['logo_url'] ?? null,
             'description' => $data['description'] ?? null,
@@ -142,6 +154,77 @@ class SponsorController extends Controller
         ]);
 
         return response()->json($ad, 201);
+    }
+
+    /**
+     * Change how long an ad stays on screen (or pause it) — done from the
+     * scorer console while the match is running.
+     */
+    public function updateAd(Request $request, string $id): JsonResponse
+    {
+        $ad = Advertisement::find($id);
+
+        if (! $ad) {
+            return response()->json(['error' => 'Advertisement not found'], 404);
+        }
+
+        if ($denied = $this->denyOwnership($request, $ad->organization_id)) {
+            return $denied;
+        }
+
+        $data = $request->validate([
+            'duration_seconds' => ['sometimes', 'integer', 'min:0', 'max:'.self::MAX_DURATION_SECONDS],
+            'status' => ['sometimes', 'string', 'in:active,inactive,scheduled'],
+        ]);
+
+        $ad->fill($data)->save();
+        $this->refreshScreenShowing('ad', $ad);
+
+        return response()->json($ad);
+    }
+
+    /**
+     * Copy an ad onto other matches of the same organization — a sponsor
+     * running all tournament shouldn't have to be typed in match by match.
+     */
+    public function copyAd(Request $request, string $id): JsonResponse
+    {
+        $ad = Advertisement::find($id);
+
+        if (! $ad) {
+            return response()->json(['error' => 'Advertisement not found'], 404);
+        }
+
+        if ($denied = $this->denyOwnership($request, $ad->organization_id)) {
+            return $denied;
+        }
+
+        $data = $request->validate([
+            'match_ids' => ['required', 'array', 'min:1'],
+            'match_ids.*' => ['string', 'distinct'],
+        ]);
+
+        $matches = GameMatch::query()
+            ->whereIn('id', $data['match_ids'])
+            ->where('id', '!=', $ad->match_id)
+            ->get();
+
+        if ($matches->count() !== count(array_diff($data['match_ids'], [$ad->match_id]))
+            || $matches->contains(fn ($match) => $match->organization_id !== $ad->organization_id)) {
+            return response()->json(['error' => 'Ads can only be copied to other matches of the same organization'], 422);
+        }
+
+        if ($limited = $this->denyOverAdLimit($ad->organization_id, $matches->count())) {
+            return $limited;
+        }
+
+        $copies = $matches->map(fn (GameMatch $match) => Advertisement::create([
+            ...collect($ad->getAttributes())->except(['id', 'match_id', 'created_at'])->all(),
+            'id' => Ids::unique('ad'),
+            'match_id' => $match->id,
+        ]))->values();
+
+        return response()->json($copies, 201);
     }
 
     public function destroyAd(Request $request, string $id): JsonResponse
@@ -157,121 +240,35 @@ class SponsorController extends Controller
         }
 
         $ad->delete();
+        $this->refreshScreenShowing('ad', $ad);
 
         return response()->json(['message' => 'Advertisement deleted']);
     }
 
-    /* -------------------------------------------------- Big-screen controls */
-
-    /**
-     * Start, stop or advance the break-time ad rotation on a match's screens.
-     */
-    public function breakMode(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'match_id' => ['required', 'string'],
-            'action' => ['required', 'string', 'in:start,stop,next'],
-            'break_title' => ['nullable', 'string', 'max:255'],
-            'countdown_seconds' => ['nullable', 'integer', 'min:0'],
-        ]);
-
-        $match = GameMatch::find($data['match_id']);
-
-        if (! $match) {
-            return response()->json(['error' => 'Match not found'], 404);
-        }
-
-        $ads = Advertisement::query()
-            ->where('organization_id', $match->organization_id)
-            ->where('status', 'active')
-            ->get();
-
-        $this->realtime->toRoom("scoreboard:{$match->id}", 'BREAK_AD_ROTATION', [
-            'action' => $data['action'],
-            'break_title' => $data['break_title'] ?? 'BREAK TIME',
-            'countdown_seconds' => (int) ($data['countdown_seconds'] ?? 300),
-            'ads' => $ads,
-        ]);
-
-        return response()->json([
-            'message' => "Break ad mode {$data['action']} broadcasted to scoreboard",
-            'adsCount' => $ads->count(),
-        ]);
-    }
-
-    /**
-     * Flash a single sponsor over the live scoreboard — used for goal
-     * celebrations and one-off shout-outs.
-     */
-    public function pushPopup(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'match_id' => ['required', 'string'],
-            'ad_id' => ['nullable', 'string'],
-            'custom_title' => ['nullable', 'string', 'max:255'],
-            'custom_message' => ['nullable', 'string'],
-            'duration_seconds' => ['nullable', 'integer', 'min:1'],
-        ]);
-
-        $match = GameMatch::find($data['match_id']);
-
-        if (! $match) {
-            return response()->json(['error' => 'Match not found'], 404);
-        }
-
-        $ad = ! empty($data['ad_id']) ? Advertisement::find($data['ad_id']) : null;
-
-        $ad ??= Advertisement::query()
-            ->where('organization_id', $match->organization_id)
-            ->where('status', 'active')
-            ->first();
-
-        $this->realtime->toRoom("scoreboard:{$match->id}", 'SCOREBOARD_AD_POPUP', [
-            'ad' => $ad,
-            'custom_title' => $data['custom_title'] ?? 'FEATURED TOURNAMENT SPONSOR',
-            'custom_message' => $data['custom_message'] ?? null,
-            'duration_seconds' => (int) ($data['duration_seconds'] ?? 8),
-        ]);
-
-        return response()->json(['message' => 'Sponsor pop-up broadcasted to live scoreboard', 'ad' => $ad]);
-    }
-
-    public function adSettings(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'match_id' => ['required', 'string'],
-            'live_ticker_enabled' => ['nullable', 'boolean'],
-            'ticker_interval_seconds' => ['nullable', 'integer', 'min:1'],
-            'goal_popup_enabled' => ['nullable', 'boolean'],
-        ]);
-
-        $match = GameMatch::find($data['match_id']);
-
-        if (! $match) {
-            return response()->json(['error' => 'Match not found'], 404);
-        }
-
-        $this->realtime->toRoom("scoreboard:{$match->id}", 'SCOREBOARD_AD_SETTINGS_CHANGED', [
-            'live_ticker_enabled' => (bool) ($data['live_ticker_enabled'] ?? true),
-            'ticker_interval_seconds' => (int) ($data['ticker_interval_seconds'] ?? 12),
-            'goal_popup_enabled' => (bool) ($data['goal_popup_enabled'] ?? true),
-        ]);
-
-        return response()->json(['message' => 'Scoreboard ad settings updated and broadcasted']);
-    }
-
     /* ------------------------------------------------------- Announcements */
 
+    /**
+     * Public — the tournament hub lists a tournament's announcements. A
+     * signed-in organizer asking without filters gets only their own.
+     */
     public function listAnnouncements(Request $request): JsonResponse
     {
         $query = Announcement::query()->orderByDesc('created_at')->orderByDesc('id');
+        $user = $request->user();
 
-        if ($orgId = $request->query('orgId')) {
+        $orgId = $request->query('orgId')
+            ?? ($user && $user->role !== 'SUPER_ADMIN' ? $user->organization_id : null);
+
+        if ($orgId) {
             $query->where('organization_id', $orgId);
         }
 
         if ($tournamentId = $request->query('tournamentId')) {
-            $query->where(fn ($q) => $q->where('tournament_id', $tournamentId)->orWhereNull('tournament_id'));
+            $query->where('tournament_id', $tournamentId);
+        }
+
+        if ($matchId = $request->query('matchId')) {
+            $query->where('match_id', $matchId);
         }
 
         return response()->json($query->get());
@@ -280,38 +277,38 @@ class SponsorController extends Controller
     public function storeAnnouncement(Request $request): JsonResponse
     {
         $data = $request->validate([
+            'match_id' => ['required', 'string'],
             'title' => ['required', 'string', 'max:255'],
             'message' => ['required', 'string'],
-            'tournament_id' => ['nullable', 'string'],
             'type' => ['nullable', 'string', 'in:general,urgent_match_delay,venue_change,registration_alert'],
-            'is_active_on_scoreboard' => ['nullable', 'boolean'],
-            'organization_id' => ['nullable', 'string'],
+            'duration_seconds' => ['nullable', 'integer', 'min:0', 'max:'.self::MAX_DURATION_SECONDS],
         ], [
+            'match_id.required' => 'Choose the match this announcement belongs to',
             'title.required' => 'Title and message are required',
             'message.required' => 'Title and message are required',
         ]);
 
+        [$match, $denied] = $this->ownedMatch($request, $data['match_id']);
+
+        if ($denied) {
+            return $denied;
+        }
+
         $announcement = Announcement::create([
             'id' => Ids::timestamped('ann'),
-            'organization_id' => $data['organization_id'] ?? $request->user()->organization_id,
-            'tournament_id' => $data['tournament_id'] ?? null,
+            'organization_id' => $match->organization_id,
+            'tournament_id' => $match->tournament_id,
+            'match_id' => $match->id,
             'title' => $data['title'],
             'message' => $data['message'],
             'type' => $data['type'] ?? 'general',
-            'is_active_on_scoreboard' => (bool) ($data['is_active_on_scoreboard'] ?? false),
+            'duration_seconds' => (int) ($data['duration_seconds'] ?? 30),
         ]);
-
-        if ($announcement->is_active_on_scoreboard) {
-            $this->realtime->toEveryone('EMERGENCY_ANNOUNCEMENT', ['announcement' => $announcement]);
-        }
 
         return response()->json($announcement, 201);
     }
 
-    /**
-     * Pin or unpin an announcement from every live screen at once.
-     */
-    public function toggleAnnouncement(Request $request, string $id): JsonResponse
+    public function updateAnnouncement(Request $request, string $id): JsonResponse
     {
         $announcement = Announcement::find($id);
 
@@ -324,15 +321,11 @@ class SponsorController extends Controller
         }
 
         $data = $request->validate([
-            'is_active_on_scoreboard' => ['required', 'boolean'],
+            'duration_seconds' => ['required', 'integer', 'min:0', 'max:'.self::MAX_DURATION_SECONDS],
         ]);
 
-        $announcement->is_active_on_scoreboard = $data['is_active_on_scoreboard'];
-        $announcement->save();
-
-        $this->realtime->toEveryone('EMERGENCY_ANNOUNCEMENT', [
-            'announcement' => $announcement->is_active_on_scoreboard ? $announcement : null,
-        ]);
+        $announcement->fill($data)->save();
+        $this->refreshScreenShowing('announcement', $announcement);
 
         return response()->json($announcement);
     }
@@ -350,6 +343,7 @@ class SponsorController extends Controller
         }
 
         $announcement->delete();
+        $this->refreshScreenShowing('announcement', $announcement);
 
         return response()->json(['message' => 'Announcement deleted']);
     }
@@ -377,5 +371,55 @@ class SponsorController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * @return array{0: ?GameMatch, 1: ?JsonResponse}
+     */
+    private function ownedMatch(Request $request, string $matchId): array
+    {
+        $match = GameMatch::find($matchId);
+
+        if (! $match) {
+            return [null, response()->json(['error' => 'Match not found'], 404)];
+        }
+
+        return [$match, $this->denyOwnership($request, $match->organization_id)];
+    }
+
+    private function denyOverAdLimit(string $organizationId, int $adding): ?JsonResponse
+    {
+        $limit = $this->billing->checkLimit($organizationId, 'ads');
+        $fits = isset($limit['current'], $limit['max'])
+            ? $limit['current'] + $adding <= $limit['max']
+            : $limit['allowed'];
+
+        if ($fits) {
+            return null;
+        }
+
+        return response()->json([
+            'error' => $limit['reason']
+                ?? sprintf('Advertisement limit reached (%d/%d). Upgrade your plan.', $limit['current'] ?? 0, $limit['max'] ?? 0),
+            'limit' => $limit,
+        ], 403);
+    }
+
+    /**
+     * When the item just changed or deleted is the one on its match's screen,
+     * re-send the stage so the display picks up the new time or drops it.
+     */
+    private function refreshScreenShowing(string $stage, Advertisement|Announcement $item): void
+    {
+        $match = GameMatch::find($item->match_id);
+
+        if (! $match || $match->scoreboard_stage !== $stage || $match->scoreboard_item_id !== $item->id) {
+            return;
+        }
+
+        $payload = $this->director->payload($match);
+
+        $this->realtime->toRoom("match:{$match->id}", 'SCOREBOARD_STAGE_CHANGED', $payload);
+        $this->realtime->toRoom("scoreboard:{$match->id}", 'SCOREBOARD_STAGE_CHANGED', $payload);
     }
 }

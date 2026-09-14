@@ -3,9 +3,10 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Auction, Tournament, Organization, AuctionCategory, FootballPosition, CricketRole, CricketBattingStyle, CricketBowlingStyle } from '../../types';
 import { 
-  Gavel, CheckCircle2, 
+  Gavel, CheckCircle2,
   Share2, ArrowRight, Check
 } from 'lucide-react';
+import { PhoneInput } from '../../components/PhoneInput';
 
 export const PublicPlayerAuctionRegisterPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
@@ -286,11 +287,10 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
 
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Mobile / WhatsApp *</label>
-                <input
-                  type="text"
-                  placeholder="+91 98471 00000"
+                <PhoneInput
+                  placeholder="98471 00000"
                   value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
+                  onChange={setMobile}
                   required
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none focus:border-emerald-500"
                 />

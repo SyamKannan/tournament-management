@@ -4,14 +4,17 @@ import { api } from '../../services/api';
 import type { Tournament, Organization } from '../../types';
 import {
   ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft,
-  Plus, Trash2, CreditCard, Download, Banknote, Camera
+  Plus, Trash2, Download, Camera
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ReceiptModal } from '../../components/ReceiptModal';
 import { ImageUploadModal } from '../../components/ImageUploadModal';
+import { PhoneInput } from '../../components/PhoneInput';
 import { useToast } from '../../components/ui/Toast';
 import type { PaymentMethod } from '../../types';
-import { openRazorpayCheckout, type RazorpayOrder, type RazorpayVerifiedPayment } from '../../utils/razorpay';
+import type { RazorpayOrder, RazorpayVerifiedPayment } from '../../utils/razorpay';
+import { openCheckout } from '../../utils/checkout';
+import { PAYMENT_METHOD_META, ALL_PAYMENT_METHODS, isOnlineMethod } from '../../lib/paymentMethods';
 
 const AVATAR_COLORS = [
   'bg-rose-500/20 text-rose-300', 'bg-amber-500/20 text-amber-300', 'bg-emerald-500/20 text-emerald-300',
@@ -25,10 +28,7 @@ const getInitials = (name: string) => {
   return (parts[0][0] + (parts[1]?.[0] || '')).toUpperCase();
 };
 
-const PAYMENT_METHOD_INFO: Record<PaymentMethod, { label: string; icon: typeof CreditCard; blurb: string }> = {
-  upi: { label: 'Pay Online', icon: CreditCard, blurb: 'UPI, cards & netbanking via Razorpay' },
-  pay_at_ground: { label: 'Pay at Ground', icon: Banknote, blurb: 'Settle the fee in person on match day' }
-};
+const PAYMENT_METHOD_INFO = PAYMENT_METHOD_META;
 
 interface PlayerRow {
   full_name: string;
@@ -79,9 +79,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<'full' | 'partial'>('partial');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  // Shown while the real Razorpay order is created / the payment is being
-  // confirmed after Checkout closes. Falls back to a plain registration
-  // submit (no overlay) when the backend has no Razorpay keys configured.
+  // Shown once checkout succeeds, while the registration is being submitted.
   const [paymentStage, setPaymentStage] = useState<'idle' | 'verifying' | 'success'>('idle');
 
   // Step 5: Completed Receipt
@@ -99,7 +97,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
 
         const availableMethods: PaymentMethod[] = res.tournament.payment_config?.enabled_methods?.length
           ? res.tournament.payment_config.enabled_methods
-          : ['upi', 'pay_at_ground'];
+          : ALL_PAYMENT_METHODS;
         setPaymentMethod(availableMethods[0]);
 
         // Prepopulate default players count (e.g. 7 for football sevens, 11 for cricket)
@@ -224,21 +222,21 @@ export const PublicTeamRegisterPage: React.FC = () => {
     }
   };
 
-  // Paying at the ground skips straight to registration. Everything else
-  // opens a real Razorpay Checkout (UPI/cards/netbanking) and only submits
-  // the registration once the payment is verified — unless the backend has
-  // no gateway keys configured, in which case it falls back to a plain
-  // registration submit (dev/CI mode, no real charge).
+  // Paying at the ground skips straight to registration. UPI / card /
+  // netbanking open the checkout the super admin configured for ground fees
+  // (Razorpay or the demo checkout), starting on the method picked here, and
+  // the registration is only submitted once the payment is verified.
   const handlePayAndRegister = async () => {
-    if (paymentMethod === 'pay_at_ground') {
+    if (!isOnlineMethod(paymentMethod)) {
       await submitRegistration();
       return;
     }
 
-    setPaymentStage('verifying');
+    setIsProcessingPayment(true);
     try {
       const order: RazorpayOrder = await api.post(`/teams/public/registration/${token}/payment-order`, {
-        payment_option: selectedPaymentOption
+        payment_option: selectedPaymentOption,
+        method: paymentMethod
       });
 
       if (!order.configured) {
@@ -246,8 +244,9 @@ export const PublicTeamRegisterPage: React.FC = () => {
         return;
       }
 
-      const verified = await openRazorpayCheckout({
+      const verified = await openCheckout({
         order,
+        method: paymentMethod,
         name: tournament.name,
         description: `Ground fee — ${teamName}`,
         prefill: { name: managerName, contact: managerPhone, email: managerEmail }
@@ -258,6 +257,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
     } catch (err: any) {
       toast.error(err.message || 'Payment could not be completed');
       setPaymentStage('idle');
+      setIsProcessingPayment(false);
     }
   };
 
@@ -293,7 +293,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
   const balanceDue = Math.max(0, totalGroundFee - amountToPayNow);
   const availablePaymentMethods: PaymentMethod[] = tournament.payment_config?.enabled_methods?.length
     ? tournament.payment_config.enabled_methods
-    : ['upi', 'pay_at_ground'];
+    : ALL_PAYMENT_METHODS;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-20">
@@ -455,22 +455,20 @@ export const PublicTeamRegisterPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">Mobile Number (Primary) *</label>
-                  <input
-                    type="tel"
-                    placeholder="+91 97455 11223"
+                  <PhoneInput
+                    placeholder="97455 11223"
                     value={managerPhone}
-                    onChange={(e) => setManagerPhone(e.target.value)}
+                    onChange={setManagerPhone}
                     required
                     className="w-full px-4 py-2.5 rounded-xl glass-input text-sm font-mono"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">WhatsApp Number</label>
-                  <input
-                    type="tel"
+                  <PhoneInput
                     placeholder="Same as mobile or custom"
                     value={managerWhatsapp}
-                    onChange={(e) => setManagerWhatsapp(e.target.value)}
+                    onChange={setManagerWhatsapp}
                     className="w-full px-4 py-2.5 rounded-xl glass-input text-sm font-mono"
                   />
                 </div>
@@ -896,9 +894,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
         />
       )}
 
-      {/* Shown while the Razorpay order is created / the payment is being
-          confirmed — the actual UPI/card checkout happens in Razorpay's own
-          popup, opened separately. */}
+      {/* Shown after checkout succeeds while the registration is submitted. */}
       {paymentStage !== 'idle' && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-4 animate-in fade-in">
           <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-8 text-center space-y-5">

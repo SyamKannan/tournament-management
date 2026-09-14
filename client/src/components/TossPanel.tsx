@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../services/api';
 import { useToast } from './ui/Toast';
 import type { Match, Team, TossResult } from '../types';
-import { CoinFlip } from './CoinFlip';
+import { CoinFlip, COIN_FLIP_MS } from './CoinFlip';
 
 interface TossPanelProps {
   match: Match;
@@ -13,19 +13,24 @@ interface TossPanelProps {
 }
 
 /**
- * Scorer controls for the pre-match coin toss — digital (server-flipped,
- * away side calls heads/tails) or manual (toss happened on the ground,
- * record the outcome directly). Locked out once the toss decision is in,
- * matching the server-side gate that gates cricket scoring on it.
+ * Scorer controls for the pre-match coin toss — manual (the toss happened on
+ * the ground: the scorer records the winner, their decision and, if noted, the
+ * face the coin showed) or digital (the server flips at random and the away
+ * side calls it). Locked out once the toss decision is in, matching the
+ * server-side gate that gates cricket scoring on it.
  */
 export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpdated }) => {
   const toast = useToast();
-  const [mode, setMode] = useState<'digital' | 'manual'>('digital');
+  // Manual first: most grounds toss a real coin and the scorer records what it
+  // showed. The digital flip is the alternative, not the default.
+  const [mode, setMode] = useState<'digital' | 'manual'>('manual');
   const [callerTeamId, setCallerTeamId] = useState(teamB.id);
   const [call, setCall] = useState<'heads' | 'tails'>('heads');
   const [manualWinnerId, setManualWinnerId] = useState(teamA.id);
   const [manualDecision, setManualDecision] = useState<'bat' | 'bowl'>('bat');
+  const [manualResult, setManualResult] = useState<'' | 'heads' | 'tails'>('');
   const [isFlipping, setIsFlipping] = useState(false);
+  const [flipResult, setFlipResult] = useState<'heads' | 'tails' | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const teamName = (teamId?: string | null) =>
@@ -34,17 +39,20 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
   const handleFlip = async () => {
     if (submitting) return;
     setSubmitting(true);
+    // Spin straight away on the click; the coin keeps turning until the
+    // server's result arrives, then settles onto that face.
+    setFlipResult(null);
     setIsFlipping(true);
     try {
       const result = await api.post<TossResult>(`/matches/${match.id}/toss/call`, {
         team_id: callerTeamId,
         call,
       });
-      // Let the flip animation play out before the winner is revealed.
+      setFlipResult(result.toss_result);
       setTimeout(() => {
         setIsFlipping(false);
         onUpdated(result);
-      }, 1400);
+      }, COIN_FLIP_MS);
     } catch (err: any) {
       setIsFlipping(false);
       toast.error(err.message || 'Failed to flip the coin');
@@ -73,6 +81,7 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
       const result = await api.post<TossResult>(`/matches/${match.id}/toss/manual`, {
         winner_team_id: manualWinnerId,
         decision: manualDecision,
+        toss_result: manualResult || null,
       });
       onUpdated(result);
     } catch (err: any) {
@@ -82,18 +91,49 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
     }
   };
 
+  const handleReset = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const result = await api.post<TossResult>(`/matches/${match.id}/toss/reset`);
+      onUpdated(result);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reset the toss');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Retrying is only ever safe before the match has actually started —
+  // the server rejects a reset once the first ball has flipped the status
+  // away from `scheduled`, so don't offer a button that would just 400.
+  const canRetry = match.status === 'scheduled';
+
   // Toss decision already recorded — read-only summary, matches the copy used
   // on the public/big-screen views.
   if (match.toss_decision) {
     return (
       <div className="p-6 rounded-3xl glass-panel border border-slate-800 space-y-3">
-        <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Coin Toss</span>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Coin Toss</span>
+          {canRetry && (
+            <button
+              onClick={handleReset}
+              disabled={submitting}
+              className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 font-bold text-[11px]"
+            >
+              ↺ Retry Toss
+            </button>
+          )}
+        </div>
         <p className="text-white font-bold">
           <span className="text-amber-400">{teamName(match.toss_winner_team_id)}</span> won the toss and chose to{' '}
           <span className="uppercase">{match.toss_decision}</span>.
         </p>
         <p className="text-xs text-slate-400">
-          {match.toss_method === 'digital' ? 'Decided by a digital coin flip.' : 'Recorded manually by the scorer.'}
+          {match.toss_method === 'digital'
+            ? `Decided by a random digital coin flip${match.toss_result ? ` — it landed ${match.toss_result}` : ''}.`
+            : `Recorded manually by the scorer${match.toss_result ? ` — the coin showed ${match.toss_result}` : ''}.`}
         </p>
       </div>
     );
@@ -103,12 +143,29 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
   if (match.toss_winner_team_id) {
     return (
       <div className="p-6 rounded-3xl glass-panel border border-slate-800 space-y-4">
-        <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Coin Toss</span>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Coin Toss</span>
+          {canRetry && (
+            <button
+              onClick={handleReset}
+              disabled={submitting}
+              className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 font-bold text-[11px]"
+            >
+              ↺ Retry Toss
+            </button>
+          )}
+        </div>
         <div className="flex flex-col items-center gap-4 py-2">
-          <CoinFlip isFlipping={false} />
+          <CoinFlip isFlipping={false} result={match.toss_result} />
           <p className="text-white font-bold text-center">
             <span className="text-amber-400">{teamName(match.toss_winner_team_id)}</span> won the toss
+            {match.toss_result && (
+              <span className="text-slate-400 font-semibold"> — it landed {match.toss_result}</span>
+            )}
           </p>
+          {match.toss_method === 'manual' && (
+            <p className="text-[11px] text-slate-500">Recorded by the scorer, not flipped by the server.</p>
+          )}
           <div className="flex items-center justify-center gap-2">
             <button
               onClick={() => handleDecision('bat')}
@@ -156,7 +213,14 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
 
       {mode === 'digital' ? (
         <div className="flex flex-col items-center gap-4 py-2">
-          <CoinFlip isFlipping={isFlipping} />
+          <CoinFlip isFlipping={isFlipping} result={flipResult} />
+
+          {!isFlipping && (
+            <p className="text-xs text-slate-400 text-center">
+              The server flips the coin at random — nobody, including the scorer, can set the face.
+              Use Manual to record a toss held on the ground.
+            </p>
+          )}
 
           {isFlipping ? (
             <span className="text-sm font-bold text-amber-300 uppercase tracking-wider">Flipping…</span>
@@ -199,6 +263,10 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
         </div>
       ) : (
         <div className="space-y-3">
+          <p className="text-xs text-slate-400">
+            Record the toss exactly as it happened on the ground — you set the outcome, nothing is
+            flipped by the server.
+          </p>
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div>
               <label className="block text-slate-400 mb-1 font-semibold">Toss Winner</label>
@@ -222,6 +290,19 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
                 <option value="bowl">Bowl</option>
               </select>
             </div>
+          </div>
+
+          <div className="text-xs">
+            <label className="block text-slate-400 mb-1 font-semibold">Coin Landed On (optional)</label>
+            <select
+              value={manualResult}
+              onChange={(e) => setManualResult(e.target.value as '' | 'heads' | 'tails')}
+              className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-white capitalize"
+            >
+              <option value="">Not recorded</option>
+              <option value="heads">Heads</option>
+              <option value="tails">Tails</option>
+            </select>
           </div>
 
           <button

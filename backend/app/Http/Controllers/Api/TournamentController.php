@@ -19,6 +19,7 @@ use App\Models\Venue;
 use App\Services\AuctionService;
 use App\Services\BillingService;
 use App\Services\PosterService;
+use App\Services\RealtimeBroadcaster;
 use App\Support\Audit;
 use App\Support\Ids;
 use Illuminate\Http\JsonResponse;
@@ -31,6 +32,7 @@ class TournamentController extends Controller
         private readonly BillingService $billing,
         private readonly AuctionService $auctions,
         private readonly PosterService $posters,
+        private readonly RealtimeBroadcaster $realtime,
     ) {}
 
     /**
@@ -60,7 +62,8 @@ class TournamentController extends Controller
             'sponsors' => Sponsor::query()->where('organization_id', $tournament->organization_id)->get(),
             'announcements' => Announcement::query()
                 ->where('organization_id', $tournament->organization_id)
-                ->where(fn ($query) => $query->where('tournament_id', $tournament->id)->orWhereNull('tournament_id'))
+                ->where('tournament_id', $tournament->id)
+                ->orderByDesc('created_at')
                 ->get(),
             'registration_link' => $link ? [
                 'token' => $link->token,
@@ -375,6 +378,83 @@ class TournamentController extends Controller
         ]);
 
         return response()->json(['message' => 'Tournament deleted successfully']);
+    }
+
+    /**
+     * Call off a tournament without deleting its history: the tournament and
+     * every unfinished match become cancelled, and the public registration
+     * link is disabled. Completed matches keep their results.
+     */
+    public function cancel(Request $request, string $id): JsonResponse
+    {
+        $tournament = Tournament::find($id);
+
+        if (! $tournament) {
+            return response()->json(['error' => 'Tournament not found'], 404);
+        }
+
+        if ($denied = $this->denyForeignTenant($request, $tournament->organization_id)) {
+            return $denied;
+        }
+
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        if ($tournament->status === 'cancelled') {
+            return response()->json(['error' => 'This tournament is already cancelled'], 409);
+        }
+
+        $reason = trim((string) ($data['reason'] ?? ''));
+        $summary = $reason !== '' ? "Tournament cancelled: {$reason}" : 'Tournament cancelled';
+
+        $cancelledMatches = DB::transaction(function () use ($tournament, $summary) {
+            $tournament->status = 'cancelled';
+            $tournament->save();
+
+            RegistrationLink::query()->where('tournament_id', $tournament->id)->update(['status' => 'disabled']);
+
+            $matches = GameMatch::query()
+                ->where('tournament_id', $tournament->id)
+                ->whereNotIn('status', ['completed', 'cancelled'])
+                ->get();
+
+            foreach ($matches as $match) {
+                $match->status = 'cancelled';
+                $match->result_summary = $summary;
+                $match->save();
+            }
+
+            return $matches;
+        });
+
+        foreach ($cancelledMatches as $match) {
+            $this->realtime->toRoom("match:{$match->id}", 'MATCH_STATUS_CHANGED', ['match' => $match]);
+            $this->realtime->toRoom("scoreboard:{$match->id}", 'MATCH_STATUS_CHANGED', ['match' => $match]);
+        }
+
+        $user = $request->user();
+        Audit::log([
+            'organization_id' => $tournament->organization_id,
+            'user_id' => $user->id,
+            'user_name' => $user->name,
+            'user_role' => $user->role,
+            'action' => 'CANCELLED_TOURNAMENT',
+            'entity_type' => 'Tournament',
+            'entity_id' => $tournament->id,
+            'details' => sprintf(
+                'Cancelled tournament [%s] and %d unfinished match(es)%s',
+                $tournament->name,
+                $cancelledMatches->count(),
+                $reason !== '' ? " ({$reason})" : '',
+            ),
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'tournament' => $tournament,
+            'cancelled_matches_count' => $cancelledMatches->count(),
+        ]);
     }
 
     /**

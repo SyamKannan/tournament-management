@@ -9,7 +9,7 @@ use App\Models\Plan;
 use App\Models\Sponsor;
 use App\Models\Tournament;
 use App\Services\BillingService;
-use App\Services\RazorpayGatewayService;
+use App\Services\PaymentGatewayService;
 use App\Support\Audit;
 use App\Support\Ids;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +19,7 @@ class OrganizationController extends Controller
 {
     public function __construct(
         private readonly BillingService $billing,
-        private readonly RazorpayGatewayService $gateway,
+        private readonly PaymentGatewayService $gateway,
     ) {}
 
     /**
@@ -118,14 +118,15 @@ class OrganizationController extends Controller
     }
 
     /**
-     * Create a Razorpay order for a paid plan, so the client can open a real
-     * Checkout popup before calling subscribe(). Returns configured:false
-     * (no order) for free plans or while Razorpay isn't set up.
+     * Start checkout for a paid plan on the subscription flow's gateway
+     * (demo or Razorpay, chosen by the super admin). Returns configured:false
+     * only for free plans, which activate without a payment.
      */
     public function subscribeOrder(Request $request, string $id): JsonResponse
     {
         $data = $request->validate([
             'plan_id' => ['required', 'string'],
+            'method' => ['nullable', 'string'],
         ], [
             'plan_id.required' => 'Plan ID is required',
         ]);
@@ -136,29 +137,36 @@ class OrganizationController extends Controller
             return response()->json(['error' => 'Plan not found'], 404);
         }
 
-        if (! $this->gateway->isConfigured() || (float) $plan->price <= 0) {
+        if ((float) $plan->price <= 0) {
             return response()->json(['configured' => false]);
         }
 
         try {
             $order = $this->gateway->createOrder(
+                'subscription',
                 (float) $plan->price,
                 $plan->currency ?: 'INR',
                 'sub-'.$id.'-'.Ids::token(6),
                 ['organization_id' => $id, 'plan_id' => $plan->id, 'purpose' => 'subscription'],
+                null,
+                $data['method'] ?? null,
             );
         } catch (\RuntimeException $e) {
-            return response()->json(['error' => 'Unable to start payment. Please try again.'], 502);
+            report($e);
+
+            return response()->json(['error' => str_starts_with($e->getMessage(), 'Unable to create')
+                ? 'Unable to start payment. Please try again.'
+                : $e->getMessage()], 503);
         }
 
-        return response()->json(['configured' => true, ...$order]);
+        return response()->json($order);
     }
 
     public function subscribe(Request $request, string $id): JsonResponse
     {
         $data = $request->validate([
             'plan_id' => ['required', 'string'],
-            'payment_method' => ['nullable', 'string', 'in:upi,bank_transfer'],
+            'payment_method' => ['nullable', 'string', 'in:upi,card,netbanking,bank_transfer'],
             'razorpay_payment_id' => ['nullable', 'string', 'max:255'],
             'razorpay_order_id' => ['nullable', 'string', 'max:255'],
             'razorpay_signature' => ['nullable', 'string', 'max:512'],
@@ -169,16 +177,14 @@ class OrganizationController extends Controller
         $plan = Plan::find($data['plan_id']);
         $verifiedTransactionReference = null;
 
-        // Mirrors TeamController::register — once Razorpay is configured, a
-        // paid plan requires a verified Checkout result rather than a
-        // self-reported payment_method. Free plans and keys-not-configured
-        // dev/test keep today's simulated behavior.
-        if ($plan && (float) $plan->price > 0 && $this->gateway->isConfigured()) {
+        // A paid plan always needs a verified checkout result from the
+        // subscription flow's gateway — never a self-reported payment.
+        if ($plan && (float) $plan->price > 0) {
             if (empty($data['razorpay_payment_id']) || empty($data['razorpay_order_id']) || empty($data['razorpay_signature'])) {
                 return response()->json(['error' => 'Payment verification is required to activate this plan.'], 400);
             }
 
-            if (! $this->gateway->verifyPaymentSignature($data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'])) {
+            if (! $this->gateway->verify('subscription', $data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'])) {
                 return response()->json(['error' => 'Payment verification failed. Please try again.'], 400);
             }
 

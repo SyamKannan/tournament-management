@@ -101,19 +101,27 @@ class TossService
 
     /**
      * The toss happened at the ground; the scorer records the outcome
-     * directly — winner and decision in one step, no coin call involved.
+     * directly — winner and decision in one step, no server flip involved.
+     *
+     * `$result` is the face of the real coin, if the scorer noted it. It is
+     * only ever recorded alongside `toss_method = 'manual'`, so a chosen face
+     * can never be presented as the outcome of a digital flip.
      *
      * @throws \RuntimeException when the match doesn't exist, the winner isn't
-     *                            one of the two teams, the decision is invalid,
-     *                            or a toss has already been recorded
+     *                            one of the two teams, the decision or recorded
+     *                            face is invalid, or a toss already exists
      */
-    public function recordManual(string $matchId, string $winnerTeamId, string $decision): GameMatch
+    public function recordManual(string $matchId, string $winnerTeamId, string $decision, ?string $result = null): GameMatch
     {
         if (! in_array($decision, self::DECISIONS, true)) {
             throw new \RuntimeException('Decision must be bat or bowl');
         }
 
-        return DB::transaction(function () use ($matchId, $winnerTeamId, $decision) {
+        if ($result !== null && ! in_array($result, self::CALLS, true)) {
+            throw new \RuntimeException('The recorded coin face must be heads or tails');
+        }
+
+        return DB::transaction(function () use ($matchId, $winnerTeamId, $decision, $result) {
             $match = GameMatch::query()->whereKey($matchId)->lockForUpdate()->first();
 
             if (! $match) {
@@ -125,12 +133,52 @@ class TossService
 
             $match->toss_caller_team_id = null;
             $match->toss_call = null;
-            $match->toss_result = null;
+            $match->toss_result = $result;
             $match->toss_winner_team_id = $winnerTeamId;
             $match->toss_decision = $decision;
             $match->toss_method = 'manual';
             $match->toss_time = now();
             $match->batting_first_team_id = $this->resolveBattingFirst($match, $decision);
+            $match->save();
+
+            return $match;
+        });
+    }
+
+    /**
+     * Undo a mis-recorded toss (wrong team tapped, wrong call, etc.) so it can
+     * be run again. Deliberately narrower than "just record over it": once a
+     * ball has been bowled (match no longer `scheduled`), the toss is locked
+     * for good — this only clears mistakes made before the match went live.
+     *
+     * @throws \RuntimeException when the match doesn't exist, scoring has
+     *                            already started, or there's no toss to reset
+     */
+    public function reset(string $matchId): GameMatch
+    {
+        return DB::transaction(function () use ($matchId) {
+            $match = GameMatch::query()->whereKey($matchId)->lockForUpdate()->first();
+
+            if (! $match) {
+                throw new \RuntimeException('Match not found');
+            }
+
+            if ($match->status !== 'scheduled') {
+                throw new \RuntimeException('The toss can only be reset before scoring starts');
+            }
+
+            if (! $match->toss_winner_team_id) {
+                throw new \RuntimeException('There is no toss to reset');
+            }
+
+            $match->toss_caller_team_id = null;
+            $match->toss_call = null;
+            $match->toss_result = null;
+            $match->toss_winner_team_id = null;
+            $match->toss_decision = null;
+            $match->toss_method = null;
+            $match->toss_time = null;
+            $match->batting_first_team_id = null;
             $match->save();
 
             return $match;

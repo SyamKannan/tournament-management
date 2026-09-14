@@ -200,18 +200,26 @@ export const PublicTournamentPage: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        {/* Active Emergency Announcements */}
+        {/* Match announcements, each labelled with the fixture it is about */}
         {announcements.length > 0 && (
           <div className="mb-6 space-y-2">
-            {announcements.map(ann => (
+            {announcements.map(ann => {
+              const annMatch = matches.find(m => m.id === ann.match_id);
+              return (
               <div key={ann.id} className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 flex items-start gap-3 text-xs">
                 <Radio className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
                 <div>
+                  {annMatch && (
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-amber-400/80">
+                      Match #{annMatch.match_number} · {annMatch.team_a?.name || annMatch.team_a_id} vs {annMatch.team_b?.name || annMatch.team_b_id}
+                    </div>
+                  )}
                   <div className="font-bold text-white">{ann.title}</div>
                   <div className="text-[11px] opacity-90 mt-0.5">{ann.message}</div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

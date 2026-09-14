@@ -3,7 +3,8 @@ import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { subscribeToPlan } from '../../services/billing';
 import type { Plan, Subscription, Invoice } from '../../types';
-import { CreditCard, ShieldCheck, Receipt, Check, RefreshCw, LayoutGrid } from 'lucide-react';
+import { CreditCard, ShieldCheck, Receipt, Check, RefreshCw, LayoutGrid, Download } from 'lucide-react';
+import { downloadInvoicePdf } from '../../utils/invoicePdf';
 import { PlanPickerModal } from '../../components/PlanPickerModal';
 import { LoadingState, EmptyState } from '../../components/ui/Feedback';
 import { useToast } from '../../components/ui/Toast';
@@ -41,6 +42,7 @@ export const OrgBillingPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showPlanPicker, setShowPlanPicker] = useState(false);
   const [renewing, setRenewing] = useState(false);
+  const [switchingPlanId, setSwitchingPlanId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices'>('overview');
 
   const fetchData = async () => {
@@ -70,6 +72,23 @@ export const OrgBillingPage: React.FC = () => {
   }
 
   const { subscription, plan, usage, invoices } = data;
+  const otherPlans = allPlans.filter(p => p.id !== plan?.id).sort((a, b) => a.price - b.price);
+  // Highlight the cheapest plan that's a step up from the current one.
+  const recommendedPlanId = otherPlans.find(p => p.price > (plan?.price ?? 0))?.id;
+
+  const handleSwitch = async (target: Plan) => {
+    if (!organization || switchingPlanId) return;
+    setSwitchingPlanId(target.id);
+    try {
+      await subscribeToPlan(organization.id, target);
+      toast.success(`Switched to ${target.name}!`);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to switch plan. Please try again.');
+    } finally {
+      setSwitchingPlanId(null);
+    }
+  };
 
   const handleRenew = async () => {
     if (!organization || !plan) return;
@@ -198,40 +217,114 @@ export const OrgBillingPage: React.FC = () => {
       </div>
 
       {/* Available Plans — the active plan is shown above, so it's excluded here */}
-      {allPlans.filter(p => p.id !== plan?.id).length > 0 && (
+      {otherPlans.length > 0 && (
         <div>
-          <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Available Plans</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {allPlans.filter(p => p.id !== plan?.id).map(p => (
-              <div key={p.id} className="flex flex-col p-4 rounded-2xl border bg-slate-900/80 border-slate-800/80">
-                <span className="font-bold text-white text-sm">{p.name}</span>
-                <div className="text-lg font-black text-cyan-400 font-mono mt-1">
-                  ₹{p.price.toLocaleString()}
-                  <span className="text-[11px] text-slate-400 font-normal">
-                    {p.billing_type === 'one_time' ? '/event' : `/${p.billing_interval || 'mo'}`}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 mt-1.5">
-                  {p.description || `${p.tournament_limit >= 999 ? 'Unlimited' : p.tournament_limit} Tournaments, ${p.team_limit} Teams, ${p.player_limit} Players`}
-                </p>
-                {p.features?.length > 0 && (
-                  <ul className="mt-3 space-y-1 pt-3 border-t border-slate-800/80">
-                    {p.features.map((f, i) => (
-                      <li key={i} className="flex items-center gap-1.5 text-xs text-slate-300">
-                        <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        <span>{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <button
-                  onClick={() => setShowPlanPicker(true)}
-                  className="mt-3 w-full px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs transition-colors"
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <h2 className="text-base font-black font-heading text-white tracking-tight">Available Plans</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Upgrade or switch anytime — the new plan starts right after payment.</p>
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
+            {otherPlans.map(p => {
+              const isRecommended = p.id === recommendedPlanId;
+              const isUpgrade = !plan || p.price > plan.price;
+              const isBusy = switchingPlanId === p.id;
+              const limits = [
+                { label: 'Tournaments', value: p.tournament_limit },
+                { label: 'Teams', value: p.team_limit },
+                { label: 'Players', value: p.player_limit },
+                { label: 'Sponsor Ads', value: p.ad_limit },
+              ];
+
+              return (
+                <div
+                  key={p.id}
+                  className={`relative flex flex-col p-5 rounded-3xl border transition-all duration-200 hover:-translate-y-1 ${
+                    isRecommended
+                      ? 'bg-gradient-to-b from-emerald-500/10 via-slate-900 to-slate-900 border-emerald-500/50 shadow-xl shadow-emerald-500/10'
+                      : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+                  }`}
                 >
-                  Switch to this plan
-                </button>
-              </div>
-            ))}
+                  {isRecommended && (
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-[10px] font-black uppercase tracking-wider text-white shadow-lg whitespace-nowrap">
+                      Recommended
+                    </span>
+                  )}
+
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-white text-base">{p.name}</span>
+                    {plan && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                          isUpgrade
+                            ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
+                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                        }`}
+                      >
+                        {isUpgrade ? 'Upgrade' : 'Downgrade'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex items-baseline gap-1">
+                    {p.price === 0 ? (
+                      <span className="text-3xl font-black text-white">Free</span>
+                    ) : (
+                      <>
+                        <span className="text-3xl font-black text-white">₹{p.price.toLocaleString()}</span>
+                        <span className="text-xs text-slate-400">
+                          {p.billing_type === 'one_time' ? '/ event' : `/ ${p.billing_interval || 'month'}`}
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {p.description && <p className="text-xs text-slate-400 mt-2 leading-relaxed">{p.description}</p>}
+
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {limits.map(l => (
+                      <div key={l.label} className="px-3 py-2 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                        <div className="text-sm font-black text-white font-mono">{l.value >= 999 ? '∞' : l.value}</div>
+                        <div className="text-[10px] text-slate-500 uppercase tracking-wide">{l.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {p.features?.length > 0 && (
+                    <ul className="mt-4 space-y-2">
+                      {p.features.map((f, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                          <span className="mt-px w-4 h-4 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
+                            <Check className="w-3 h-3 text-emerald-400" />
+                          </span>
+                          <span>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <div className="flex-1 min-h-[1.25rem]" />
+                  <button
+                    onClick={() => handleSwitch(p)}
+                    disabled={switchingPlanId !== null}
+                    className={`w-full px-4 py-3 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-60 ${
+                      isRecommended || isUpgrade
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-600/20'
+                        : 'bg-slate-800 hover:bg-slate-700 text-white'
+                    }`}                  >
+                    {isBusy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                    <span>
+                      {isBusy
+                        ? 'Processing...'
+                        : p.price > 0
+                          ? `Pay ₹${p.price.toLocaleString()} & ${plan ? 'Switch' : 'Activate'}`
+                          : `${plan ? 'Switch' : 'Activate'} for free`}
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -251,6 +344,7 @@ export const OrgBillingPage: React.FC = () => {
                     <th className="text-left px-4 py-3 font-semibold">Amount</th>
                     <th className="text-left px-4 py-3 font-semibold">Method</th>
                     <th className="text-left px-4 py-3 font-semibold">Status</th>
+                    <th className="text-right px-4 py-3 font-semibold">Invoice</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80">
@@ -264,6 +358,15 @@ export const OrgBillingPage: React.FC = () => {
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${STATUS_STYLES[inv.status] || 'bg-slate-800 text-slate-300 border-slate-700'}`}>
                           {inv.status}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => downloadInvoicePdf(inv)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-semibold text-[11px] transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>PDF</span>
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -284,6 +387,7 @@ export const OrgBillingPage: React.FC = () => {
       {showPlanPicker && organization && (
         <PlanPickerModal
           organizationId={organization.id}
+          currentPlanId={plan?.id}
           title={plan ? 'Change Your Plan' : 'Choose a Plan'}
           subtitle={plan ? 'Switch to a different plan at any time.' : 'Activate a plan to unlock tournament hosting.'}
           onClose={() => setShowPlanPicker(false)}

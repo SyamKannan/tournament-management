@@ -47,6 +47,10 @@ function splitPhoneValue(value: string): { dial: string; number: string } {
   return { dial: DEFAULT_DIAL, number: trimmed };
 }
 
+function stripClasses(classes: string, pattern: RegExp): string {
+  return classes.split(/\s+/).filter(c => c && !pattern.test(c)).join(' ');
+}
+
 interface PhoneInputProps {
   /** Full stored value, e.g. "+91 98470 12345". */
   value: string;
@@ -74,15 +78,22 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
   autoComplete,
 }) => {
   const { dial, number } = splitPhoneValue(value);
+  // Callers pass input-style classes like "w-full px-4"; width would override
+  // the fixed select width (squeezing the number input out), and wide padding
+  // doesn't fit the compact code picker.
+  const inner = stripClasses(className, /^(w|min-w|max-w)-/);
+  const selectClasses = selectClassName
+    ? stripClasses(selectClassName, /^(w|min-w|max-w)-/)
+    : `${stripClasses(inner, /^(px|pl|pr)-/)} pl-3 pr-1`;
 
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 w-full min-w-0">
       <select
         aria-label="Country code"
         value={dial}
         disabled={disabled}
         onChange={(e) => onChange(`${e.target.value} ${number}`.trim())}
-        className={`shrink-0 w-[6.5rem] ${selectClassName || className}`}
+        className={`shrink-0 w-[6.5rem] ${selectClasses}`}
       >
         {COUNTRY_DIAL_CODES.map(c => (
           <option key={c.dial} value={c.dial}>{c.flag} {c.dial}</option>
@@ -98,7 +109,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
         placeholder={placeholder}
         value={number}
         onChange={(e) => onChange(`${dial} ${e.target.value}`.trim())}
-        className={`flex-1 min-w-0 ${className}`}
+        className={`flex-1 min-w-0 ${inner}`}
       />
     </div>
   );

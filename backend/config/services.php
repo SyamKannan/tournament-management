@@ -42,8 +42,8 @@ return [
         'api_key' => env('OPENAI_API_KEY'),
     ],
 
-    // Real UPI/card checkout (RazorpayGatewayService). Left blank, ground-fee
-    // and subscription payments stay simulated — never a hard failure.
+    // Fallback Razorpay keys for PaymentGatewayService, used when a payment
+    // flow is set to Razorpay in platform settings without keys of its own.
     'razorpay' => [
         'key_id' => env('RAZORPAY_KEY_ID'),
         'key_secret' => env('RAZORPAY_KEY_SECRET'),

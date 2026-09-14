@@ -3,8 +3,10 @@
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuctionController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\LineupController;
 use App\Http\Controllers\Api\MatchController;
 use App\Http\Controllers\Api\OrganizationController;
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PlatformController;
 use App\Http\Controllers\Api\PlayerController;
 use App\Http\Controllers\Api\PosterController;
@@ -39,6 +41,7 @@ Route::get('plans', [PlatformController::class, 'plans']);
 Route::get('sports', [PlatformController::class, 'sports']);
 Route::get('payment-methods', [PlatformController::class, 'paymentMethods']);
 Route::get('health', [PlatformController::class, 'health']);
+Route::post('payments/demo/{orderId}/pay', [PaymentController::class, 'demoPay'])->middleware('throttle:30,1');
 
 // Restores the demo dataset. Local and staging only — never expose in production.
 Route::post('dev/reset-seed', function () {
@@ -119,6 +122,7 @@ Route::prefix('tournaments')->group(function () {
         Route::get('{id}', [TournamentController::class, 'show']);
         Route::put('{id}', [TournamentController::class, 'update']);
         Route::delete('{id}', [TournamentController::class, 'destroy']);
+        Route::post('{id}/cancel', [TournamentController::class, 'cancel'])->middleware('role:ORG_ADMIN,SUPER_ADMIN');
         Route::put('{id}/auction', [TournamentController::class, 'configureAuction']);
         Route::post('{id}/registration-link', [TournamentController::class, 'registrationLink']);
         Route::post('{id}/poster', [TournamentController::class, 'generatePoster']);
@@ -154,9 +158,13 @@ Route::prefix('matches')->group(function () {
 
     Route::get('{id}', [MatchController::class, 'show']);
     Route::get('{id}/toss', [TossController::class, 'show']);
+    // Public for the same reason the toss is: the stadium display and the
+    // tournament hub both show the team sheets without anyone logging in.
+    Route::get('{id}/lineup', [LineupController::class, 'show']);
 
     Route::middleware('auth.required')->group(function () {
         Route::put('{id}', [MatchController::class, 'update']);
+        Route::post('{id}/cancel', [MatchController::class, 'cancel'])->middleware('role:ORG_ADMIN,SUPER_ADMIN');
 
         Route::post('{id}/football/event', [MatchController::class, 'recordFootballEvent']);
         Route::post('{id}/football/timer', [MatchController::class, 'controlFootballTimer']);
@@ -169,11 +177,18 @@ Route::prefix('matches')->group(function () {
             Route::post('{id}/toss/call', [TossController::class, 'call']);
             Route::post('{id}/toss/decision', [TossController::class, 'decision']);
             Route::post('{id}/toss/manual', [TossController::class, 'manual']);
+            Route::post('{id}/toss/reset', [TossController::class, 'reset']);
+
+            // Naming the XI and driving the big screen belong to whoever is
+            // running the match, the same people who record the toss.
+            Route::put('{id}/lineup', [LineupController::class, 'update']);
+            Route::post('{id}/scoreboard/stage', [MatchController::class, 'setScoreboardStage']);
         });
 
         Route::post('{id}/cricket/ball', [MatchController::class, 'recordCricketBall']);
         Route::post('{id}/cricket/undo', [MatchController::class, 'undoCricketBall']);
         Route::post('{id}/cricket/switch-innings', [MatchController::class, 'switchInnings']);
+        Route::post('{id}/cricket/finish', [MatchController::class, 'finishCricketMatch']);
     });
 });
 
@@ -236,16 +251,22 @@ Route::prefix('sponsors')->group(function () {
     Route::get('announcements', [SponsorController::class, 'listAnnouncements']);
 
     Route::middleware('auth.required')->group(function () {
+        // Ads and announcements each belong to one match. Putting them on the
+        // big screen is `POST /matches/{id}/scoreboard/stage`, not anything here.
         Route::get('ads', [SponsorController::class, 'listAds']);
         Route::post('ads', [SponsorController::class, 'storeAd'])->middleware('tenant');
-        Route::post('ads/control/break-mode', [SponsorController::class, 'breakMode']);
-        Route::post('ads/control/push-popup', [SponsorController::class, 'pushPopup']);
-        Route::post('ads/control/settings', [SponsorController::class, 'adSettings']);
+        Route::post('ads/{id}/copy', [SponsorController::class, 'copyAd']);
         Route::delete('ads/{id}', [SponsorController::class, 'destroyAd']);
 
         Route::post('announcements', [SponsorController::class, 'storeAnnouncement'])->middleware('tenant');
-        Route::put('announcements/{id}/scoreboard-toggle', [SponsorController::class, 'toggleAnnouncement']);
         Route::delete('announcements/{id}', [SponsorController::class, 'destroyAnnouncement']);
+
+        // Adjusting on-screen time happens from the scorer console, so the
+        // same people who drive the big screen may do it.
+        Route::middleware('role:ORG_ADMIN,SCORER,SUPER_ADMIN')->group(function () {
+            Route::put('ads/{id}', [SponsorController::class, 'updateAd']);
+            Route::put('announcements/{id}', [SponsorController::class, 'updateAnnouncement']);
+        });
 
         Route::get('/', [SponsorController::class, 'index']);
         Route::post('/', [SponsorController::class, 'store'])->middleware('tenant');

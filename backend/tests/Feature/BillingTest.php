@@ -135,4 +135,56 @@ class BillingTest extends TestCase
             'settings' => ['squad_min_players' => 7, 'squad_max_players' => 14, 'max_substitutes' => 5],
         ]);
     }
+
+    public function test_a_paid_plan_activates_only_after_the_demo_checkout_is_paid(): void
+    {
+        $this->actingAsUser('admin@greenvalley.com');
+        $org = 'org-green-valley';
+
+        $this->postJson("/api/organizations/{$org}/subscribe", ['plan_id' => 'plan-premium'])
+            ->assertStatus(400)
+            ->assertJsonPath('error', 'Payment verification is required to activate this plan.');
+
+        $order = $this->postJson("/api/organizations/{$org}/subscribe/order", ['plan_id' => 'plan-premium'])
+            ->assertOk()
+            ->assertJsonPath('provider', 'demo')
+            ->assertJsonPath('methods', ['upi', 'card', 'netbanking'])
+            ->json();
+
+        $paid = $this->postJson("/api/payments/demo/{$order['order_id']}/pay", ['method' => 'upi', 'upi_id' => 'success@demo'])
+            ->assertOk()
+            ->json();
+
+        $this->postJson("/api/organizations/{$org}/subscribe", ['plan_id' => 'plan-premium', 'payment_method' => 'upi', ...$paid])
+            ->assertOk();
+
+        $this->assertSame('plan-premium', \App\Models\Subscription::query()->where('organization_id', $org)->value('plan_id'));
+    }
+
+    public function test_admin_payment_gateway_settings_never_return_the_saved_secret(): void
+    {
+        $this->actingAsUser('syamdas@gmail.com');
+
+        $response = $this->putJson('/api/admin/settings', [
+            'payment_gateways' => [
+                'subscription' => ['provider' => 'razorpay', 'key_id' => 'rzp_test_abc', 'key_secret' => 'super-secret'],
+                'registration' => ['provider' => 'demo'],
+            ],
+            'subscription_payment_methods' => ['card'],
+        ])->assertOk();
+
+        $response->assertJsonPath('payment_gateways.subscription.provider', 'razorpay')
+            ->assertJsonPath('payment_gateways.subscription.has_key_secret', true)
+            ->assertJsonPath('payment_gateways.subscription.ready', true)
+            ->assertJsonPath('subscription_payment_methods', ['card']);
+        $this->assertStringNotContainsString('super-secret', $response->getContent());
+        $this->assertStringNotContainsString('super-secret', $this->getJson('/api/admin/settings')->getContent());
+
+        // Saving again without a secret keeps the stored one.
+        $this->putJson('/api/admin/settings', [
+            'payment_gateways' => ['subscription' => ['provider' => 'razorpay', 'key_id' => 'rzp_test_abc']],
+        ])->assertJsonPath('payment_gateways.subscription.has_key_secret', true);
+
+        $this->assertSame('super-secret', app(\App\Services\PaymentGatewayService::class)->config('subscription')['key_secret']);
+    }
 }

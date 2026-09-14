@@ -6,16 +6,11 @@ use Illuminate\Support\Facades\Http;
 
 /**
  * Thin wrapper around Razorpay's Orders API and payment-signature
- * verification. Payments stay simulated everywhere in this app until
- * RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET are set — see isConfigured().
+ * verification. Keys are passed in per call because each payment flow can
+ * use its own account — see PaymentGatewayService, which picks them.
  */
 class RazorpayGatewayService
 {
-    public function isConfigured(): bool
-    {
-        return filled(config('services.razorpay.key_id')) && filled(config('services.razorpay.key_secret'));
-    }
-
     /**
      * Create a Razorpay order for the given amount and return what the
      * client needs to open Checkout.
@@ -24,18 +19,17 @@ class RazorpayGatewayService
      *
      * @throws \RuntimeException when the order cannot be created
      */
-    public function createOrder(float $amountRupees, string $currency, string $receipt, array $notes = []): array
+    public function createOrder(float $amountRupees, string $currency, string $receipt, array $notes, string $keyId, string $keySecret): array
     {
-        $keyId = (string) config('services.razorpay.key_id');
-        $keySecret = (string) config('services.razorpay.key_secret');
         $amountPaise = (int) round($amountRupees * 100);
 
         $response = Http::withBasicAuth($keyId, $keySecret)
             ->asJson()
+            ->timeout(15)
             ->post('https://api.razorpay.com/v1/orders', [
                 'amount' => $amountPaise,
                 'currency' => $currency ?: 'INR',
-                'receipt' => $receipt,
+                'receipt' => substr($receipt, 0, 40),
                 'notes' => $notes,
             ]);
 
@@ -57,9 +51,12 @@ class RazorpayGatewayService
      * Verify the signature Razorpay Checkout returns after a successful
      * payment, per Razorpay's documented HMAC-SHA256 scheme.
      */
-    public function verifyPaymentSignature(string $orderId, string $paymentId, string $signature): bool
+    public function verifyPaymentSignature(string $orderId, string $paymentId, string $signature, string $keySecret): bool
     {
-        $keySecret = (string) config('services.razorpay.key_secret');
+        if ($keySecret === '') {
+            return false;
+        }
+
         $expected = hash_hmac('sha256', "{$orderId}|{$paymentId}", $keySecret);
 
         return hash_equals($expected, $signature);

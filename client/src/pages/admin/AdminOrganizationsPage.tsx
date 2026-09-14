@@ -8,6 +8,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { Skeleton, SkeletonTable } from '../../components/ui/Feedback';
+import { PhoneInput } from '../../components/PhoneInput';
 
 export const AdminOrganizationsPage: React.FC = () => {
   const toast = useToast();
@@ -397,11 +398,10 @@ export const AdminOrganizationsPage: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">Mobile Number *</label>
-                  <input
-                    type="tel"
-                    placeholder="+91 98470 12345"
+                  <PhoneInput
+                    placeholder="98470 12345"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={setPhone}
                     required
                     className="w-full px-3.5 py-2 rounded-xl glass-input"
                   />

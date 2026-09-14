@@ -9,12 +9,11 @@ class Tournament extends BaseModel
 {
     /**
      * Ground-fee payment methods an organizer can accept, configured on
-     * payment_config.enabled_methods at tournament-creation time. 'upi' opens
-     * a real Razorpay Checkout (UPI/cards/netbanking/wallets) once
-     * RAZORPAY_KEY_ID/SECRET are set, and falls back to a simulated payment
-     * otherwise — see TournamentPaymentService/RazorpayGatewayService.
+     * payment_config.enabled_methods at tournament-creation time. The online
+     * ones open the registration flow's checkout (demo or Razorpay, set by the
+     * super admin) and need a verified result — see PaymentGatewayService.
      */
-    public const PAYMENT_METHODS = ['upi', 'pay_at_ground'];
+    public const PAYMENT_METHODS = ['upi', 'card', 'netbanking', 'pay_at_ground'];
 
     /**
      * These columns are TEXT and therefore nullable in the schema — MySQL

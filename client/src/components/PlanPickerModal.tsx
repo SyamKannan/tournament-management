@@ -7,6 +7,8 @@ import { useToast } from './ui/Toast';
 
 interface PlanPickerModalProps {
   organizationId: string;
+  /** The org's active plan — badged, and not preselected so "Change Plan" defaults to a different one. */
+  currentPlanId?: string;
   title?: string;
   subtitle?: string;
   onClose: () => void;
@@ -20,7 +22,8 @@ interface PlanPickerModalProps {
  */
 export const PlanPickerModal: React.FC<PlanPickerModalProps> = ({
   organizationId,
-  title = 'Choose a Plan',
+  currentPlanId,
+  title ='Choose a Plan',
   subtitle = 'Pick the plan that fits your tournament, then continue.',
   onClose,
   onSubscribed
@@ -38,7 +41,7 @@ export const PlanPickerModal: React.FC<PlanPickerModalProps> = ({
         const res = await api.get('/plans');
         if (Array.isArray(res)) {
           setPlans(res);
-          setSelectedPlanId(res[0]?.id ?? null);
+          setSelectedPlanId((res.find((p: Plan) => p.id !== currentPlanId) ?? res[0])?.id ?? null);
         }
       } catch (err) {
         console.error('Failed to load plans', err);
@@ -48,7 +51,9 @@ export const PlanPickerModal: React.FC<PlanPickerModalProps> = ({
     };
 
     fetchPlans();
-  }, []);
+  }, [currentPlanId]);
+
+  const selectedPlan = plans.find(p => p.id === selectedPlanId);
 
   const handleSubscribe = async () => {
     const plan = plans.find(p => p.id === selectedPlanId);
@@ -99,6 +104,11 @@ export const PlanPickerModal: React.FC<PlanPickerModalProps> = ({
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-white text-sm">{p.name}</span>
+                        {p.id === currentPlanId && (
+                          <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[11px] font-bold uppercase">
+                            Current
+                          </span>
+                        )}
                         {p.price === 0 && (
                           <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
                             Free
@@ -143,7 +153,11 @@ export const PlanPickerModal: React.FC<PlanPickerModalProps> = ({
             ) : (
               <CreditCard className="w-4 h-4" />
             )}
-            <span>{subscribing ? 'Activating...' : 'Activate Plan'}</span>
+            <span>
+              {subscribing
+                ? 'Processing...'
+                : selectedPlan && selectedPlan.price > 0 ? `Pay ₹${selectedPlan.price.toLocaleString()} & Activate` : 'Activate Plan'}
+            </span>
           </button>
         </div>
       </div>

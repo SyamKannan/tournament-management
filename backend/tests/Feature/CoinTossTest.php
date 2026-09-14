@@ -110,6 +110,53 @@ class CoinTossTest extends TestCase
         $this->assertSame(self::TEAM_A, $match->batting_first_team_id);
     }
 
+    public function test_manual_toss_can_record_the_face_the_real_coin_showed(): void
+    {
+        $this->clearToss();
+
+        $match = $this->toss->recordManual(self::MATCH_ID, self::TEAM_A, 'bat', 'tails');
+
+        $this->assertSame('manual', $match->toss_method);
+        $this->assertSame('tails', $match->toss_result);
+        // Still a scorer-recorded toss, never a call the server resolved.
+        $this->assertNull($match->toss_call);
+        $this->assertNull($match->toss_caller_team_id);
+    }
+
+    public function test_manual_toss_rejects_a_face_that_is_not_heads_or_tails(): void
+    {
+        $this->clearToss();
+
+        $this->expectException(\RuntimeException::class);
+        $this->toss->recordManual(self::MATCH_ID, self::TEAM_A, 'bat', 'edge');
+    }
+
+    public function test_manual_toss_over_http_carries_the_recorded_face(): void
+    {
+        $this->clearToss();
+        $this->actingAsUser('admin@malabar.com');
+
+        $this->postJson('/api/matches/'.self::MATCH_ID.'/toss/manual', [
+            'winner_team_id' => self::TEAM_B,
+            'decision' => 'bowl',
+            'toss_result' => 'heads',
+        ])->assertOk()
+            ->assertJsonPath('toss_result', 'heads')
+            ->assertJsonPath('toss_method', 'manual');
+    }
+
+    public function test_manual_toss_over_http_refuses_an_invalid_face(): void
+    {
+        $this->clearToss();
+        $this->actingAsUser('admin@malabar.com');
+
+        $this->postJson('/api/matches/'.self::MATCH_ID.'/toss/manual', [
+            'winner_team_id' => self::TEAM_B,
+            'decision' => 'bowl',
+            'toss_result' => 'sideways',
+        ])->assertStatus(422);
+    }
+
     /* ---------------------------------------- Cannot toss twice (locking) */
 
     public function test_a_second_digital_call_on_an_already_tossed_match_is_rejected(): void
@@ -137,6 +184,75 @@ class CoinTossTest extends TestCase
 
         $this->expectException(\RuntimeException::class);
         $this->toss->recordManual(self::MATCH_ID, self::TEAM_B, 'bowl');
+    }
+
+    /* ---------------------------------------------------- Reset ("retry") */
+
+    public function test_reset_clears_a_recorded_toss_before_scoring_starts(): void
+    {
+        $this->setScheduled();
+        $this->clearToss();
+        $this->toss->recordManual(self::MATCH_ID, self::TEAM_A, 'bat');
+
+        $match = $this->toss->reset(self::MATCH_ID);
+
+        $this->assertNull($match->toss_winner_team_id);
+        $this->assertNull($match->toss_decision);
+        $this->assertNull($match->toss_method);
+        $this->assertNull($match->batting_first_team_id);
+    }
+
+    public function test_can_toss_again_after_a_reset(): void
+    {
+        $this->setScheduled();
+        $this->clearToss();
+        $this->toss->recordManual(self::MATCH_ID, self::TEAM_A, 'bat');
+        $this->toss->reset(self::MATCH_ID);
+
+        // The earlier "already tossed" lock doesn't apply post-reset.
+        $match = $this->toss->recordManual(self::MATCH_ID, self::TEAM_B, 'bowl');
+
+        $this->assertSame(self::TEAM_B, $match->toss_winner_team_id);
+        $this->assertSame(self::TEAM_A, $match->batting_first_team_id);
+    }
+
+    public function test_reset_is_rejected_once_scoring_has_started(): void
+    {
+        // match-crick-live-1 is seeded `in_progress` by default.
+        $this->clearToss();
+        $this->toss->recordManual(self::MATCH_ID, self::TEAM_A, 'bat');
+
+        $this->expectException(\RuntimeException::class);
+        $this->toss->reset(self::MATCH_ID);
+    }
+
+    public function test_reset_is_rejected_when_there_is_no_toss_to_reset(): void
+    {
+        $this->setScheduled();
+        $this->clearToss();
+
+        $this->expectException(\RuntimeException::class);
+        $this->toss->reset(self::MATCH_ID);
+    }
+
+    public function test_resetting_the_toss_over_http_allows_a_redo(): void
+    {
+        $this->setScheduled();
+        $this->clearToss();
+        $this->actingAsUser('admin@malabar.com');
+
+        $this->postJson('/api/matches/'.self::MATCH_ID.'/toss/manual', [
+            'winner_team_id' => self::TEAM_A,
+            'decision' => 'bat',
+        ])->assertOk();
+
+        $this->postJson('/api/matches/'.self::MATCH_ID.'/toss/reset')->assertOk();
+
+        $this->postJson('/api/matches/'.self::MATCH_ID.'/toss/manual', [
+            'winner_team_id' => self::TEAM_B,
+            'decision' => 'bowl',
+        ])->assertOk()
+            ->assertJsonPath('toss_winner_team_id', self::TEAM_B);
     }
 
     /* --------------------------------------------------------- Over HTTP */
@@ -223,6 +339,17 @@ class CoinTossTest extends TestCase
      * match-crick-live-1 ships pre-tossed (it's a seeded "live" fixture), so
      * tests that exercise the toss flow itself reset it first.
      */
+    /**
+     * match-crick-live-1 is seeded `in_progress`; reset() is only legal
+     * pre-match, so its own tests need the match rolled back to `scheduled`.
+     */
+    private function setScheduled(): void
+    {
+        $match = GameMatch::find(self::MATCH_ID);
+        $match->status = 'scheduled';
+        $match->save();
+    }
+
     private function clearToss(): void
     {
         $match = GameMatch::find(self::MATCH_ID);

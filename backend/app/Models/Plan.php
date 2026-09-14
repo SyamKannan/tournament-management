@@ -15,7 +15,6 @@ class Plan extends BaseModel
 
     protected $casts = [
         'price' => 'float',
-        'trial_days' => 'integer',
         'tournament_limit' => 'integer',
         'team_limit' => 'integer',
         'player_limit' => 'integer',

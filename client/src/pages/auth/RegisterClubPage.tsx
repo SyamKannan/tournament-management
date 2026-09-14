@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { AuthShowcase } from '../../components/AuthShowcase';
 import { ImageUploadModal } from '../../components/ImageUploadModal';
+import { PhoneInput } from '../../components/PhoneInput';
+import { COUNTRIES } from '../../lib/countries';
 import { SPORTS_CAROUSELS } from '../../lib/sportsImagery';
 import {
   Building2, ArrowRight, AlertCircle, Camera
@@ -23,8 +25,9 @@ export const RegisterClubPage: React.FC = () => {
     password: '',
     village: '',
     panchayat: '',
-    district: 'Malappuram',
-    state: 'Kerala',
+    district: '',
+    state: '',
+    country: 'India',
     logo: ''
   });
 
@@ -176,11 +179,10 @@ export const RegisterClubPage: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-300 mb-1.5">
                   Phone Number *
                 </label>
-                <input
-                  type="tel"
+                <PhoneInput
                   value={formData.phone}
-                  onChange={(e) => handleChange('phone', e.target.value)}
-                  placeholder="+91 98470 12345"
+                  onChange={(phone) => handleChange('phone', phone)}
+                  placeholder="98470 12345"
                   required
                   className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
                 />
@@ -190,11 +192,10 @@ export const RegisterClubPage: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-300 mb-1.5">
                   WhatsApp Number
                 </label>
-                <input
-                  type="tel"
+                <PhoneInput
                   value={formData.whatsapp}
-                  onChange={(e) => handleChange('whatsapp', e.target.value)}
-                  placeholder="+91 98470 12345"
+                  onChange={(whatsapp) => handleChange('whatsapp', whatsapp)}
+                  placeholder="98470 12345"
                   className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
                 />
               </div>
@@ -233,6 +234,49 @@ export const RegisterClubPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  Country
+                </label>
+                <select
+                  value={formData.country}
+                  onChange={(e) => handleChange('country', e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white focus:outline-none focus:border-cyan-500"
+                >
+                  {COUNTRIES.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  State / Province
+                </label>
+                <input
+                  type="text"
+                  value={formData.state}
+                  onChange={(e) => handleChange('state', e.target.value)}
+                  placeholder="e.g. Kerala"
+                  className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  District / Region
+                </label>
+                <input
+                  type="text"
+                  value={formData.district}
+                  onChange={(e) => handleChange('district', e.target.value)}
+                  placeholder="e.g. Malappuram"
+                  className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
                   Village / City
                 </label>
                 <input
@@ -242,32 +286,6 @@ export const RegisterClubPage: React.FC = () => {
                   placeholder="e.g. Nilambur"
                   className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                  District
-                </label>
-                <select
-                  value={formData.district}
-                  onChange={(e) => handleChange('district', e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white focus:outline-none focus:border-cyan-500"
-                >
-                  <option value="Malappuram">Malappuram</option>
-                  <option value="Kozhikode">Kozhikode</option>
-                  <option value="Ernakulam">Ernakulam</option>
-                  <option value="Thrissur">Thrissur</option>
-                  <option value="Thiruvananthapuram">Thiruvananthapuram</option>
-                  <option value="Kannur">Kannur</option>
-                  <option value="Palakkad">Palakkad</option>
-                  <option value="Kollam">Kollam</option>
-                  <option value="Alappuzha">Alappuzha</option>
-                  <option value="Kottayam">Kottayam</option>
-                  <option value="Idukki">Idukki</option>
-                  <option value="Wayanad">Wayanad</option>
-                  <option value="Kasaragod">Kasaragod</option>
-                  <option value="Pathanamthitta">Pathanamthitta</option>
-                </select>
               </div>
             </div>
 

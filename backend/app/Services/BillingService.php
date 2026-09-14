@@ -301,7 +301,6 @@ class BillingService
             ],
             'subscriptions' => [
                 'active' => (int) ($subscriptionCounts['active'] ?? 0),
-                'trial' => (int) ($subscriptionCounts['trial'] ?? 0),
                 'expired' => (int) ($subscriptionCounts['expired'] ?? 0),
                 'cancelled' => (int) ($subscriptionCounts['cancelled'] ?? 0),
             ],
@@ -326,7 +325,7 @@ class BillingService
     {
         return Subscription::query()
             ->where('organization_id', $organizationId)
-            ->whereIn('status', ['active', 'trial'])
+            ->where('status', 'active')
             ->first();
     }
 

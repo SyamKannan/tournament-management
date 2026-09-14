@@ -153,6 +153,7 @@ class AuctionAuthorizationTest extends TestCase
             'manager_name' => 'Direct Manager',
             'manager_phone' => '+91 90000 55555',
             'players' => $squad,
+            'payment_method' => 'pay_at_ground',
         ])->assertCreated();
     }
 

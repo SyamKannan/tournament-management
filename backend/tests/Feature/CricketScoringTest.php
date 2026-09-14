@@ -5,6 +5,9 @@ namespace Tests\Feature;
 use App\Models\CricketDelivery;
 use App\Models\CricketMatchState;
 use App\Models\GameMatch;
+use App\Models\PlayerStat;
+use App\Models\Standing;
+use App\Services\CricketScorecard;
 use App\Services\ScoringEngine;
 use Tests\TestCase;
 
@@ -178,7 +181,359 @@ class CricketScoringTest extends TestCase
         $this->assertGreaterThan(0, $response->json('state.team_a_runs'));
     }
 
+    /* --------------------------------------------- Extras, strike and stats */
+
+    public function test_a_no_ball_hit_for_four_credits_the_bat_and_the_penalty_separately(): void
+    {
+        $before = $this->scoring->cricketState(self::MATCH_ID)->team_a_runs;
+
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID,
+            'innings' => 1,
+            'runsScored' => 4,
+            'extras' => 'no_ball',
+            'extrasRuns' => 1,
+            'isWicket' => false,
+            'strikerId' => 'pl-kk-1',
+            'nonStrikerId' => 'pl-kk-2',
+            'bowlerId' => 'pl-cw-3',
+        ]);
+
+        $state = $this->scoring->cricketState(self::MATCH_ID);
+        $delivery = $state->deliveries->last();
+
+        $this->assertSame($before + 5, $state->team_a_runs);
+        $this->assertSame(4, $delivery->runs_scored);
+        $this->assertSame(1, $delivery->extras_runs);
+    }
+
+    public function test_four_byes_are_all_extras_and_none_of_them_the_batters(): void
+    {
+        $before = $this->scoring->cricketState(self::MATCH_ID)->team_a_runs;
+
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID,
+            'innings' => 1,
+            'runsScored' => 0,
+            'extras' => 'bye',
+            'extrasRuns' => 4,
+            'isWicket' => false,
+            'strikerId' => 'pl-kk-1',
+            'nonStrikerId' => 'pl-kk-2',
+            'bowlerId' => 'pl-cw-3',
+        ]);
+
+        $this->assertSame($before + 4, $this->scoring->cricketState(self::MATCH_ID)->team_a_runs);
+    }
+
+    public function test_an_odd_number_of_byes_changes_the_strike(): void
+    {
+        $this->bowlDotsUntilBallOfOver(1);
+        $this->setBatters('pl-kk-1', 'pl-kk-2');
+
+        // The batters ran one, so they have changed ends even though the run
+        // was never off the bat.
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID,
+            'innings' => 1,
+            'runsScored' => 0,
+            'extras' => 'leg_bye',
+            'extrasRuns' => 1,
+            'isWicket' => false,
+        ]);
+
+        $this->assertSame('pl-kk-2', $this->scoring->cricketState(self::MATCH_ID)->current_striker_id);
+    }
+
+    public function test_the_one_run_penalty_on_a_wide_does_not_change_the_strike(): void
+    {
+        $this->bowlDotsUntilBallOfOver(1);
+        $this->setBatters('pl-kk-1', 'pl-kk-2');
+
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID,
+            'innings' => 1,
+            'runsScored' => 0,
+            'extras' => 'wide',
+            'extrasRuns' => 1,
+            'isWicket' => false,
+        ]);
+
+        $this->assertSame('pl-kk-1', $this->scoring->cricketState(self::MATCH_ID)->current_striker_id);
+    }
+
+    public function test_a_delivery_records_the_players_it_was_bowled_to(): void
+    {
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID,
+            'innings' => 1,
+            'runsScored' => 2,
+            'extras' => 'none',
+            'isWicket' => false,
+            'strikerId' => 'pl-kk-1',
+            'nonStrikerId' => 'pl-kk-2',
+            'bowlerId' => 'pl-cw-3',
+        ]);
+
+        $delivery = $this->scoring->cricketState(self::MATCH_ID)->deliveries->last();
+
+        $this->assertSame('pl-kk-1', $delivery->striker_id);
+        $this->assertSame('pl-cw-3', $delivery->bowler_id);
+    }
+
+    public function test_runs_and_wickets_reach_the_players_career_totals(): void
+    {
+        $this->giveCareerStats('pl-kk-1', 'pl-cw-3');
+
+        $runsBefore = PlayerStat::query()->where('player_id', 'pl-kk-1')->first()->cricket['runs_scored'] ?? 0;
+        $wicketsBefore = PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['wickets_taken'] ?? 0;
+
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID,
+            'innings' => 1,
+            'runsScored' => 6,
+            'extras' => 'none',
+            'isWicket' => false,
+            'strikerId' => 'pl-kk-1',
+            'nonStrikerId' => 'pl-kk-2',
+            'bowlerId' => 'pl-cw-3',
+        ]);
+
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID,
+            'innings' => 1,
+            'runsScored' => 0,
+            'extras' => 'none',
+            'isWicket' => true,
+            'wicketType' => 'bowled',
+            'dismissedPlayerId' => 'pl-kk-1',
+            'strikerId' => 'pl-kk-1',
+            'nonStrikerId' => 'pl-kk-2',
+            'bowlerId' => 'pl-cw-3',
+        ]);
+
+        $this->assertSame($runsBefore + 6, PlayerStat::query()->where('player_id', 'pl-kk-1')->first()->cricket['runs_scored']);
+        $this->assertSame($wicketsBefore + 1, PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['wickets_taken']);
+    }
+
+    public function test_a_run_out_is_not_credited_to_the_bowler(): void
+    {
+        $this->giveCareerStats('pl-cw-3');
+
+        $before = PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['wickets_taken'] ?? 0;
+
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID,
+            'innings' => 1,
+            'runsScored' => 0,
+            'extras' => 'none',
+            'isWicket' => true,
+            'wicketType' => 'run_out',
+            'dismissedPlayerId' => 'pl-kk-2',
+            'strikerId' => 'pl-kk-1',
+            'nonStrikerId' => 'pl-kk-2',
+            'bowlerId' => 'pl-cw-3',
+        ]);
+
+        $this->assertSame($before, PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['wickets_taken'] ?? 0);
+    }
+
+    public function test_byes_are_not_charged_to_the_bowler(): void
+    {
+        $this->giveCareerStats('pl-cw-3');
+
+        $before = PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['runs_conceded'] ?? 0;
+
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID,
+            'innings' => 1,
+            'runsScored' => 0,
+            'extras' => 'bye',
+            'extrasRuns' => 4,
+            'isWicket' => false,
+            'strikerId' => 'pl-kk-1',
+            'nonStrikerId' => 'pl-kk-2',
+            'bowlerId' => 'pl-cw-3',
+        ]);
+
+        $this->assertSame($before, PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['runs_conceded'] ?? 0);
+    }
+
+    public function test_undo_takes_the_players_career_totals_back_with_it(): void
+    {
+        $this->giveCareerStats('pl-kk-1', 'pl-cw-3');
+
+        $runsBefore = PlayerStat::query()->where('player_id', 'pl-kk-1')->first()->cricket['runs_scored'] ?? 0;
+        $wicketsBefore = PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['wickets_taken'] ?? 0;
+
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID,
+            'innings' => 1,
+            'runsScored' => 4,
+            'extras' => 'none',
+            'isWicket' => false,
+            'strikerId' => 'pl-kk-1',
+            'nonStrikerId' => 'pl-kk-2',
+            'bowlerId' => 'pl-cw-3',
+        ]);
+
+        $this->scoring->undoLastCricketBall(self::MATCH_ID);
+
+        $this->assertSame($runsBefore, PlayerStat::query()->where('player_id', 'pl-kk-1')->first()->cricket['runs_scored']);
+        $this->assertSame($wicketsBefore, PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['wickets_taken'] ?? 0);
+    }
+
+    public function test_undo_puts_the_batters_back_at_the_ends_they_came_from(): void
+    {
+        $this->bowlDotsUntilBallOfOver(1);
+        $this->setBatters('pl-kk-1', 'pl-kk-2');
+
+        // A single swaps the ends…
+        $this->bowlSingle();
+        $this->assertSame('pl-kk-2', $this->scoring->cricketState(self::MATCH_ID)->current_striker_id);
+
+        // …and undoing it has to swap them back, or the next ball would be
+        // credited to the wrong batter.
+        $after = $this->scoring->undoLastCricketBall(self::MATCH_ID);
+
+        $this->assertSame('pl-kk-1', $after->current_striker_id);
+        $this->assertSame('pl-kk-2', $after->current_non_striker_id);
+    }
+
+    /* ------------------------------------------------------------- Scorecard */
+
+    public function test_the_scorecard_adds_up_what_the_delivery_log_holds(): void
+    {
+        $opening = $this->currentCard();
+        $openingBatter = collect($opening['batting'])->firstWhere('player_id', 'pl-kk-1');
+        $foursBefore = $openingBatter['fours'];
+        $sixesBefore = $openingBatter['sixes'];
+        $runsBefore = $openingBatter['runs'];
+        $concededBefore = collect($opening['bowling'])->firstWhere('player_id', 'pl-cw-3')['runs'] ?? 0;
+
+        foreach ([4, 6, 1] as $runs) {
+            // Reset the ends each time so every run belongs to pl-kk-1 and the
+            // tally is unambiguous.
+            $this->setBatters('pl-kk-1', 'pl-kk-2');
+
+            $this->scoring->recordCricketBall([
+                'matchId' => self::MATCH_ID,
+                'innings' => 1,
+                'runsScored' => $runs,
+                'extras' => 'none',
+                'isWicket' => false,
+                'strikerId' => 'pl-kk-1',
+                'nonStrikerId' => 'pl-kk-2',
+                'bowlerId' => 'pl-cw-3',
+            ]);
+        }
+
+        $card = [$this->currentCard()];
+
+        $batter = collect($card[0]['batting'])->firstWhere('player_id', 'pl-kk-1');
+
+        // Measured as deltas: the demo fixture already has deliveries logged
+        // against this batter before the three bowled here.
+        $this->assertSame($foursBefore + 1, $batter['fours']);
+        $this->assertSame($sixesBefore + 1, $batter['sixes']);
+        $this->assertSame($runsBefore + 11, $batter['runs']);
+        $this->assertFalse($batter['is_out']);
+
+        $bowler = collect($card[0]['bowling'])->firstWhere('player_id', 'pl-cw-3');
+        $this->assertSame($concededBefore + 11, $bowler['runs']);
+    }
+
+    public function test_the_scorecard_reads_a_dismissal_the_way_a_printed_card_would(): void
+    {
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID,
+            'innings' => 1,
+            'runsScored' => 0,
+            'extras' => 'none',
+            'isWicket' => true,
+            'wicketType' => 'caught',
+            'dismissedPlayerId' => 'pl-kk-1',
+            'fielderId' => 'pl-cw-2',
+            'strikerId' => 'pl-kk-1',
+            'nonStrikerId' => 'pl-kk-2',
+            'bowlerId' => 'pl-cw-3',
+        ]);
+
+        $batter = collect($this->currentCard()['batting'])->firstWhere('player_id', 'pl-kk-1');
+
+        $this->assertTrue($batter['is_out']);
+        $this->assertStringStartsWith('c ', $batter['dismissal']);
+        $this->assertStringContainsString(' b ', $batter['dismissal']);
+    }
+
     /* ------------------------------------------------------------- Helpers */
+
+    /* ------------------------------------------------------------- Standings */
+
+    public function test_runs_go_to_the_side_that_actually_batted_first(): void
+    {
+        // The toss put team B in first, so the first-innings tally on the state
+        // row is theirs — the columns are named team_a/team_b but hold innings
+        // one and two.
+        $match = GameMatch::find(self::MATCH_ID);
+        $match->batting_first_team_id = $match->team_b_id;
+        $match->save();
+
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID,
+            'innings' => 1,
+            'runsScored' => 6,
+            'extras' => 'none',
+            'isWicket' => false,
+            'strikerId' => 'pl-cw-1',
+            'nonStrikerId' => 'pl-cw-2',
+            'bowlerId' => 'pl-kk-3',
+        ]);
+
+        $inningsRuns = $this->scoring->cricketState(self::MATCH_ID)->team_a_runs;
+
+        $battedFirst = Standing::query()
+            ->where('tournament_id', $match->tournament_id)
+            ->where('team_id', $match->team_b_id)
+            ->first();
+        $bowledFirst = Standing::query()
+            ->where('tournament_id', $match->tournament_id)
+            ->where('team_id', $match->team_a_id)
+            ->first();
+
+        $this->assertSame($inningsRuns, $battedFirst->runs_scored);
+        $this->assertSame($inningsRuns, $bowledFirst->runs_conceded);
+    }
+
+    /** The first-innings card as it stands right now. */
+    private function currentCard(): array
+    {
+        return app(CricketScorecard::class)->forMatch(
+            GameMatch::find(self::MATCH_ID),
+            $this->scoring->cricketState(self::MATCH_ID)
+        )[0];
+    }
+
+    /**
+     * The demo dataset only carries a career row for the showcase player, so
+     * the two in this fixture are given empty ones before the tests that
+     * assert the engine folds a delivery into them.
+     */
+    private function giveCareerStats(string ...$playerIds): void
+    {
+        foreach ($playerIds as $playerId) {
+            PlayerStat::query()->firstOrCreate(
+                ['player_id' => $playerId],
+                [
+                    'id' => 'ps-test-'.$playerId,
+                    'full_name' => $playerId,
+                    'organization_id' => 'org-malabar-cricket',
+                    'sport_code' => 'cricket',
+                    'cricket' => [],
+                ],
+            );
+        }
+    }
 
     private function setBatters(string $striker, string $nonStriker): void
     {

@@ -13,6 +13,7 @@ import { SHOW_DEMO_ACCOUNTS } from '../config';
 import { SPORTS_IMAGES, SPORTS_CAROUSELS } from '../lib/sportsImagery';
 import { useImageCarousel } from '../lib/useImageCarousel';
 import { ImageCarouselBackdrop } from '../components/ImageCarouselBackdrop';
+import { PhoneInput } from '../components/PhoneInput';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -157,18 +158,19 @@ export const LandingPage: React.FC = () => {
           {/* Top Pills */}
           <motion.div variants={fadeUp} transition={{ duration: 0.5 }} className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-8">
             <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-spin" style={{ animationDuration: '4s' }} />
-            <span>Professional Sports Management Platform</span>
+            <span>Made for village & club tournaments</span>
             <span className="w-1 h-1 rounded-full bg-emerald-400" />
-            <span className="text-slate-400 font-normal">Cricket Scoring Engine</span>
+            <span className="text-slate-400 font-normal">Football & Cricket</span>
           </motion.div>
 
           <motion.h1 variants={fadeUp} transition={{ duration: 0.55 }} className="text-4xl sm:text-6xl lg:text-7xl font-black font-heading tracking-tight text-white max-w-5xl mx-auto leading-[1.1]">
-            Power Local Tournaments with <span className="bg-gradient-to-r from-emerald-400 via-cyan-300 to-violet-400 bg-clip-text text-transparent">Next-Gen Sports Tech</span>
+            Run the tournament. <span className="bg-gradient-to-r from-emerald-400 via-cyan-300 to-violet-400 bg-clip-text text-transparent">Skip the chaos.</span>
           </motion.h1>
 
           <motion.p variants={fadeUp} transition={{ duration: 0.55 }} className="mt-6 text-base sm:text-xl text-slate-400 max-w-3xl mx-auto leading-relaxed font-light">
-            A full-featured sports platform for clubs, village panchayats, and tournament organizers.
-            Manage club memberships, public team registrations, live digital scoring with undo, and 16:9 TV broadcast scoreboards.
+            Teams register from their phones, scores update live ball-by-ball with one-tap undo, and the
+            points table sorts itself out. Put the same feed up on a projector or TV and the whole ground
+            watches it update in real time.
           </motion.p>
 
           {/* CTA Buttons */}
@@ -210,9 +212,9 @@ export const LandingPage: React.FC = () => {
             <div className="flex items-center justify-between mb-4 px-1">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>Direct Portals & Instant Login</span>
+                <span>Already Registered?</span>
               </span>
-              <span className="text-xs text-slate-400">Choose your access mode</span>
+              <span className="text-xs text-slate-400">Jump straight to your login</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -269,10 +271,10 @@ export const LandingPage: React.FC = () => {
           className="text-center max-w-2xl mx-auto mb-10"
         >
           <span className="text-xs font-bold uppercase tracking-widest text-cyan-400 block mb-2">
-            Built For The Field
+            One Login, Two Sports
           </span>
           <h2 className="text-3xl sm:text-4xl font-black font-heading text-white">
-            Every Format. Every Matchday.
+            Football on Saturday. Cricket on Sunday.
           </h2>
         </motion.div>
 
@@ -316,13 +318,14 @@ export const LandingPage: React.FC = () => {
           className="text-center max-w-3xl mx-auto mb-12"
         >
           <span className="text-xs font-bold uppercase tracking-widest text-emerald-400 block mb-2">
-            TRANSPARENT CLUB PRICING
+            Pricing
           </span>
           <h2 className="text-3xl sm:text-4xl font-black font-heading text-white">
-            Membership Plans & Tournament Packages
+            Plans for Clubs, Academies & One-Off Tournaments
           </h2>
           <p className="text-sm text-slate-400 mt-3">
-            Choose the plan tailored for your sports club, academy, or independent tournament committee. All plans include real-time live scoring and automatic standings.
+            Running a season-long league is different from organizing a weekend knockout — pick whichever
+            fits. Live scoring and an auto-updating points table come on every plan.
           </p>
 
           {/* Billing Interval Filter */}
@@ -362,6 +365,7 @@ export const LandingPage: React.FC = () => {
             {filteredPlans.map(plan => {
               const isPopular = plan.id.includes('standard') || plan.name.toLowerCase().includes('pro');
               const isOneTime = plan.billing_type === 'one_time';
+              const isFree = plan.price === 0;
 
               return (
                 <motion.div
@@ -389,9 +393,9 @@ export const LandingPage: React.FC = () => {
                       }`}>
                         {plan.name}
                       </div>
-                      {plan.trial_days > 0 && (
+                      {isFree && (
                         <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-black uppercase">
-                          {plan.trial_days}d Free Trial
+                          Free Tournament
                         </span>
                       )}
                     </div>
@@ -453,7 +457,7 @@ export const LandingPage: React.FC = () => {
                         : 'bg-slate-800 hover:bg-slate-700 text-white'
                     }`}
                   >
-                    {plan.trial_days > 0 ? `Start ${plan.trial_days}-Day Free Trial` : `Select ${plan.name}`}
+                    {isFree ? 'Get Started Free' : `Select ${plan.name}`}
                   </button>
                 </motion.div>
               );
@@ -468,8 +472,8 @@ export const LandingPage: React.FC = () => {
           <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl p-6 overflow-hidden">
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
               <div>
-                <h3 className="text-base font-bold text-white font-heading">Onboard Your Sports Organization</h3>
-                <p className="text-xs text-slate-400">Step 1 of Club Onboarding</p>
+                <h3 className="text-base font-bold text-white font-heading">Set Up Your Club</h3>
+                <p className="text-xs text-slate-400">Takes about two minutes</p>
               </div>
               <button
                 onClick={() => setShowSignupModal(false)}
@@ -484,8 +488,8 @@ export const LandingPage: React.FC = () => {
                 <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto text-xl font-bold">
                   ✓
                 </div>
-                <h4 className="text-lg font-bold text-white">Organization Activated!</h4>
-                <p className="text-xs text-slate-400">Redirecting to your new organization workspace...</p>
+                <h4 className="text-lg font-bold text-white">You're in!</h4>
+                <p className="text-xs text-slate-400">Taking you to your dashboard...</p>
               </div>
             ) : (
               <form onSubmit={handleSignupSubmit} className="space-y-3.5 text-xs">
@@ -566,12 +570,11 @@ export const LandingPage: React.FC = () => {
 
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Phone / WhatsApp *</label>
-                    <input
-                      type="tel"
+                    <PhoneInput
                       required
-                      placeholder="+91 98470 00000"
+                      placeholder="98470 00000"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={setPhone}
                       className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white outline-none"
                     />
                   </div>
@@ -594,7 +597,7 @@ export const LandingPage: React.FC = () => {
                   disabled={isSubmitting}
                   className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2"
                 >
-                  {isSubmitting ? 'Activating Organization...' : 'Complete Registration & Open Dashboard'}
+                  {isSubmitting ? 'Setting up...' : 'Create Club & Open Dashboard'}
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>

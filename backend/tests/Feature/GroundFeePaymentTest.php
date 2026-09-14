@@ -99,7 +99,8 @@ class GroundFeePaymentTest extends TestCase
             'manager_phone' => '+91 98950 00112',
             'players' => $players,
             'payment_option' => 'partial',
-            'payment_method' => 'upi',
+            'payment_method' => 'card',
+            ...$this->payWithDemoCard($token, 'partial'),
         ])->assertCreated();
 
         $this->assertSame('pending', $response->json('team.status'));
@@ -280,5 +281,60 @@ class GroundFeePaymentTest extends TestCase
             'manager_address' => 'Stadium Road',
             'status' => 'pending',
         ]);
+    }
+
+    public function test_an_online_registration_without_a_verified_payment_is_refused(): void
+    {
+        $token = Tournament::find('tourney-football-sevens')->registrationLink->token;
+
+        $this->postJson("/api/teams/public/registration/{$token}", [
+            'team_name' => 'Unpaid FC',
+            'manager_name' => 'Manager',
+            'manager_phone' => '+91 90000 11111',
+            'players' => collect(range(1, 8))->map(fn (int $n) => ['full_name' => "P{$n}", 'jersey_number' => $n])->all(),
+            'payment_method' => 'card',
+            'razorpay_order_id' => 'demo_order_fake',
+            'razorpay_payment_id' => 'demo_pay_fake',
+            'razorpay_signature' => 'forged',
+        ])->assertStatus(400)
+            ->assertJsonPath('error', 'Payment verification failed. Please try again.');
+    }
+
+    public function test_the_demo_checkout_declines_the_test_decline_card_and_rejects_bad_input(): void
+    {
+        $token = Tournament::find('tourney-football-sevens')->registrationLink->token;
+        $orderId = $this->postJson("/api/teams/public/registration/{$token}/payment-order", ['payment_option' => 'full'])
+            ->assertOk()
+            ->assertJsonPath('provider', 'demo')
+            ->json('order_id');
+
+        $card = ['method' => 'card', 'card_name' => 'Test', 'card_expiry' => '12/40', 'card_cvv' => '123'];
+
+        $this->postJson("/api/payments/demo/{$orderId}/pay", [...$card, 'card_number' => '4000 0000 0000 0002'])
+            ->assertStatus(402);
+        $this->postJson("/api/payments/demo/{$orderId}/pay", [...$card, 'card_number' => '4111 1111 1111 1112'])
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'Enter a valid card number.');
+        $this->postJson("/api/payments/demo/{$orderId}/pay", ['method' => 'upi', 'upi_id' => 'failure@demo'])
+            ->assertStatus(402);
+    }
+
+    /** Runs the demo checkout the SPA shows and returns the signed result to submit. */
+    private function payWithDemoCard(string $token, string $option): array
+    {
+        $order = $this->postJson("/api/teams/public/registration/{$token}/payment-order", [
+            'payment_option' => $option,
+            'method' => 'card',
+        ])->assertOk()->json();
+
+        $this->assertSame('card', $order['preferred_method']);
+
+        return $this->postJson("/api/payments/demo/{$order['order_id']}/pay", [
+            'method' => 'card',
+            'card_number' => '4111 1111 1111 1111',
+            'card_name' => 'Vineeth S',
+            'card_expiry' => '12/40',
+            'card_cvv' => '123',
+        ])->assertOk()->json();
     }
 }

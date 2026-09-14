@@ -32,12 +32,25 @@ export type BillingType = 'recurring' | 'one_time';
 export type BillingInterval = 'monthly' | 'quarterly' | 'yearly' | 'custom';
 
 /**
- * Ground-fee methods an organizer can accept for a tournament, chosen at
- * creation time. 'upi' opens a real Razorpay Checkout (UPI/cards/netbanking/
- * wallets) once the backend has gateway keys configured.
+ * Payment methods. The online ones (upi/card/netbanking) run through the
+ * flow's gateway checkout — Razorpay or the built-in demo checkout, chosen by
+ * the super admin. 'pay_at_ground' only applies to tournament ground fees.
  */
-export type PaymentMethod = 'upi' | 'pay_at_ground';
-export type SubscriptionStatus = 'active' | 'trial' | 'past_due' | 'cancelled' | 'expired';
+export type OnlinePaymentMethod = 'upi' | 'card' | 'netbanking';
+export type PaymentMethod = OnlinePaymentMethod | 'pay_at_ground';
+export type PaymentFlow = 'subscription' | 'registration';
+export type PaymentProvider = 'demo' | 'razorpay';
+
+export interface PaymentGatewayConfig {
+  provider: PaymentProvider;
+  key_id: string;
+  has_key_secret: boolean;
+  /** Whether checkout can currently start on this flow. */
+  ready: boolean;
+  /** Write-only: set to replace the saved secret, omit to keep it. */
+  key_secret?: string;
+}
+export type SubscriptionStatus = 'active' | 'past_due' | 'cancelled' | 'expired';
 
 export interface Plan {
   id: string;
@@ -47,7 +60,6 @@ export interface Plan {
   currency: string;
   billing_type: BillingType;
   billing_interval?: BillingInterval;
-  trial_days: number;
   tournament_limit: number;
   team_limit: number;
   player_limit: number;
@@ -68,10 +80,13 @@ export interface PlatformSettings {
   currency_code: string;
   enable_public_signup: boolean;
   require_admin_approval_for_orgs: boolean;
-  default_trial_days: number;
   grace_period_days: number;
   payment_gateway_mode: 'sandbox' | 'live';
+  /** Methods organizers may offer teams for ground fees. */
   enabled_payment_methods: PaymentMethod[];
+  /** Methods offered when organizers buy or renew a plan. */
+  subscription_payment_methods: OnlinePaymentMethod[];
+  payment_gateways: Record<PaymentFlow, PaymentGatewayConfig>;
 }
 
 export interface Organization {
@@ -122,7 +137,6 @@ export interface Subscription {
   status: SubscriptionStatus;
   start_date: string;
   end_date: string;
-  trial_end_date?: string;
   next_billing_date?: string;
   auto_renew: boolean;
   amount_paid: number;
@@ -443,6 +457,11 @@ export interface Match {
   toss_method?: 'digital' | 'manual' | null;
   toss_time?: string | null;
   batting_first_team_id?: string | null;
+  /** What the big screen is showing; `auto` follows `status` as it always did. */
+  scoreboard_stage?: ScoreboardStage;
+  /** Squad-reveal position: -1 plays, anything else holds on that many players. */
+  scoreboard_cursor?: number;
+  scoreboard_stage_at?: string | null;
   created_at: string;
   updated_at: string;
   team_a?: Team;
@@ -450,6 +469,85 @@ export interface Match {
   venue?: Venue | null;
   football_state?: FootballMatchState | null;
   cricket_state?: CricketMatchState | null;
+}
+
+/** The segments a stadium display can be pointed at from the scorer console. */
+export type ScoreboardStage = 'auto' | 'toss' | 'lineups' | 'live' | 'scorecard' | 'ad' | 'announcement';
+
+/**
+ * Response of POST /matches/{id}/scoreboard/stage, and the payload of every
+ * SCOREBOARD_STAGE_CHANGED broadcast.
+ */
+export interface ScoreboardState {
+  match_id: string;
+  stage: ScoreboardStage;
+  /** `stage` with `auto` already resolved against the match status. */
+  resolved_stage: Exclude<ScoreboardStage, 'auto'>;
+  cursor: number;
+  stage_at: string | null;
+  reveal_interval_seconds: number;
+  /** The ad or announcement filling the screen, for those two stages. */
+  item_id: string | null;
+  item: Advertisement | Announcement | null;
+  /** When the item comes off by itself; null while held or when none is up. */
+  ends_at: string | null;
+}
+
+/**
+ * One player's place in a single match's team sheet. `id` is null for the
+ * default sheet the server derives from the squad when none has been saved.
+ */
+export interface MatchLineupEntry {
+  id: string | null;
+  match_id: string;
+  team_id: string;
+  player_id: string;
+  batting_order: number;
+  is_playing: boolean;
+  is_captain: boolean;
+  is_wicketkeeper: boolean;
+  player: Player;
+}
+
+export interface ScorecardBattingRow {
+  player_id: string;
+  name: string;
+  jersey_number?: number;
+  runs: number;
+  balls: number;
+  fours: number;
+  sixes: number;
+  strike_rate: number;
+  has_batted: boolean;
+  is_out: boolean;
+  /** Traditional shorthand, e.g. "c Anas b Rahul". */
+  dismissal: string | null;
+}
+
+export interface ScorecardBowlingRow {
+  player_id: string;
+  name: string;
+  jersey_number?: number;
+  /** Overs.balls notation — "3.4" is three overs and four balls. */
+  overs: string;
+  balls: number;
+  maidens: number;
+  runs: number;
+  wickets: number;
+  economy: number;
+}
+
+/** One innings of the card derived from the delivery log; never stored. */
+export interface ScorecardInnings {
+  innings: 1 | 2;
+  batting_team_id: string;
+  bowling_team_id: string;
+  runs: number;
+  wickets: number;
+  overs: number;
+  extras: number;
+  batting: ScorecardBattingRow[];
+  bowling: ScorecardBowlingRow[];
 }
 
 /** Response shape of GET/POST /matches/{id}/toss/* — mirrors the toss fields on `Match`. */
@@ -589,10 +687,10 @@ export interface Sponsor {
 export interface Advertisement {
   id: string;
   organization_id: string;
+  match_id: string | null;
   title: string;
   business_name: string;
   media_type: 'image' | 'banner' | 'video_card' | 'sponsor_card' | 'full_screen';
-  display_placement?: 'ticker_banner' | 'break_screen' | 'goal_popup' | 'all';
   media_url: string;
   logo_url?: string;
   description?: string;
@@ -600,6 +698,7 @@ export interface Advertisement {
   whatsapp?: string;
   website?: string;
   priority: number;
+  /** Seconds on the big screen once pushed; 0 holds until switched back. */
   duration_seconds: number;
   status: 'active' | 'inactive' | 'scheduled';
   created_at: string;
@@ -609,10 +708,12 @@ export interface Announcement {
   id: string;
   organization_id: string;
   tournament_id?: string;
+  match_id: string | null;
   title: string;
   message: string;
   type: 'general' | 'urgent_match_delay' | 'venue_change' | 'registration_alert';
-  is_active_on_scoreboard: boolean;
+  /** Seconds on the big screen once pushed; 0 holds until switched back. */
+  duration_seconds: number;
   created_at: string;
 }
 

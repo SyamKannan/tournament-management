@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Match, Tournament } from '../../types';
-import { Calendar, Sparkles, RefreshCw, MapPin, Tv, ArrowLeft } from 'lucide-react';
+import { Calendar, Sparkles, RefreshCw, MapPin, Tv, ArrowLeft, Ban } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { TournamentPicker } from '../../components/ui/TournamentPicker';
@@ -65,23 +65,54 @@ export const OrgFixturesPage: React.FC = () => {
   }, [selectedTourneyId]);
 
   const handleAutoGenerate = async (format: 'round_robin' | 'knockout') => {
+    const label = format === 'round_robin' ? 'round robin' : 'knockout';
+    // A tournament has one schedule: the second run replaces the first rather
+    // than stacking another full set of fixtures on top of it.
+    const replace = matches.length > 0;
+
     const proceed = await confirm({
-      title: `Generate ${format === 'round_robin' ? 'round robin' : 'knockout'} fixtures?`,
-      message: 'Every approved team will be scheduled. Existing fixtures are kept, and the new matches are added alongside them.',
-      confirmLabel: 'Generate fixtures',
+      title: replace ? `Regenerate ${label} fixtures?` : `Generate ${label} fixtures?`,
+      message: replace
+        ? `The current ${matches.length} fixture${matches.length === 1 ? '' : 's'} will be deleted and a fresh ${label} schedule built from the approved teams. Matches that have already started or finished block this.`
+        : 'Every approved team will be scheduled.',
+      confirmLabel: replace ? 'Replace fixtures' : 'Generate fixtures',
+      tone: replace ? 'danger' : 'default',
     });
     if (!proceed) return;
     setGenerating(true);
     try {
-      await api.post('/matches/auto-generate-fixtures', {
+      const res = await api.post('/matches/auto-generate-fixtures', {
         tournament_id: selectedTourneyId,
-        format
+        format,
+        replace,
       });
+      toast.success(res?.message || 'Fixtures updated');
       fetchMatches(selectedTourneyId);
     } catch (err: any) {
       toast.error(err.message || 'Failed to generate fixtures');
+      // A 409 means our fixture list is out of date with the server's.
+      if (err?.status === 409) fetchMatches(selectedTourneyId);
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleCancelMatch = async (m: Match) => {
+    const teams = `${m.team_a?.name || m.team_a_id} vs ${m.team_b?.name || m.team_b_id}`;
+    const proceed = await confirm({
+      title: `Cancel match #${m.match_number}?`,
+      message: `${teams} will be marked cancelled and can no longer be scored. This cannot be undone.`,
+      confirmLabel: 'Cancel match',
+      cancelLabel: 'Keep match',
+      tone: 'danger',
+    });
+    if (!proceed) return;
+    try {
+      const updated = await api.post(`/matches/${m.id}/cancel`, {});
+      setMatches(prev => prev.map(x => (x.id === m.id ? { ...x, ...updated } : x)));
+      toast.success('Match cancelled');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to cancel match');
     }
   };
 
@@ -98,6 +129,9 @@ export const OrgFixturesPage: React.FC = () => {
   }
 
   const isFootball = activeTournament?.sport_code === 'football';
+  const tournamentCancelled = activeTournament?.status === 'cancelled';
+  const hasFixtures = matches.length > 0;
+  const lockedCount = matches.filter(m => m.status !== 'scheduled' && m.status !== 'cancelled').length;
   const completedCount = matches.filter(m => m.status === 'completed').length;
   const liveCount = matches.filter(m => m.status === 'in_progress' || m.status === 'half_time' || m.status === 'innings_break').length;
 
@@ -167,13 +201,19 @@ export const OrgFixturesPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 mt-6 pt-6 border-t border-slate-800">
+          {tournamentCancelled ? (
+            <span className="px-3 py-1.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold flex items-center gap-1.5">
+              <Ban className="w-3.5 h-3.5" />
+              This tournament has been cancelled — fixtures are read-only.
+            </span>
+          ) : (<>
           <button
             disabled={generating}
             onClick={() => handleAutoGenerate('round_robin')}
             className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-slate-700 flex items-center gap-1.5 transition-colors disabled:opacity-50"
           >
             <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Auto Round Robin</span>
+            <span>{hasFixtures ? 'Regenerate Round Robin' : 'Auto Round Robin'}</span>
           </button>
           <button
             disabled={generating}
@@ -181,8 +221,16 @@ export const OrgFixturesPage: React.FC = () => {
             className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center gap-1.5 disabled:opacity-50"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Generate Knockout Bracket</span>
+            <span>{hasFixtures ? 'Regenerate Knockout Bracket' : 'Generate Knockout Bracket'}</span>
           </button>
+          {hasFixtures && (
+            <span className="text-[11px] text-slate-400">
+              {lockedCount > 0
+                ? `Regenerating is blocked — ${lockedCount} match${lockedCount === 1 ? ' has' : 'es have'} already started.`
+                : 'Regenerating replaces the current schedule.'}
+            </span>
+          )}
+          </>)}
         </div>
       </div>
 
@@ -197,16 +245,19 @@ export const OrgFixturesPage: React.FC = () => {
       <div className="grid md:grid-cols-2 gap-4">
         {matches.map(m => {
           const isLive = m.status === 'in_progress' || m.status === 'half_time' || m.status === 'innings_break';
+          const isCancelled = m.status === 'cancelled';
+          const canCancel = !isCancelled && m.status !== 'completed' && activeTournament?.status !== 'cancelled';
 
           return (
             <div key={m.id} className={`p-5 rounded-2xl glass-card border transition-all ${
               isLive ? 'border-rose-500/40 glow-emerald' : 'border-slate-800'
-            }`}>
+            } ${isCancelled ? 'opacity-60' : ''}`}>
               <div className="flex items-center justify-between text-xs pb-3 border-b border-slate-800">
                 <span className="font-semibold text-slate-400">{m.round_name} • Match #{m.match_number}</span>
                 <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase ${
                   isLive ? 'bg-rose-500/20 text-rose-400 animate-pulse' :
-                  m.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-300'
+                  m.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :
+                  isCancelled ? 'bg-rose-500/10 text-rose-400 line-through' : 'bg-slate-800 text-slate-300'
                 }`}>
                   {m.status.replace('_', ' ')}
                 </span>
@@ -234,6 +285,17 @@ export const OrgFixturesPage: React.FC = () => {
                   <span>{m.venue?.name || 'Main Stadium'}</span>
                 </span>
                 <div className="flex items-center gap-2">
+                  {canCancel && (
+                    <button
+                      type="button"
+                      onClick={() => handleCancelMatch(m)}
+                      className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400"
+                      title="Cancel match"
+                      aria-label="Cancel match"
+                    >
+                      <Ban className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <Link
                     to={`/scoreboard/match/${m.id}`}
                     target="_blank"
@@ -242,12 +304,14 @@ export const OrgFixturesPage: React.FC = () => {
                   >
                     <Tv className="w-3.5 h-3.5" />
                   </Link>
-                  <Link
-                    to={`/organization/scorer/${m.id}`}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-xs font-bold"
-                  >
-                    Live Scorer Pad →
-                  </Link>
+                  {!isCancelled && (
+                    <Link
+                      to={`/organization/scorer/${m.id}`}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-xs font-bold"
+                    >
+                      Live Scorer Pad →
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>

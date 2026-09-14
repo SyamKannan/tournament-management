@@ -104,6 +104,7 @@ class AuthController extends Controller
             'panchayat' => ['nullable', 'string', 'max:255'],
             'district' => ['nullable', 'string', 'max:255'],
             'state' => ['nullable', 'string', 'max:255'],
+            'country' => ['nullable', 'string', 'max:255'],
             'password' => ['nullable', 'string', 'min:6'],
         ], [], [
             'organizationName' => 'organization name',
@@ -133,8 +134,8 @@ class AuthController extends Controller
                 'panchayat' => $data['panchayat'] ?? '',
                 'municipality' => '',
                 'district' => $data['district'] ?? '',
-                'state' => $data['state'] ?? 'Kerala',
-                'country' => 'India',
+                'state' => $data['state'] ?? '',
+                'country' => $data['country'] ?? 'India',
                 'website' => '',
                 'social_media' => [],
                 'status' => $settings->require_admin_approval_for_orgs ? 'pending' : 'active',

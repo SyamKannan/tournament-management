@@ -5,19 +5,22 @@ import { api, ApiError } from '../../services/api';
 import {
   Plus, Share2, Copy, Check,
   X, Gavel, MapPin, Compass, Image as ImageIcon, Camera, Pencil,
-  Sparkles, Download, Loader2
+  Sparkles, Download, Loader2, Ban
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '../../components/ui/Toast';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { Skeleton, SkeletonCard } from '../../components/ui/Feedback';
 import { MapLocationPicker, type VenueLocation } from '../../components/MapLocationPicker';
 import { ImageUploadModal } from '../../components/ImageUploadModal';
 import { PlanPickerModal } from '../../components/PlanPickerModal';
 import { FEATURE_AUCTION_ENABLED } from '../../config';
 import type { PaymentMethod } from '../../types';
+import { ALL_PAYMENT_METHODS, PAYMENT_METHOD_META } from '../../lib/paymentMethods';
 
 export const OrgTournamentsPage: React.FC = () => {
   const toast = useToast();
+  const confirm = useConfirm();
   const { organization } = useAuth();
   const { enabledSports, enabledPaymentMethods } = usePlatformConfig();
   const [tournaments, setTournaments] = useState<any[]>([]);
@@ -59,7 +62,7 @@ export const OrgTournamentsPage: React.FC = () => {
   const [groundFee, setGroundFee] = useState<number>(5000);
   const [allowPartial, setAllowPartial] = useState<boolean>(true);
   const [partialValue, setPartialValue] = useState<number>(50); // 50%
-  const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[]>(['upi', 'pay_at_ground']);
+  const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[]>(ALL_PAYMENT_METHODS);
   const [prizeMoney, setPrizeMoney] = useState<number>(50000);
   const [footballFormat, setFootballFormat] = useState('7-a-side');
   const [cricketFormat, setCricketFormat] = useState('T20');
@@ -145,6 +148,26 @@ export const OrgTournamentsPage: React.FC = () => {
       toast.error(err.message || 'Failed to generate poster.');
     } finally {
       setGeneratingPosterId(null);
+    }
+  };
+
+  const handleCancelTournament = async (t: any) => {
+    const proceed = await confirm({
+      title: `Cancel ${t.name}?`,
+      message: 'Every match that has not finished will be cancelled and the public registration link will stop accepting teams. Completed results are kept. This cannot be undone.',
+      confirmLabel: 'Cancel tournament',
+      cancelLabel: 'Keep tournament',
+      tone: 'danger',
+    });
+    if (!proceed) return;
+    try {
+      const res = await api.post(`/tournaments/${t.id}/cancel`, {});
+      setTournaments(prev => prev.map(x => (x.id === t.id ? { ...x, status: 'cancelled' } : x)));
+      toast.success(res.cancelled_matches_count > 0
+        ? `Tournament cancelled along with ${res.cancelled_matches_count} unfinished match${res.cancelled_matches_count === 1 ? '' : 'es'}.`
+        : 'Tournament cancelled.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to cancel tournament.');
     }
   };
 
@@ -252,7 +275,7 @@ export const OrgTournamentsPage: React.FC = () => {
     setGroundFee(Number(t.ground_fee) || 0);
     setAllowPartial(paymentConfig.allow_partial !== false);
     setPartialValue(Number(paymentConfig.min_partial_value) || 50);
-    setEnabledMethods(paymentConfig.enabled_methods?.length ? paymentConfig.enabled_methods : ['upi', 'pay_at_ground']);
+    setEnabledMethods(paymentConfig.enabled_methods?.length ? paymentConfig.enabled_methods : ALL_PAYMENT_METHODS);
     setPrizeMoney(Number(t.prize_money) || 0);
     setFootballFormat(settings.football_format || '7-a-side');
     setCricketFormat(settings.cricket_format || 'T20');
@@ -334,9 +357,10 @@ export const OrgTournamentsPage: React.FC = () => {
           const isFb = t.sport_code === 'football';
           const regToken = t.registration_link_token || 'sevens-cup-2026-reg';
           const hasAuctionEnabled = FEATURE_AUCTION_ENABLED && Boolean(t.has_auction);
+          const isCancelled = t.status === 'cancelled';
 
           return (
-            <div key={t.id} className="p-4 sm:p-6 rounded-3xl glass-card border border-slate-800 flex flex-col justify-between min-w-0 hover:border-slate-700 transition-all">
+            <div key={t.id} className={`p-4 sm:p-6 rounded-3xl glass-card border border-slate-800 flex flex-col justify-between min-w-0 hover:border-slate-700 transition-all ${isCancelled ? 'opacity-70' : ''}`}>
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -345,6 +369,12 @@ export const OrgTournamentsPage: React.FC = () => {
                     }`}>
                       {isFb ? '⚽ Football' : '🏏 Cricket'} • {t.format}
                     </span>
+
+                    {isCancelled && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] font-black uppercase tracking-wider">
+                        Cancelled
+                      </span>
+                    )}
 
                     {hasAuctionEnabled ? (
                       <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-black uppercase tracking-wider flex items-center gap-1">
@@ -454,6 +484,17 @@ export const OrgTournamentsPage: React.FC = () => {
                   >
                     Fixtures →
                   </Link>
+
+                  {!isCancelled && t.status !== 'completed' && (
+                    <button
+                      type="button"
+                      onClick={() => handleCancelTournament(t)}
+                      className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-semibold flex items-center gap-1 transition-colors"
+                    >
+                      <Ban className="w-3.5 h-3.5" />
+                      <span>Cancel</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -782,21 +823,23 @@ export const OrgTournamentsPage: React.FC = () => {
                 </label>
 
                 <div className="pt-3 border-t border-slate-800/80">
-                  <span className="block text-slate-400 text-[11px] mb-2">
-                    Accepted Payment Methods (at least one required)
+                  <span className="block text-slate-300 font-semibold text-[11px]">
+                    Payment Methods Shown to Teams (at least one required)
+                  </span>
+                  <span className="block text-slate-500 text-[11px] mb-2">
+                    Teams registering for this tournament only see the methods you tick. Options your platform admin has switched off aren't listed.
                   </span>
                   <div className="grid grid-cols-2 gap-2">
-                    {([
-                      { id: 'upi', label: 'Pay Online (UPI/Card)' },
-                      { id: 'pay_at_ground', label: 'Pay at Ground' }
-                    ] as { id: PaymentMethod; label: string }[])
-                      .filter(m => enabledPaymentMethods.includes(m.id) || enabledMethods.includes(m.id))
+                    {ALL_PAYMENT_METHODS
+                      .filter(id => enabledPaymentMethods.includes(id) || enabledMethods.includes(id))
+                      .map(id => ({ id, ...PAYMENT_METHOD_META[id] }))
                       .map(m => {
                       const isChecked = enabledMethods.includes(m.id);
+                      const Icon = m.icon;
                       return (
                         <label
                           key={m.id}
-                          className={`px-2.5 py-2 rounded-xl border text-center text-[11px] font-semibold cursor-pointer transition-all ${
+                          className={`px-2.5 py-2 rounded-xl border text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-2 ${
                             isChecked
                               ? 'bg-emerald-500/15 border-emerald-500/60 text-emerald-300'
                               : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -810,7 +853,11 @@ export const OrgTournamentsPage: React.FC = () => {
                             )}
                             className="sr-only"
                           />
-                          {m.label}
+                          <Icon className="w-4 h-4 shrink-0" />
+                          <span className="text-left">
+                            <span className="block">{m.label}</span>
+                            <span className="block font-normal text-[10px] text-slate-500">{m.blurb}</span>
+                          </span>
                         </label>
                       );
                     })}

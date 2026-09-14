@@ -4,18 +4,18 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\GeneratePoster;
-use App\Models\Advertisement;
-use App\Models\Announcement;
 use App\Models\CricketMatchState;
 use App\Models\FootballMatchState;
 use App\Models\GameMatch;
 use App\Models\Player;
-use App\Models\Sponsor;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\Venue;
 use App\Services\BillingService;
+use App\Services\CricketScorecard;
+use App\Services\LineupService;
 use App\Services\RealtimeBroadcaster;
+use App\Services\ScoreboardDirector;
 use App\Services\ScoringEngine;
 use App\Support\Audit;
 use App\Support\Ids;
@@ -36,6 +36,9 @@ class MatchController extends Controller
         private readonly ScoringEngine $scoring,
         private readonly RealtimeBroadcaster $realtime,
         private readonly BillingService $billing,
+        private readonly LineupService $lineups,
+        private readonly CricketScorecard $scorecard,
+        private readonly ScoreboardDirector $director,
     ) {}
 
     /* ------------------------------------------------------------ Fixtures */
@@ -82,6 +85,7 @@ class MatchController extends Controller
             'tournament_id' => ['required', 'string'],
             'format' => ['nullable', 'string', 'in:round_robin,knockout'],
             'start_date' => ['nullable', 'string'],
+            'replace' => ['nullable', 'boolean'],
         ]);
 
         $tournament = Tournament::find($data['tournament_id']);
@@ -94,6 +98,10 @@ class MatchController extends Controller
             return $denied;
         }
 
+        if ($tournament->status === 'cancelled') {
+            return response()->json(['error' => 'This tournament has been cancelled'], 409);
+        }
+
         $teams = Team::query()
             ->where('tournament_id', $tournament->id)
             ->where('status', 'approved')
@@ -104,17 +112,52 @@ class MatchController extends Controller
             return response()->json(['error' => 'At least 2 approved teams are required to generate fixtures'], 400);
         }
 
+        // Generating twice used to silently append a second full schedule on top
+        // of the first. A tournament has exactly one fixture list, so the second
+        // call has to say explicitly that it is replacing the existing one.
+        $existing = GameMatch::query()->where('tournament_id', $tournament->id)->get();
+        $replace = (bool) ($data['replace'] ?? false);
+
+        if ($existing->isNotEmpty() && ! $replace) {
+            return response()->json([
+                'error' => 'Fixtures already exist for this tournament. Regenerate to replace them.',
+                'existing_count' => $existing->count(),
+            ], 409);
+        }
+
+        // Never throw away a match that has been played or is being played —
+        // deleting it would cascade its event log, scores and posters away.
+        $played = $existing->reject(fn (GameMatch $match) => in_array($match->status, ['scheduled', 'cancelled'], true));
+
+        if ($replace && $played->isNotEmpty()) {
+            return response()->json([
+                'error' => sprintf(
+                    '%d match(es) have already started or finished. Delete or cancel them before regenerating the fixtures.',
+                    $played->count()
+                ),
+                'blocking_count' => $played->count(),
+            ], 409);
+        }
+
         $knockout = ($data['format'] ?? 'round_robin') === 'knockout';
         $baseDate = ! empty($data['start_date']) ? Carbon::parse($data['start_date']) : Carbon::now();
         $venueId = Venue::query()->where('organization_id', $tournament->organization_id)->value('id');
-        $matchNumber = GameMatch::query()->where('tournament_id', $tournament->id)->count() + 1;
+        $matchNumber = 1;
 
         $pairings = $knockout
             ? $this->knockoutPairings($teams)
             : $this->roundRobinPairings($teams);
 
-        $created = DB::transaction(function () use ($pairings, $tournament, $baseDate, $venueId, $knockout, $teams, &$matchNumber) {
+        $removed = $existing->count();
+
+        $created = DB::transaction(function () use ($pairings, $tournament, $baseDate, $venueId, $knockout, $teams, $existing, &$matchNumber) {
             $matches = [];
+
+            if ($existing->isNotEmpty()) {
+                // States, event logs and posters hang off the match rows with
+                // cascading foreign keys, so they go with them.
+                GameMatch::query()->whereIn('id', $existing->pluck('id'))->delete();
+            }
 
             foreach ($pairings as $index => [$teamA, $teamB]) {
                 $hoursOffset = $knockout ? $index * 2 : $index * 3;
@@ -139,6 +182,15 @@ class MatchController extends Controller
             return $matches;
         });
 
+        if ($removed > 0) {
+            // The deleted fixtures may have left standing rows behind.
+            if ($tournament->sport_code === 'football') {
+                $this->scoring->recalculateFootballStandings($tournament->id);
+            } else {
+                $this->scoring->recalculateCricketStandings($tournament->id);
+            }
+        }
+
         $user = $request->user();
         Audit::log([
             'organization_id' => $tournament->organization_id,
@@ -148,13 +200,18 @@ class MatchController extends Controller
             'action' => 'GENERATED_FIXTURES',
             'entity_type' => 'Tournament',
             'entity_id' => $tournament->id,
-            'details' => sprintf('Generated %d fixtures for tournament [%s]', count($created), $tournament->name),
+            'details' => $removed > 0
+                ? sprintf('Replaced %d fixtures with %d new fixtures for tournament [%s]', $removed, count($created), $tournament->name)
+                : sprintf('Generated %d fixtures for tournament [%s]', count($created), $tournament->name),
             'ip_address' => $request->ip(),
         ]);
 
         return response()->json([
             'matches' => $created,
-            'message' => sprintf('Successfully generated %d fixtures!', count($created)),
+            'replaced_count' => $removed,
+            'message' => $removed > 0
+                ? sprintf('Replaced the old schedule with %d new fixtures!', count($created))
+                : sprintf('Successfully generated %d fixtures!', count($created)),
         ], 201);
     }
 
@@ -201,6 +258,68 @@ class MatchController extends Controller
         return response()->json($match);
     }
 
+    /**
+     * Call off a single fixture. A finished match keeps its result; anything
+     * else (scheduled, mid-toss, even live) is frozen as cancelled and the
+     * table is recomputed, since cricket counts a cancelled match as no result.
+     */
+    public function cancel(Request $request, string $id): JsonResponse
+    {
+        $match = GameMatch::find($id);
+
+        if (! $match) {
+            return response()->json(['error' => 'Match not found'], 404);
+        }
+
+        if ($denied = $this->denyForeignTenant($request, $match->organization_id)) {
+            return $denied;
+        }
+
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        if ($match->status === 'completed') {
+            return response()->json(['error' => 'A completed match cannot be cancelled'], 409);
+        }
+
+        if ($match->status === 'cancelled') {
+            return response()->json(['error' => 'This match is already cancelled'], 409);
+        }
+
+        $reason = trim((string) ($data['reason'] ?? ''));
+        $match->status = 'cancelled';
+        $match->result_summary = $reason !== '' ? "Match cancelled: {$reason}" : 'Match cancelled';
+        $match->save();
+
+        $this->recalculateStandings($match);
+        $this->broadcast($match->id, 'MATCH_STATUS_CHANGED', ['match' => $match]);
+
+        $user = $request->user();
+        Audit::log([
+            'organization_id' => $match->organization_id,
+            'user_id' => $user->id,
+            'user_name' => $user->name,
+            'user_role' => $user->role,
+            'action' => 'CANCELLED_MATCH',
+            'entity_type' => 'Match',
+            'entity_id' => $match->id,
+            'details' => sprintf('Cancelled match #%s%s', $match->match_number, $reason !== '' ? " ({$reason})" : ''),
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json($match);
+    }
+
+    private function recalculateStandings(GameMatch $match): void
+    {
+        if ($match->sport_code === 'football') {
+            $this->scoring->recalculateFootballStandings($match->tournament_id);
+        } else {
+            $this->scoring->recalculateCricketStandings($match->tournament_id);
+        }
+    }
+
     /* ------------------------------------------------------------- Football */
 
     public function recordFootballEvent(Request $request, string $id): JsonResponse
@@ -233,6 +352,7 @@ class MatchController extends Controller
         }
 
         $match = GameMatch::find($id);
+        $match = $this->handOverToLiveScreen($match);
 
         $this->broadcast($id, 'SCORE_UPDATED', [
             'match' => $match,
@@ -335,6 +455,7 @@ class MatchController extends Controller
         }
 
         $match = GameMatch::find($id);
+        $match = $this->handOverToLiveScreen($match);
 
         $this->broadcast($id, 'SCORE_UPDATED', [
             'match' => $match,
@@ -373,11 +494,84 @@ class MatchController extends Controller
         return response()->json(['state' => $state, 'match' => $match]);
     }
 
+    /* ------------------------------------------------ Big-screen direction */
+
+    /**
+     * Point the stadium display at a segment — the toss replay, the squad
+     * reveal, or the live scoreline — from the scorer console.
+     *
+     * The choice is saved on the match as well as broadcast, so a display that
+     * reloads mid-reveal comes back to the same segment instead of falling
+     * back to whatever `match.status` implies.
+     */
+    public function setScoreboardStage(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate([
+            'stage' => ['required', 'string', 'in:'.implode(',', ScoreboardDirector::STAGES)],
+            // Reveal position: omit or -1 to play, or a count of players to
+            // hold the reveal on.
+            'cursor' => ['nullable', 'integer', 'min:-1'],
+            // The ad or announcement to show, for those two stages.
+            'item_id' => ['nullable', 'string'],
+        ]);
+
+        $match = GameMatch::find($id);
+
+        if (! $match) {
+            return response()->json(['error' => 'Match not found'], 404);
+        }
+
+        if ($denied = $this->denyForeignTenant($request, $match->organization_id)) {
+            return $denied;
+        }
+
+        try {
+            $match = $this->director->setStage($id, $data['stage'], $data['cursor'] ?? null, $data['item_id'] ?? null);
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
+        }
+
+        $payload = $this->director->payload($match);
+
+        $this->broadcast($id, 'SCOREBOARD_STAGE_CHANGED', $payload);
+
+        return response()->json($payload);
+    }
+
+    /**
+     * End the match on the scorer's word during the second innings. A chase
+     * that is reached, bowled out or runs out of overs finishes on its own; this
+     * covers everything the engine can't see, like a declaration or bad light.
+     */
+    public function finishCricketMatch(Request $request, string $id): JsonResponse
+    {
+        $existing = GameMatch::find($id);
+
+        if (! $existing) {
+            return response()->json(['error' => 'Match not found'], 404);
+        }
+
+        if ($denied = $this->denyForeignTenant($request, $existing->organization_id)) {
+            return $denied;
+        }
+
+        try {
+            $match = $this->scoring->finishCricketMatch($id);
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
+        }
+
+        $this->broadcast($id, 'MATCH_STATUS_CHANGED', ['match' => $match]);
+
+        return response()->json(['match' => $match]);
+    }
+
     /* ----------------------------------------------------- Big-screen feed */
 
     /**
-     * Everything a 16:9 stadium display renders: the match, both squads, live
-     * state, active sponsor creative and any announcement pinned to the screen.
+     * Everything a 16:9 stadium display renders: the match, both squads and
+     * live state. An ad or announcement the organizer has put on screen rides
+     * in `scoreboard.item`, so nothing else about sponsors is sent.
      */
     public function scoreboard(string $id): JsonResponse
     {
@@ -387,19 +581,7 @@ class MatchController extends Controller
             return response()->json(['error' => 'Match not found'], 404);
         }
 
-        return response()->json([
-            ...$this->matchDetail($match),
-            'advertisements' => Advertisement::query()
-                ->where('organization_id', $match->organization_id)
-                ->where('status', 'active')
-                ->get(),
-            'sponsors' => Sponsor::query()->where('organization_id', $match->organization_id)->get(),
-            'announcement' => Announcement::query()
-                ->where('organization_id', $match->organization_id)
-                ->where('is_active_on_scoreboard', true)
-                ->where(fn ($query) => $query->where('tournament_id', $match->tournament_id)->orWhereNull('tournament_id'))
-                ->first(),
-        ]);
+        return response()->json($this->matchDetail($match));
     }
 
     /* ------------------------------------------------------------- Helpers */
@@ -408,6 +590,7 @@ class MatchController extends Controller
     {
         $teamA = Team::find($match->team_a_id);
         $teamB = Team::find($match->team_b_id);
+        $cricketState = $match->sport_code === 'cricket' ? $this->scoring->cricketState($match->id) : null;
 
         return [
             'match' => $match,
@@ -422,7 +605,13 @@ class MatchController extends Controller
             ],
             'venue' => $match->venue_id ? Venue::find($match->venue_id) : null,
             'football_state' => $match->sport_code === 'football' ? $this->scoring->footballState($match->id) : null,
-            'cricket_state' => $match->sport_code === 'cricket' ? $this->scoring->cricketState($match->id) : null,
+            'cricket_state' => $cricketState,
+            // Team sheets in reveal order, and the card derived from the
+            // delivery log — the scorer console picks the crease from the
+            // first, the big screen renders both.
+            'lineups' => $this->lineups->forMatch($match),
+            'scorecard' => $match->sport_code === 'cricket' ? $this->scorecard->forMatch($match, $cricketState) : [],
+            'scoreboard' => $this->director->payload($match),
         ];
     }
 
@@ -454,6 +643,26 @@ class MatchController extends Controller
         }
 
         return $pairings;
+    }
+
+    /**
+     * The first scoring action ends the pre-match build-up: if the display is
+     * still on the toss or the squad reveal, put it back on the scoreline and
+     * tell it so.
+     */
+    private function handOverToLiveScreen(?GameMatch $match): ?GameMatch
+    {
+        if (! $match) {
+            return $match;
+        }
+
+        $moved = $this->director->returnToLive($match);
+
+        if ($moved) {
+            $this->broadcast($match->id, 'SCOREBOARD_STAGE_CHANGED', $this->director->payload($moved));
+        }
+
+        return $moved ?: $match;
     }
 
     /**

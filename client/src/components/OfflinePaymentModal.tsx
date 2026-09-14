@@ -5,14 +5,16 @@ import { X, CheckCircle, IndianRupee } from 'lucide-react';
 
 interface OfflinePaymentModalProps {
   team: Team | null;
+  /** Tournament ground fee, used when the team has no payment record yet. */
+  totalFee?: number;
   onClose: () => void;
   onSuccess: (payment: any, receipt: any) => void;
 }
 
-export const OfflinePaymentModal: React.FC<OfflinePaymentModalProps> = ({ team, onClose, onSuccess }) => {
+export const OfflinePaymentModal: React.FC<OfflinePaymentModalProps> = ({ team, totalFee = 0, onClose, onSuccess }) => {
   if (!team) return null;
 
-  const currentRemaining = team.payment ? team.payment.remaining_amount : (team.payment?.total_fee || 5000);
+  const currentRemaining = team.payment ? team.payment.remaining_amount : totalFee;
   const [amount, setAmount] = useState<number>(currentRemaining);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'bank_transfer' | 'other'>('upi');
   const [transactionId, setTransactionId] = useState<string>('');

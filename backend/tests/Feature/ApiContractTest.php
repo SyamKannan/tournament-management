@@ -106,16 +106,57 @@ class ApiContractTest extends TestCase
                 'team_b' => ['id', 'name', 'players'],
                 'venue',
                 'football_state' => ['team_a_score', 'team_b_score', 'events'],
+                // Both screens read the team sheets and what the big screen is
+                // showing off the same payload.
+                'lineups',
+                'scoreboard' => ['stage', 'resolved_stage', 'cursor', 'reveal_interval_seconds'],
             ]);
     }
 
-    public function test_the_scoreboard_feed_carries_sponsors_and_announcements(): void
+    public function test_the_match_detail_carries_the_team_sheets_in_reveal_order(): void
+    {
+        $response = $this->getJson('/api/matches/match-crick-live-1')->assertOk();
+
+        $lineups = $response->json('lineups');
+        $this->assertNotEmpty($lineups, 'A match with squads should always produce a default team sheet.');
+
+        $this->assertArrayHasKey('player', $lineups[0]);
+        $this->assertArrayHasKey('batting_order', $lineups[0]);
+
+        // The reveal leads with whoever bats first, so the display can walk the
+        // list straight through without re-sorting it.
+        $match = $response->json('match');
+        $battingFirst = $match['batting_first_team_id'] ?: $match['team_a_id'];
+        $this->assertSame($battingFirst, $lineups[0]['team_id']);
+    }
+
+    public function test_the_cricket_match_detail_carries_a_derived_scorecard(): void
+    {
+        $response = $this->getJson('/api/matches/match-crick-live-1')->assertOk();
+
+        $card = $response->json('scorecard');
+        $this->assertNotEmpty($card);
+
+        $this->assertSame(1, $card[0]['innings']);
+        foreach (['batting_team_id', 'bowling_team_id', 'runs', 'wickets', 'extras', 'batting', 'bowling'] as $key) {
+            $this->assertArrayHasKey($key, $card[0]);
+        }
+
+        $batter = collect($card[0]['batting'])->firstWhere('has_batted', true);
+        $this->assertNotNull($batter, 'Deliveries in the seed should produce at least one batter.');
+        foreach (['player_id', 'name', 'runs', 'balls', 'fours', 'sixes', 'strike_rate', 'is_out'] as $key) {
+            $this->assertArrayHasKey($key, $batter);
+        }
+    }
+
+    public function test_the_scoreboard_feed_carries_the_stage_and_any_item_on_screen(): void
     {
         $this->getJson('/api/matches/scoreboard/match/match-fb-live-1')
             ->assertOk()
             ->assertJsonStructure([
                 'match', 'tournament', 'team_a', 'team_b', 'venue',
-                'football_state', 'advertisements', 'sponsors', 'announcement',
+                'football_state', 'lineups', 'scorecard',
+                'scoreboard' => ['stage', 'resolved_stage', 'cursor', 'stage_at', 'item_id', 'item', 'ends_at'],
             ]);
     }
 
@@ -190,7 +231,7 @@ class ApiContractTest extends TestCase
             ->assertOk()
             ->assertJsonStructure([
                 'organizations' => ['total', 'active', 'pending', 'suspended'],
-                'subscriptions' => ['active', 'trial', 'expired', 'cancelled'],
+                'subscriptions' => ['active', 'expired', 'cancelled'],
                 'revenue' => ['mrr', 'arr', 'oneTimeRevenue', 'totalPlatformRevenue'],
                 'activity' => ['totalTournaments', 'totalTeams', 'totalPlayers', 'liveMatches'],
             ]);
@@ -267,8 +308,8 @@ class ApiContractTest extends TestCase
         $this->actingAsUser('admin@greenvalley.com');
 
         $this->getJson('/api/sponsors')->assertOk()->assertJsonStructure(['*' => ['id', 'name', 'logo', 'tier']]);
-        $this->getJson('/api/sponsors/ads')->assertOk()->assertJsonStructure(['*' => ['id', 'title', 'media_url', 'status']]);
-        $this->getJson('/api/sponsors/announcements')->assertOk()->assertJsonStructure(['*' => ['id', 'title', 'message']]);
+        $this->getJson('/api/sponsors/ads')->assertOk()->assertJsonStructure(['*' => ['id', 'match_id', 'title', 'media_url', 'status', 'duration_seconds']]);
+        $this->getJson('/api/sponsors/announcements')->assertOk()->assertJsonStructure(['*' => ['id', 'match_id', 'title', 'message', 'duration_seconds']]);
     }
 
     public function test_the_player_dashboard_bundles_the_player_team_and_stats(): void

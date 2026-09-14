@@ -11,7 +11,7 @@ use App\Models\RegistrationReceipt;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Services\BillingService;
-use App\Services\RazorpayGatewayService;
+use App\Services\PaymentGatewayService;
 use App\Services\TournamentPaymentService;
 use App\Support\Audit;
 use App\Support\Ids;
@@ -25,7 +25,7 @@ class TeamController extends Controller
     public function __construct(
         private readonly TournamentPaymentService $payments,
         private readonly BillingService $billing,
-        private readonly RazorpayGatewayService $gateway,
+        private readonly PaymentGatewayService $gateway,
     ) {}
 
     /* ------------------------------------------- Public registration wizard */
@@ -65,10 +65,9 @@ class TeamController extends Controller
     }
 
     /**
-     * Create a Razorpay order for the ground fee a team is about to pay, so
-     * the client can open a real Checkout popup. Returns configured:false
-     * (no order) when Razorpay isn't set up, so the client falls back to the
-     * simulated registration flow.
+     * Start checkout for the ground fee a team is about to pay, on the
+     * registration flow's gateway (demo or Razorpay). The checkout only
+     * offers online methods both the platform and this tournament accept.
      */
     public function paymentOrder(Request $request, string $token): JsonResponse
     {
@@ -84,12 +83,9 @@ class TeamController extends Controller
             return response()->json(['error' => 'Tournament not found'], 404);
         }
 
-        if (! $this->gateway->isConfigured()) {
-            return response()->json(['configured' => false]);
-        }
-
         $data = $request->validate([
             'payment_option' => ['nullable', 'string', 'in:full,partial'],
+            'method' => ['nullable', 'string'],
         ]);
 
         $options = $this->payments->paymentOptions($tournament);
@@ -103,16 +99,23 @@ class TeamController extends Controller
 
         try {
             $order = $this->gateway->createOrder(
+                'registration',
                 $amount,
                 'INR',
-                'reg-'.$tournament->id.'-'.Ids::token(6),
+                'reg-'.Ids::token(10),
                 ['tournament_id' => $tournament->id, 'purpose' => 'ground_fee'],
+                $tournament->payment_config['enabled_methods'] ?? Tournament::PAYMENT_METHODS,
+                $data['method'] ?? null,
             );
         } catch (\RuntimeException $e) {
-            return response()->json(['error' => 'Unable to start payment. Please try again.'], 502);
+            report($e);
+
+            return response()->json(['error' => str_starts_with($e->getMessage(), 'Unable to create')
+                ? 'Unable to start payment. Please try again.'
+                : $e->getMessage()], 503);
         }
 
-        return response()->json(['configured' => true, ...$order]);
+        return response()->json($order);
     }
 
     /**
@@ -244,17 +247,14 @@ class TeamController extends Controller
 
         $verifiedTransactionId = null;
 
-        // Once Razorpay is configured, a self-reported transaction_id is no
-        // longer accepted for an online payment — it must be a Checkout
-        // result whose signature we verify server-side. Falls back to the
-        // existing fabricated-id behavior for pay-at-ground, zero-fee
-        // tournaments, or while Razorpay keys aren't set (dev/CI).
-        if (! $payAtGround && $amountToPay > 0 && $this->gateway->isConfigured()) {
+        // An online ground-fee payment must be a verified checkout result
+        // from the registration flow's gateway, never a self-reported id.
+        if (! $payAtGround && $amountToPay > 0 && in_array($paymentMethod, PaymentGatewayService::ONLINE_METHODS, true)) {
             if (empty($data['razorpay_payment_id']) || empty($data['razorpay_order_id']) || empty($data['razorpay_signature'])) {
                 return response()->json(['error' => 'Payment verification is required to complete registration.'], 400);
             }
 
-            if (! $this->gateway->verifyPaymentSignature($data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'])) {
+            if (! $this->gateway->verify('registration', $data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'])) {
                 return response()->json(['error' => 'Payment verification failed. Please try again.'], 400);
             }
 

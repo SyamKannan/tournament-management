@@ -25,6 +25,8 @@ use Illuminate\Support\Facades\DB;
  */
 class ScoringEngine
 {
+    public function __construct(private readonly LineupService $lineups) {}
+
     /* ---------------------------------------------------------------------
      | Football
      * -------------------------------------------------------------------*/
@@ -61,6 +63,8 @@ class ScoringEngine
         if (! $match) {
             throw new \RuntimeException('Match not found');
         }
+
+        $this->assertNotCancelled($match);
 
         return DB::transaction(function () use ($params, $match) {
             $state = $this->footballState($params['matchId']);
@@ -350,10 +354,14 @@ class ScoringEngine
         $battingTeamId = $match->batting_first_team_id ?: $match->team_a_id;
         $bowlingTeamId = $battingTeamId === $match->team_a_id ? $match->team_b_id : $match->team_a_id;
 
+        // A T10 village cup and a T20 league both run through here, so the
+        // innings length is the tournament's own setting.
+        $totalOvers = (int) (Tournament::find($match->tournament_id)?->settings['total_overs'] ?? 20);
+
         return CricketMatchState::create([
             'id' => Ids::unique('crick_state'),
             'match_id' => $matchId,
-            'total_overs' => 20,
+            'total_overs' => $totalOvers > 0 ? $totalOvers : 20,
             'current_innings' => 1,
             'batting_team_id' => $battingTeamId,
             'bowling_team_id' => $bowlingTeamId,
@@ -381,6 +389,8 @@ class ScoringEngine
             throw new \RuntimeException('Match not found');
         }
 
+        $this->assertNotCancelled($match);
+
         return DB::transaction(function () use ($params, $match) {
             $state = $this->cricketState($params['matchId']);
             $innings = $params['innings'];
@@ -396,6 +406,13 @@ class ScoringEngine
             $extrasRuns = $params['extrasRuns'] ?? ($extras !== 'none' ? 1 : 0);
             $totalDeliveryRuns = $params['runsScored'] + $extrasRuns;
 
+            // Wides and no-balls carry a one-run penalty; anything on top of it
+            // was run between the wickets, and so decides the change of ends.
+            // Byes and leg-byes have no penalty — every one of those runs was
+            // run. Strike therefore turns on runs run, not runs off the bat.
+            $penaltyRuns = in_array($extras, ['wide', 'no_ball'], true) ? 1 : 0;
+            $runsRun = $params['runsScored'] + max(0, $extrasRuns - $penaltyRuns);
+
             $legalBallsBefore = CricketDelivery::query()
                 ->where('match_id', $params['matchId'])
                 ->where('innings', $innings)
@@ -409,9 +426,12 @@ class ScoringEngine
                 'innings' => $innings,
                 'over_number' => intdiv($legalBallsBefore, 6),
                 'ball_number' => ($legalBallsBefore % 6) + ($isLegalBall ? 1 : 0),
-                'bowler_id' => $state->current_bowler_id ?: 'bowler',
-                'striker_id' => $state->current_striker_id ?: 'striker',
-                'non_striker_id' => $state->current_non_striker_id ?: 'non_striker',
+                // Left blank rather than filled with a placeholder name when
+                // the scorer hasn't named the crease — a blank is skipped by
+                // the scorecard, where 'striker' would become a phantom batter.
+                'bowler_id' => $state->current_bowler_id ?: '',
+                'striker_id' => $state->current_striker_id ?: '',
+                'non_striker_id' => $state->current_non_striker_id ?: '',
                 'runs_scored' => $params['runsScored'],
                 'extras' => $extras,
                 'extras_runs' => $extrasRuns,
@@ -448,24 +468,33 @@ class ScoringEngine
                     $state->required_run_rate = ($oversRemaining > 0 && $runsRemaining > 0)
                         ? round($runsRemaining / $oversRemaining, 2)
                         : 0;
-
-                    if ($state->team_b_runs >= $state->target_runs) {
-                        $match->status = 'completed';
-                        $match->winner_team_id = $state->batting_team_id;
-                        $battingTeamName = Team::query()->whereKey($state->batting_team_id)->value('name') ?: 'Batting Team';
-                        $match->result_summary = sprintf('%s won by %d wickets!', $battingTeamName, 10 - $state->team_b_wickets);
-                    }
                 }
             }
 
-            $this->rotateStrike($state, $params, $isLegalBall, $legalBallsAfter);
+            $this->rotateStrike($state, $params, $isLegalBall, $legalBallsAfter, $runsRun);
             $state->save();
 
-            $this->syncCricketPlayerStats($params, $isLegalBall, $totalDeliveryRuns);
+            $this->applyCricketPlayerStats([
+                'strikerId' => $delivery->striker_id,
+                'bowlerId' => $delivery->bowler_id,
+                'runsScored' => $params['runsScored'],
+                'extras' => $extras,
+                'extrasRuns' => $extrasRuns,
+                'isWicket' => $params['isWicket'],
+                'wicketType' => $params['wicketType'] ?? null,
+            ], 1);
 
-            if (in_array($match->status, ['scheduled', 'toss'], true)) {
+            // The first ball of either innings puts the match in play. Leaving
+            // `innings_break` out of this kept a match on its break for the
+            // whole of the second innings.
+            if (in_array($match->status, ['scheduled', 'toss', 'innings_break'], true)) {
                 $match->status = 'in_progress';
             }
+
+            if ($innings === 2) {
+                $this->concludeChaseIfDecided($match, $state, $legalBallsAfter);
+            }
+
             $match->save();
 
             $this->recalculateCricketStandings($match->tournament_id);
@@ -478,14 +507,14 @@ class ScoringEngine
      * Strike changes on odd runs, at the end of every completed over, and when a
      * replacement batter is named after a wicket.
      */
-    private function rotateStrike(CricketMatchState $state, array $params, bool $isLegalBall, int $legalBallsAfter): void
+    private function rotateStrike(CricketMatchState $state, array $params, bool $isLegalBall, int $legalBallsAfter, int $runsRun): void
     {
         $swap = function () use ($state) {
             [$state->current_striker_id, $state->current_non_striker_id] =
                 [$state->current_non_striker_id, $state->current_striker_id];
         };
 
-        if ($params['runsScored'] % 2 === 1 && ! $params['isWicket']) {
+        if ($runsRun % 2 === 1 && ! $params['isWicket']) {
             $swap();
         }
 
@@ -498,41 +527,78 @@ class ScoringEngine
         }
     }
 
-    private function syncCricketPlayerStats(array $params, bool $isLegalBall, int $totalDeliveryRuns): void
+    /**
+     * Dismissals that aren't the bowler's to claim, so they never count toward
+     * a bowling figure.
+     */
+    private const UNBOWLED_DISMISSALS = ['run_out', 'retired_hurt', 'obstructing_field'];
+
+    /**
+     * Fold one delivery into the two players' career totals, or peel it back
+     * out again with `$direction = -1` when the ball is undone.
+     *
+     * Undo has to reverse these as precisely as it reverses the scoreline —
+     * now that real player ids reach this method on every ball, a delivery
+     * undone without it would leave runs and wickets credited for a ball that
+     * no longer exists.
+     *
+     * @param  array{strikerId?: ?string, bowlerId?: ?string, runsScored: int, extras: string, extrasRuns: int, isWicket: bool, wicketType?: ?string}  $ball
+     */
+    private function applyCricketPlayerStats(array $ball, int $direction): void
     {
-        if (! empty($params['strikerId'])) {
-            $stats = PlayerStat::query()->where('player_id', $params['strikerId'])->first();
+        $extras = $ball['extras'] ?: 'none';
+
+        if (! empty($ball['strikerId'])) {
+            $stats = PlayerStat::query()->where('player_id', $ball['strikerId'])->first();
 
             if ($stats && is_array($stats->cricket)) {
                 $cricket = $stats->cricket;
-                $cricket['runs_scored'] = ($cricket['runs_scored'] ?? 0) + $params['runsScored'];
-                if ($isLegalBall) {
-                    $cricket['balls_faced'] = ($cricket['balls_faced'] ?? 0) + 1;
+                $cricket['runs_scored'] = max(0, ($cricket['runs_scored'] ?? 0) + $direction * $ball['runsScored']);
+
+                // A wide is never a ball faced; a no-ball is — the striker had
+                // to play at it, and it counts against their strike rate.
+                if ($extras !== 'wide') {
+                    $cricket['balls_faced'] = max(0, ($cricket['balls_faced'] ?? 0) + $direction);
                 }
-                if ($params['runsScored'] === 4) {
-                    $cricket['fours'] = ($cricket['fours'] ?? 0) + 1;
+                if ($ball['runsScored'] === 4) {
+                    $cricket['fours'] = max(0, ($cricket['fours'] ?? 0) + $direction);
                 }
-                if ($params['runsScored'] === 6) {
-                    $cricket['sixes'] = ($cricket['sixes'] ?? 0) + 1;
+                if ($ball['runsScored'] === 6) {
+                    $cricket['sixes'] = max(0, ($cricket['sixes'] ?? 0) + $direction);
                 }
                 $stats->cricket = $cricket;
                 $stats->save();
             }
         }
 
-        if (! empty($params['bowlerId'])) {
-            $stats = PlayerStat::query()->where('player_id', $params['bowlerId'])->first();
+        if (! empty($ball['bowlerId'])) {
+            $stats = PlayerStat::query()->where('player_id', $ball['bowlerId'])->first();
 
             if ($stats && is_array($stats->cricket)) {
                 $cricket = $stats->cricket;
-                $cricket['runs_conceded'] = ($cricket['runs_conceded'] ?? 0) + $totalDeliveryRuns;
-                if ($params['isWicket'] && ($params['wicketType'] ?? null) !== 'run_out') {
-                    $cricket['wickets_taken'] = ($cricket['wickets_taken'] ?? 0) + 1;
+                $cricket['runs_conceded'] = max(0, ($cricket['runs_conceded'] ?? 0) + $direction * $this->runsChargedToBowler($ball));
+
+                if ($ball['isWicket'] && ! in_array($ball['wicketType'] ?? '', self::UNBOWLED_DISMISSALS, true)) {
+                    $cricket['wickets_taken'] = max(0, ($cricket['wickets_taken'] ?? 0) + $direction);
                 }
                 $stats->cricket = $cricket;
                 $stats->save();
             }
         }
+    }
+
+    /**
+     * Byes and leg-byes go to the team but never onto the bowler's analysis;
+     * wides and no-balls do.
+     *
+     * @param  array{runsScored: int, extras: string, extrasRuns: int}  $ball
+     */
+    private function runsChargedToBowler(array $ball): int
+    {
+        $extras = $ball['extras'] ?: 'none';
+        $chargeable = in_array($extras, ['bye', 'leg_bye'], true) ? 0 : $ball['extrasRuns'];
+
+        return $ball['runsScored'] + $chargeable;
     }
 
     public function undoLastCricketBall(string $matchId): ?CricketMatchState
@@ -556,6 +622,28 @@ class ScoringEngine
 
             $totalDeliveryRuns = $last->runs_scored + $last->extras_runs;
             $innings = $last->innings;
+
+            $this->applyCricketPlayerStats([
+                'strikerId' => $last->striker_id,
+                'bowlerId' => $last->bowler_id,
+                'runsScored' => $last->runs_scored,
+                'extras' => $last->extras,
+                'extrasRuns' => $last->extras_runs,
+                'isWicket' => (bool) $last->is_wicket,
+                'wicketType' => $last->wicket_type,
+            ], -1);
+
+            // The delivery row records who was where when it was bowled, so
+            // undoing it restores exactly that — otherwise the next ball would
+            // be credited to whoever the rotation had moved on to.
+            if ($last->striker_id) {
+                $state->current_striker_id = $last->striker_id;
+                $state->current_non_striker_id = $last->non_striker_id ?: null;
+            }
+            if ($last->bowler_id) {
+                $state->current_bowler_id = $last->bowler_id;
+            }
+
             $last->delete();
 
             $legalCount = CricketDelivery::query()
@@ -580,6 +668,29 @@ class ScoringEngine
 
             $state->save();
 
+            // A result settled by the ball being undone no longer stands, and
+            // undoing the only ball of the second innings puts the match back
+            // on its break. Otherwise a scorer's slip on the last ball would
+            // lock the match as finished.
+            if ($match && $innings === 2) {
+                if ($match->status === 'completed') {
+                    $match->status = 'in_progress';
+                    $match->winner_team_id = null;
+                    $match->result_summary = null;
+                }
+
+                $secondInningsBalls = CricketDelivery::query()
+                    ->where('match_id', $matchId)
+                    ->where('innings', 2)
+                    ->count();
+
+                if ($secondInningsBalls === 0) {
+                    $match->status = 'innings_break';
+                }
+
+                $match->save();
+            }
+
             if ($match) {
                 $this->recalculateCricketStandings($match->tournament_id);
             }
@@ -602,6 +713,10 @@ class ScoringEngine
         return DB::transaction(function () use ($matchId, $match) {
             $state = $this->cricketState($matchId);
 
+            if ($state->current_innings === 2) {
+                throw new \RuntimeException('The second innings is already under way');
+            }
+
             $state->current_innings = 2;
             $state->target_runs = $state->team_a_runs + 1;
             [$state->batting_team_id, $state->bowling_team_id] = [$state->bowling_team_id, $state->batting_team_id];
@@ -615,6 +730,117 @@ class ScoringEngine
 
             return $this->cricketState($matchId);
         });
+    }
+
+    /**
+     * Finish the match on the scorer's word: the chasing side has declared,
+     * rain has stopped play for good, or the scorer knows it is over before
+     * the engine can tell.
+     *
+     * Only from the second innings. Finishing during the first would compare a
+     * completed total against a chase that never started; an abandoned match is
+     * recorded through the match status instead.
+     *
+     * @throws \RuntimeException when the match doesn't exist, isn't cricket,
+     *                            is already finished, or is still in the
+     *                            first innings
+     */
+    public function finishCricketMatch(string $matchId): GameMatch
+    {
+        return DB::transaction(function () use ($matchId) {
+            $match = GameMatch::query()->whereKey($matchId)->lockForUpdate()->first();
+
+            if (! $match || $match->sport_code !== 'cricket') {
+                throw new \RuntimeException('Match not found');
+            }
+
+            if ($match->status === 'completed') {
+                throw new \RuntimeException('This match is already finished');
+            }
+
+            $state = $this->cricketState($matchId);
+
+            if ($state->current_innings !== 2) {
+                throw new \RuntimeException('Start the second innings before finishing the match');
+            }
+
+            $this->settleCricketResult($match, $state);
+            $match->save();
+
+            $this->recalculateCricketStandings($match->tournament_id);
+
+            return $match;
+        });
+    }
+
+    /**
+     * End the match once the chase is decided: the target reached, the chasing
+     * side all out, or their overs used up. Before this only a successful chase
+     * ever finished a match, so a defended total left it open for good.
+     */
+    private function concludeChaseIfDecided(GameMatch $match, CricketMatchState $state, int $legalBallsAfter): void
+    {
+        if (! $state->target_runs || $match->status === 'completed') {
+            return;
+        }
+
+        $chased = $state->team_b_runs >= $state->target_runs;
+        $allOut = $state->team_b_wickets >= $this->wicketsToBowlOut($match, $state->batting_team_id);
+        $oversUsed = $legalBallsAfter >= $state->total_overs * 6;
+
+        if ($chased || $allOut || $oversUsed) {
+            $this->settleCricketResult($match, $state);
+        }
+    }
+
+    /**
+     * Write the result onto the match. Only called during the second innings,
+     * so the side batting is the one chasing and the side bowling set the
+     * target.
+     */
+    private function settleCricketResult(GameMatch $match, CricketMatchState $state): void
+    {
+        $firstInnings = $state->team_a_runs;
+        $secondInnings = $state->team_b_runs;
+        $chasingId = $state->batting_team_id;
+        $defendingId = $state->bowling_team_id;
+
+        $match->status = 'completed';
+
+        if ($secondInnings > $firstInnings) {
+            $margin = max(0, $this->wicketsToBowlOut($match, $chasingId) - $state->team_b_wickets);
+            $match->winner_team_id = $chasingId;
+            $match->result_summary = sprintf(
+                '%s won by %d %s',
+                Team::query()->whereKey($chasingId)->value('name') ?: 'Chasing side',
+                $margin,
+                $margin === 1 ? 'wicket' : 'wickets',
+            );
+        } elseif ($secondInnings < $firstInnings) {
+            $margin = $firstInnings - $secondInnings;
+            $match->winner_team_id = $defendingId;
+            $match->result_summary = sprintf(
+                '%s won by %d %s',
+                Team::query()->whereKey($defendingId)->value('name') ?: 'Defending side',
+                $margin,
+                $margin === 1 ? 'run' : 'runs',
+            );
+        } else {
+            $match->winner_team_id = null;
+            $match->result_summary = 'Match tied';
+        }
+    }
+
+    /**
+     * Wickets that end an innings: one fewer than the players in the side's
+     * match-day sheet. A village side fielding eight is all out at seven, not
+     * at the ten a full eleven would need.
+     */
+    private function wicketsToBowlOut(GameMatch $match, ?string $teamId): int
+    {
+        $playing = $teamId ? count($this->lineups->playingFor($match, $teamId)) : 0;
+
+        return $playing > 1 ? $playing - 1 : 10;
     }
 
     public function recalculateCricketStandings(string $tournamentId): void
@@ -650,12 +876,18 @@ class ScoringEngine
                 }
 
                 $played++;
-                $isTeamA = $match->team_a_id === $team->id;
 
-                $runsScored += $isTeamA ? $state->team_a_runs : $state->team_b_runs;
-                $oversFaced += $isTeamA ? $state->team_a_overs : $state->team_b_overs;
-                $runsConceded += $isTeamA ? $state->team_b_runs : $state->team_a_runs;
-                $oversBowled += $isTeamA ? $state->team_b_overs : $state->team_a_overs;
+                // `team_a_*` / `team_b_*` on the state row are really the
+                // first- and second-innings tallies, not team A's and team B's
+                // — which innings a side batted in is decided by the toss. Key
+                // off that, or every net run rate flips whenever the toss put
+                // team B in first.
+                $battedFirst = ($match->batting_first_team_id ?: $match->team_a_id) === $team->id;
+
+                $runsScored += $battedFirst ? $state->team_a_runs : $state->team_b_runs;
+                $oversFaced += $battedFirst ? $state->team_a_overs : $state->team_b_overs;
+                $runsConceded += $battedFirst ? $state->team_b_runs : $state->team_a_runs;
+                $oversBowled += $battedFirst ? $state->team_b_overs : $state->team_a_overs;
 
                 if ($match->winner_team_id === $team->id) {
                     $won++;
@@ -744,5 +976,16 @@ class ScoringEngine
     private function nextCricketSequence(string $matchId): int
     {
         return ((int) CricketDelivery::query()->where('match_id', $matchId)->max('sequence')) + 1;
+    }
+
+    /**
+     * A cancelled match is frozen: scoring into it would silently flip it back
+     * to in_progress through the scheduled→in_progress promotion above.
+     */
+    private function assertNotCancelled(GameMatch $match): void
+    {
+        if ($match->status === 'cancelled') {
+            throw new \RuntimeException('This match has been cancelled');
+        }
     }
 }
