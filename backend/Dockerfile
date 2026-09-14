@@ -26,7 +26,7 @@ RUN composer dump-autoload --optimize --classmap-authoritative
 # and ships as a single binary, so the API and the WebSocket gateway can run
 # from one image with different entrypoint roles.
 # ---------------------------------------------------------------------------
-FROM dunglas/frankenphp:1-php8.3-alpine AS runtime
+FROM dunglas/frankenphp:1-php8.4-alpine AS runtime
 
 # pcntl, posix and sockets are what the WebSocket gateway needs; pdo_mysql and
 # pdo_pgsql cover the supported databases; gd is league/color-extractor's
