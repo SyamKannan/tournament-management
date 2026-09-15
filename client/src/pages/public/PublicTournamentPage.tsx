@@ -7,6 +7,7 @@ import {
   Award, Radio, Gavel, Flame
 } from 'lucide-react';
 import { FEATURE_AUCTION_ENABLED } from '../../config';
+import { periodLabel, tossDecisionPhrase } from '../../lib/football';
 
 export const PublicTournamentPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -27,6 +28,7 @@ export const PublicTournamentPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'matches' | 'standings' | 'leaderboards' | 'auction' | 'teams' | 'sponsors'>('matches');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   useEffect(() => {
     const fetchTournament = async () => {
@@ -85,20 +87,58 @@ export const PublicTournamentPage: React.FC = () => {
   const liveMatches = matches.filter(m => m.status === 'in_progress' || m.status === 'half_time' || m.status === 'innings_break');
   const upcomingMatches = matches.filter(m => m.status === 'scheduled' || m.status === 'toss');
 
+  // The live cards used to print the same made-up score for every match.
+  // Cricket shows the innings in play: the first innings tally, or the chase.
+  const liveScore = (m: Match) => {
+    if (m.sport_code === 'football') {
+      return `${m.football_state?.team_a_score ?? 0} : ${m.football_state?.team_b_score ?? 0}`;
+    }
+    const state = m.cricket_state;
+    if (!state) return '0/0';
+    return state.current_innings === 2
+      ? `${state.team_b_runs}/${state.team_b_wickets}`
+      : `${state.team_a_runs}/${state.team_a_wickets}`;
+  };
+
+  const liveProgress = (m: Match) => {
+    if (m.sport_code === 'football') {
+      const state = m.football_state;
+      return state ? `${periodLabel(state.current_half)} • ${state.match_minute}'` : 'Kick-off soon';
+    }
+    const state = m.cricket_state;
+    if (!state) return 'Starting soon';
+    const overs = state.current_innings === 2 ? state.team_b_overs : state.team_a_overs;
+    return `Innings ${state.current_innings} • ${overs} ov${state.target_runs ? ` • Target ${state.target_runs}` : ''}`;
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-20 font-sans">
       {/* Tournament Hero Banner */}
       <div className="relative border-b border-slate-800/80 bg-gradient-to-b from-slate-900 to-slate-950">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="flex items-start gap-4">
-              <img
-                src={tournament.logo}
-                alt={tournament.name}
-                onError={(e: any) => { e.target.src = 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=200&auto=format&fit=crop&q=80'; }}
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-slate-700 shadow-xl bg-slate-900 flex-shrink-0"
-              />
-              <div>
+        <div className={`absolute inset-0 pointer-events-none ${isFootball ? 'bg-[radial-gradient(40rem_16rem_at_15%_0%,rgba(16,185,129,0.14),transparent)]' : 'bg-[radial-gradient(40rem_16rem_at_15%_0%,rgba(245,158,11,0.14),transparent)]'}`} aria-hidden="true" />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6">
+            <div className="flex items-start gap-3.5 sm:gap-4 min-w-0">
+              {tournament.logo && !logoFailed ? (
+                <img
+                  src={tournament.logo}
+                  alt={tournament.name}
+                  onError={() => setLogoFailed(true)}
+                  className="w-16 h-16 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-slate-700 shadow-xl bg-slate-900 flex-shrink-0"
+                />
+              ) : (
+                <div
+                  aria-hidden="true"
+                  className={`w-16 h-16 sm:w-24 sm:h-24 rounded-2xl flex-shrink-0 flex items-center justify-center text-3xl sm:text-5xl shadow-xl border ${
+                    isFootball
+                      ? 'bg-gradient-to-br from-emerald-500/25 to-cyan-500/10 border-emerald-500/30'
+                      : 'bg-gradient-to-br from-amber-500/25 to-orange-500/10 border-amber-500/30'
+                  }`}
+                >
+                  {isFootball ? '⚽' : '🏏'}
+                </div>
+              )}
+              <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-1.5">
                   <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
                     isFootball ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
@@ -110,11 +150,11 @@ export const PublicTournamentPage: React.FC = () => {
                   </span>
                 </div>
 
-                <h1 className="text-2xl sm:text-3xl font-black font-heading text-white tracking-tight">
+                <h1 className="text-xl sm:text-3xl lg:text-4xl font-black font-heading text-white tracking-tight leading-tight">
                   {tournament.name}
                 </h1>
 
-                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 mt-2.5">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-400 mt-2.5">
                   <a
                     href={(tournament as any).settings?.google_maps_url || `https://maps.google.com/?q=${encodeURIComponent(tournament.location || `${tournament.village}, ${tournament.district}`)}`}
                     target="_blank"
@@ -137,12 +177,12 @@ export const PublicTournamentPage: React.FC = () => {
             </div>
 
             {/* Quick Action CTAs */}
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="w-full md:w-auto grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-3">
               {liveMatches.length > 0 && (
                 <Link
                   to={`/scoreboard/match/${liveMatches[0].id}`}
                   target="_blank"
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-emerald-600/20 animate-pulse"
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 animate-pulse-subtle"
                 >
                   <Tv className="w-4 h-4" />
                   <span>Watch 16:9 Live TV ↗</span>
@@ -152,7 +192,7 @@ export const PublicTournamentPage: React.FC = () => {
               {auctionData?.auction && (
                 <Link
                   to={`/auction/${auctionData.auction.id}`}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-black flex items-center gap-1.5 shadow-lg shadow-amber-500/20"
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-black flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20"
                 >
                   <Gavel className="w-4 h-4" />
                   <span>Live Player Auction</span>
@@ -163,8 +203,8 @@ export const PublicTournamentPage: React.FC = () => {
         </div>
 
         {/* Tab Navigation */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-800/60">
-          <nav className="flex items-center gap-2 overflow-x-auto py-2.5 text-xs font-semibold">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-800/60">
+          <nav className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar fade-x -mx-4 px-4 sm:mx-0 sm:px-0 py-2.5 text-xs font-semibold">
             {[
               { id: 'matches', label: 'Matches & Fixtures', icon: Calendar, badge: liveMatches.length > 0 ? 'LIVE' : undefined },
               { id: 'leaderboards', label: 'Player Stats & Leaders', icon: Flame },
@@ -178,10 +218,10 @@ export const PublicTournamentPage: React.FC = () => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`px-4 py-2 rounded-xl flex items-center gap-2 whitespace-nowrap transition-all ${
+                  className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-xl flex items-center gap-2 whitespace-nowrap border transition-all ${
                     activeTab === tab.id
-                      ? 'bg-slate-800 text-white border border-slate-700 shadow-sm font-bold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                      ? 'bg-slate-800 text-white border-slate-700 shadow-sm font-bold'
+                      : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900'
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
@@ -199,7 +239,7 @@ export const PublicTournamentPage: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8">
         {/* Match announcements, each labelled with the fixture it is about */}
         {announcements.length > 0 && (
           <div className="mb-6 space-y-2">
@@ -241,7 +281,7 @@ export const PublicTournamentPage: React.FC = () => {
                     <div key={m.id} className="p-5 rounded-3xl bg-slate-900 border-2 border-rose-500/40 shadow-xl space-y-4">
                       <div className="flex items-center justify-between text-xs">
                         <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-bold uppercase text-[11px]">
-                          {m.status === 'in_progress' ? '● Live' : 'Half Time Break'}
+                          {m.status === 'in_progress' ? '● Live' : m.status === 'innings_break' ? 'Innings Break' : 'Half Time'}
                         </span>
                         <span className="text-slate-400 font-medium">{m.round_name}</span>
                       </div>
@@ -252,7 +292,7 @@ export const PublicTournamentPage: React.FC = () => {
                         </div>
                         <div className="px-6 text-center shrink-0">
                           <span className="font-mono text-2xl sm:text-3xl font-black text-emerald-400">
-                            {isFootball ? '2 : 4' : '86/2'}
+                            {liveScore(m)}
                           </span>
                         </div>
                         <div className="text-left flex-1">
@@ -261,7 +301,7 @@ export const PublicTournamentPage: React.FC = () => {
                       </div>
 
                       <div className="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
-                        <span className="text-slate-400 font-mono">Minute 44'</span>
+                        <span className="text-slate-400 font-mono">{liveProgress(m)}</span>
                         <Link
                           to={`/scoreboard/match/${m.id}`}
                           target="_blank"
@@ -296,7 +336,7 @@ export const PublicTournamentPage: React.FC = () => {
                         <div className="text-slate-400 mt-1">{m.round_name} • {new Date(m.scheduled_at).toLocaleString()}</div>
                         {tossWinnerName && m.toss_decision && (
                           <div className="text-amber-400 mt-1 font-semibold">
-                            🪙 {tossWinnerName} won the toss and chose to {m.toss_decision}
+                            🪙 {tossWinnerName} won the toss and chose to {tossDecisionPhrase(m.toss_decision)}
                           </div>
                         )}
                       </div>

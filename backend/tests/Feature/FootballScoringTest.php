@@ -89,7 +89,7 @@ class FootballScoringTest extends TestCase
         $this->scoring->addFootballEvent([
             'matchId' => self::MATCH_ID,
             'teamId' => $match->team_b_id,
-            'playerId' => 'pl-gv-2',
+            'playerId' => 'pl-gvs-2',
             'eventType' => 'yellow_card',
             'minute' => 52,
         ]);

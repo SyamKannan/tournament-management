@@ -137,70 +137,74 @@ export const LandingPage: React.FC = () => {
       </div>
 
       {/* Hero Section */}
-      <section className="relative z-10 pt-16 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center overflow-hidden">
-        {/* Hero photo backdrop — rotates through football & cricket, never one sport */}
+      <section className="relative z-10 pt-12 sm:pt-20 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-8 text-center overflow-hidden">
+        {/* Hero photo backdrop — rotates through football & cricket, never one sport.
+            Full-bleed so the photo never shows a hard edge on wide screens. */}
         <div className="absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
           <ImageCarouselBackdrop images={SPORTS_CAROUSELS.hero} activeIndex={heroSlide} className="opacity-25" />
           <div className="absolute inset-0 bg-gradient-to-b from-slate-950/40 via-slate-950/85 to-slate-950" />
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-violet-500/10" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgb(2_6_23)_100%)]" />
         </div>
 
-        {/* Floating decorative sport chips */}
-        <div className="absolute top-24 left-[8%] text-3xl opacity-40 animate-float-slow select-none hidden sm:block" aria-hidden="true">⚽</div>
-        <div className="absolute top-40 right-[10%] text-3xl opacity-40 animate-float-slower select-none hidden sm:block" aria-hidden="true">🏏</div>
-        <div className="absolute bottom-10 left-[15%] text-2xl opacity-30 animate-float-slow select-none hidden sm:block" aria-hidden="true">🏆</div>
+        {/* Floating decorative sport chips — kept to the margins, clear of the headline */}
+        <div className="absolute top-16 left-[5%] text-3xl opacity-40 animate-float-slow select-none hidden lg:block" aria-hidden="true">⚽</div>
+        <div className="absolute top-[24rem] right-[5%] text-3xl opacity-40 animate-float-slower select-none hidden lg:block" aria-hidden="true">🏏</div>
+        <div className="absolute bottom-10 left-[8%] text-2xl opacity-30 animate-float-slow select-none hidden lg:block" aria-hidden="true">🏆</div>
 
         <motion.div
           variants={staggerContainer}
           initial="hidden"
           animate="show"
+          className="max-w-7xl mx-auto"
         >
           {/* Top Pills */}
-          <motion.div variants={fadeUp} transition={{ duration: 0.5 }} className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-8">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-spin" style={{ animationDuration: '4s' }} />
-            <span>Made for village & club tournaments</span>
-            <span className="w-1 h-1 rounded-full bg-emerald-400" />
-            <span className="text-slate-400 font-normal">Football & Cricket</span>
+          <motion.div variants={fadeUp} transition={{ duration: 0.5 }} className="inline-flex max-w-full items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-6 sm:mb-8 backdrop-blur">
+            <Sparkles className="w-3.5 h-3.5 shrink-0 text-amber-400 animate-spin" style={{ animationDuration: '4s' }} />
+            <span className="whitespace-nowrap">Made for village & club tournaments</span>
+            <span className="hidden sm:block w-1 h-1 rounded-full bg-emerald-400" />
+            <span className="hidden sm:inline text-slate-400 font-normal">Football & Cricket</span>
           </motion.div>
 
-          <motion.h1 variants={fadeUp} transition={{ duration: 0.55 }} className="text-4xl sm:text-6xl lg:text-7xl font-black font-heading tracking-tight text-white max-w-5xl mx-auto leading-[1.1]">
-            Run the tournament. <span className="bg-gradient-to-r from-emerald-400 via-cyan-300 to-violet-400 bg-clip-text text-transparent">Skip the chaos.</span>
+          <motion.h1 variants={fadeUp} transition={{ duration: 0.55 }} className="text-[2.5rem] sm:text-6xl lg:text-7xl font-black font-heading tracking-tight text-white max-w-4xl mx-auto leading-[1.05]">
+            Run the tournament.{' '}
+            <span className="bg-gradient-to-r from-emerald-400 via-cyan-300 to-violet-400 bg-clip-text text-transparent">Skip the chaos.</span>
           </motion.h1>
 
-          <motion.p variants={fadeUp} transition={{ duration: 0.55 }} className="mt-6 text-base sm:text-xl text-slate-400 max-w-3xl mx-auto leading-relaxed font-light">
+          <motion.p variants={fadeUp} transition={{ duration: 0.55 }} className="mt-5 sm:mt-6 text-[15px] sm:text-xl text-slate-400 max-w-3xl mx-auto leading-relaxed">
             Teams register from their phones, scores update live ball-by-ball with one-tap undo, and the
             points table sorts itself out. Put the same feed up on a projector or TV and the whole ground
             watches it update in real time.
           </motion.p>
 
           {/* CTA Buttons */}
-          <motion.div variants={fadeUp} transition={{ duration: 0.55 }} className="mt-10 flex flex-wrap items-center justify-center gap-4">
+          <motion.div variants={fadeUp} transition={{ duration: 0.55 }} className="mt-8 sm:mt-10 grid grid-cols-2 sm:flex sm:flex-wrap items-stretch sm:items-center justify-center gap-3 sm:gap-4 max-w-md sm:max-w-none mx-auto">
             <Link
               to="/register-club"
-              className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/25 hover:scale-105 transition-all flex items-center gap-2"
+              className="col-span-2 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/25 sm:hover:scale-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
             >
               <span>Register Sports Club</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               to="/register-player"
-              className="px-7 py-3.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-500/50 text-white font-bold text-sm shadow-lg transition-all flex items-center gap-2 hover:scale-105"
+              className="px-4 sm:px-7 py-3.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-500/50 text-white font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 sm:hover:scale-105 active:scale-[0.98]"
             >
               <span className="text-cyan-400">⚡</span>
               <span>Join as Player</span>
             </Link>
             <Link
               to="/login"
-              className="px-7 py-3.5 rounded-2xl bg-slate-900/90 text-white hover:bg-slate-800 font-bold text-sm border border-slate-700/80 flex items-center gap-2 hover:scale-105 transition-all shadow-md"
+              className="px-4 sm:px-7 py-3.5 rounded-2xl bg-slate-900/90 text-white hover:bg-slate-800 font-bold text-sm border border-slate-700/80 flex items-center justify-center gap-2 sm:hover:scale-105 active:scale-[0.98] transition-all shadow-md"
             >
               <ShieldCheck className="w-4 h-4 text-cyan-400" />
-              <span>Sign In to Dashboard</span>
+              <span>Sign In<span className="hidden sm:inline"> to Dashboard</span></span>
             </Link>
 
             <Link
               to="/scoreboard/match/match-fb-live-1"
               target="_blank"
-              className="px-6 py-3.5 rounded-2xl bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 font-bold text-sm border border-emerald-500/30 flex items-center gap-2 hover:scale-105 transition-all"
+              className="col-span-2 px-6 py-3.5 rounded-2xl bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 font-bold text-sm border border-emerald-500/30 flex items-center justify-center gap-2 sm:hover:scale-105 active:scale-[0.98] transition-all"
             >
               <Tv className="w-4 h-4 text-emerald-400" />
               <span>16:9 Live TV</span>
@@ -208,8 +212,8 @@ export const LandingPage: React.FC = () => {
           </motion.div>
 
           {/* Dedicated Portals Section */}
-          <motion.div variants={fadeUp} transition={{ duration: 0.55 }} className="mt-14 max-w-5xl mx-auto p-5 rounded-3xl bg-slate-900/80 border border-slate-800/80 shadow-2xl backdrop-blur-xl">
-            <div className="flex items-center justify-between mb-4 px-1">
+          <motion.div variants={fadeUp} transition={{ duration: 0.55 }} className="mt-12 sm:mt-14 max-w-5xl mx-auto p-4 sm:p-5 rounded-3xl bg-slate-900/80 border border-slate-800/80 shadow-2xl backdrop-blur-xl">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-4 px-1">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-amber-400" />
                 <span>Already Registered?</span>

@@ -13,6 +13,7 @@ use App\Models\Tournament;
 use App\Models\Venue;
 use App\Services\BillingService;
 use App\Services\CricketScorecard;
+use App\Services\FootballScorecard;
 use App\Services\LineupService;
 use App\Services\RealtimeBroadcaster;
 use App\Services\ScoreboardDirector;
@@ -38,6 +39,7 @@ class MatchController extends Controller
         private readonly BillingService $billing,
         private readonly LineupService $lineups,
         private readonly CricketScorecard $scorecard,
+        private readonly FootballScorecard $footballScorecard,
         private readonly ScoreboardDirector $director,
     ) {}
 
@@ -328,12 +330,17 @@ class MatchController extends Controller
             'team_id' => ['required', 'string'],
             'event_type' => ['required', 'string', 'in:goal,own_goal,penalty_goal,penalty_missed,yellow_card,red_card,substitution,injury'],
             'player_id' => ['nullable', 'string'],
-            'minute' => ['nullable', 'integer'],
+            // Left out, the minute comes off the match clock.
+            'minute' => ['nullable', 'integer', 'min:0', 'max:200'],
             'assist_player_id' => ['nullable', 'string'],
             'sub_in_player_id' => ['nullable', 'string'],
             'sub_out_player_id' => ['nullable', 'string'],
-            'extra_info' => ['nullable', 'string'],
+            'extra_info' => ['nullable', 'string', 'max:500'],
         ]);
+
+        if ($denied = $this->denyScoring($request, $id)) {
+            return $denied;
+        }
 
         try {
             $result = $this->scoring->addFootballEvent([
@@ -341,7 +348,7 @@ class MatchController extends Controller
                 'teamId' => $data['team_id'],
                 'playerId' => $data['player_id'] ?? null,
                 'eventType' => $data['event_type'],
-                'minute' => (int) ($data['minute'] ?? 0),
+                'minute' => isset($data['minute']) ? (int) $data['minute'] : null,
                 'assistPlayerId' => $data['assist_player_id'] ?? null,
                 'subInPlayerId' => $data['sub_in_player_id'] ?? null,
                 'subOutPlayerId' => $data['sub_out_player_id'] ?? null,
@@ -366,10 +373,14 @@ class MatchController extends Controller
     public function controlFootballTimer(Request $request, string $id): JsonResponse
     {
         $data = $request->validate([
-            'action' => ['required', 'string', 'in:start,pause,set_half,set_minute,finish'],
-            'half' => ['nullable', 'string', 'in:1,2,extra_1,extra_2,penalties,full_time'],
-            'minute' => ['nullable', 'integer'],
+            'action' => ['required', 'string', 'in:start,pause,half_time,set_half,set_minute,finish,reopen'],
+            'half' => ['nullable', 'required_if:action,set_half', 'string', 'in:1,2,extra_1,extra_2,penalties,half_time,full_time'],
+            'minute' => ['nullable', 'required_if:action,set_minute', 'integer', 'min:0', 'max:200'],
         ]);
+
+        if ($denied = $this->denyScoring($request, $id)) {
+            return $denied;
+        }
 
         try {
             $state = $this->scoring->updateFootballTimer($id, $data['action'], [
@@ -381,13 +392,26 @@ class MatchController extends Controller
         }
 
         $match = GameMatch::find($id);
+
+        // Kick-off takes the screen off the toss or the walk-out, and the
+        // break or the final whistle brings the card up — unless the organizer
+        // is holding the screen on the live score. A pause or a clock
+        // correction leaves it alone.
+        if (! in_array($data['action'], ['pause', 'set_minute'], true)) {
+            $match = $this->handOverToLiveScreen($match);
+        }
+
         $this->broadcast($id, 'SCORE_UPDATED', ['match' => $match, 'state' => $state]);
 
         return response()->json(['state' => $state, 'match' => $match]);
     }
 
-    public function undoFootballEvent(string $id): JsonResponse
+    public function undoFootballEvent(Request $request, string $id): JsonResponse
     {
+        if ($denied = $this->denyScoring($request, $id)) {
+            return $denied;
+        }
+
         try {
             $state = $this->scoring->undoLastFootballEvent($id);
         } catch (\RuntimeException $e) {
@@ -420,11 +444,11 @@ class MatchController extends Controller
             'bowler_id' => ['nullable', 'string'],
         ]);
 
-        $match = GameMatch::find($id);
-
-        if (! $match) {
-            return response()->json(['error' => 'Match not found'], 404);
+        if ($denied = $this->denyScoring($request, $id)) {
+            return $denied;
         }
+
+        $match = GameMatch::find($id);
 
         // The batting order depends on who won the toss, so scoring stays
         // locked until the toss (digital call+decision, or a manual entry)
@@ -466,8 +490,12 @@ class MatchController extends Controller
         return response()->json($result);
     }
 
-    public function undoCricketBall(string $id): JsonResponse
+    public function undoCricketBall(Request $request, string $id): JsonResponse
     {
+        if ($denied = $this->denyScoring($request, $id)) {
+            return $denied;
+        }
+
         $state = $this->scoring->undoLastCricketBall($id);
 
         if (! $state) {
@@ -480,8 +508,12 @@ class MatchController extends Controller
         return response()->json(['state' => $state, 'match' => $match]);
     }
 
-    public function switchInnings(string $id): JsonResponse
+    public function switchInnings(Request $request, string $id): JsonResponse
     {
+        if ($denied = $this->denyScoring($request, $id)) {
+            return $denied;
+        }
+
         try {
             $state = $this->scoring->switchCricketInnings($id);
         } catch (\RuntimeException $e) {
@@ -591,6 +623,7 @@ class MatchController extends Controller
         $teamA = Team::find($match->team_a_id);
         $teamB = Team::find($match->team_b_id);
         $cricketState = $match->sport_code === 'cricket' ? $this->scoring->cricketState($match->id) : null;
+        $footballState = $match->sport_code === 'football' ? $this->scoring->footballState($match->id) : null;
 
         return [
             'match' => $match,
@@ -604,13 +637,17 @@ class MatchController extends Controller
                 'players' => Player::query()->where('team_id', $match->team_b_id)->get(),
             ],
             'venue' => $match->venue_id ? Venue::find($match->venue_id) : null,
-            'football_state' => $match->sport_code === 'football' ? $this->scoring->footballState($match->id) : null,
+            'football_state' => $footballState,
             'cricket_state' => $cricketState,
-            // Team sheets in reveal order, and the card derived from the
-            // delivery log — the scorer console picks the crease from the
-            // first, the big screen renders both.
+            // Team sheets in reveal order, and the card derived from each
+            // sport's log — the scorer console picks players from the first,
+            // the big screen renders both.
             'lineups' => $this->lineups->forMatch($match),
             'scorecard' => $match->sport_code === 'cricket' ? $this->scorecard->forMatch($match, $cricketState) : [],
+            'football_scorecard' => $footballState ? $this->footballScorecard->forMatch($match, $footballState) : null,
+            // Players off for good (a red, or a second yellow), so neither the
+            // console nor the display offers them for a goal or a return.
+            'sent_off_player_ids' => $footballState ? $this->scoring->sentOffPlayerIds($footballState) : [],
             'scoreboard' => $this->director->payload($match),
         ];
     }
@@ -643,6 +680,22 @@ class MatchController extends Controller
         }
 
         return $pairings;
+    }
+
+    /**
+     * Scoring belongs to the match's own organization. The role check lives on
+     * the route; this is the tenant half, so a scorer from one club can't
+     * change another club's match.
+     */
+    private function denyScoring(Request $request, string $matchId): ?JsonResponse
+    {
+        $match = GameMatch::find($matchId);
+
+        if (! $match) {
+            return response()->json(['error' => 'Match not found'], 404);
+        }
+
+        return $this->denyForeignTenant($request, $match->organization_id);
     }
 
     /**

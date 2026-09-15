@@ -1,23 +1,45 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --font-heading: 'Outfit', sans-serif;
-    --font-sans: 'Plus_Jakarta_Sans', sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
-  }
+/* Registered with Tailwind so `font-sans` / `font-mono` utilities resolve to
+   the loaded Google fonts instead of the platform defaults. */
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  --font-heading: 'Outfit', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+}
 
+@layer base {
   html {
     /* Anchor links and in-page navigation should glide, unless the reader
        has asked the system for reduced motion. */
     scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    color-scheme: dark;
   }
 
   body {
     background-color: #050814;
     color: #f1f5f9;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-sans);
     overflow-x: hidden;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Headlines break into even lines instead of leaving one orphaned word. */
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: rgba(16, 185, 129, 0.35);
+    color: #fff;
   }
 
   /* Visible keyboard focus everywhere, without drawing rings for mouse users. */
@@ -39,11 +61,91 @@
 }
 
 .font-heading {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-heading);
+  letter-spacing: -0.01em;
 }
 
 .font-mono-score {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* App-shell backdrop: a faint pitch-light glow behind every workspace page. */
+.app-shell {
+  background-color: #050814;
+  background-image:
+    radial-gradient(60rem 30rem at 10% -10%, rgba(16, 185, 129, 0.07), transparent 60%),
+    radial-gradient(50rem 28rem at 100% 0%, rgba(6, 182, 212, 0.06), transparent 60%),
+    radial-gradient(60rem 40rem at 50% 120%, rgba(99, 102, 241, 0.05), transparent 60%);
+  background-attachment: fixed;
+}
+
+/* Swipeable rows (tabs, chips) without a visible scrollbar, with the edges
+   faded so it's obvious more content sits off-screen. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .fade-x {
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 28px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 28px), transparent 100%);
+  }
+}
+
+/* Data tables that collapse into labelled cards on phones. Give each <td> a
+   `data-label` (shown as its caption); `rt-full` spans the card's full width. */
+@media (max-width: 767px) {
+  .responsive-table {
+    min-width: 0 !important;
+  }
+
+  .responsive-table thead {
+    display: none;
+  }
+
+  .responsive-table,
+  .responsive-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .responsive-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.875rem 1rem;
+    padding: 1rem;
+  }
+
+  .responsive-table td {
+    display: block;
+    padding: 0 !important;
+    text-align: left !important;
+    min-width: 0;
+  }
+
+  .responsive-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.3rem;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+
+  .responsive-table td.rt-full {
+    grid-column: 1 / -1;
+  }
+
+  .responsive-table td:has(> div:empty) {
+    display: none;
+  }
 }
 
 /* Ambient Radial Mesh Gradients */

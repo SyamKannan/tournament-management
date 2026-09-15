@@ -11,7 +11,7 @@ import {
 
 interface BigScreenDirectorProps {
   matchId: string;
-  /** The full scorecard is a cricket segment; football's final score is enough. */
+  /** Names the card segment: the full scorecard, or the football match card. */
   sport: 'football' | 'cricket';
   scoreboard?: ScoreboardState;
   /** Players in the reveal, so stepping can't run past the last one. */
@@ -19,11 +19,11 @@ interface BigScreenDirectorProps {
   onChanged: () => void;
 }
 
-const SEGMENTS: { stage: Exclude<ScoreboardStage, 'auto' | 'ad' | 'announcement'>; label: string; icon: React.ElementType; cricketOnly?: boolean }[] = [
+const SEGMENTS: { stage: Exclude<ScoreboardStage, 'auto' | 'ad' | 'announcement'>; label: string; footballLabel?: string; icon: React.ElementType }[] = [
   { stage: 'toss', label: 'Coin Toss', icon: Coins },
   { stage: 'lineups', label: 'Squad Reveal', icon: Users },
   { stage: 'live', label: 'Live Score', icon: Radio },
-  { stage: 'scorecard', label: 'Full Scorecard', icon: ListOrdered, cricketOnly: true },
+  { stage: 'scorecard', label: 'Full Scorecard', footballLabel: 'Match Card', icon: ListOrdered },
 ];
 
 /** On-screen times offered for an ad or announcement; 0 holds until switched back. */
@@ -172,8 +172,8 @@ export const BigScreenDirector: React.FC<BigScreenDirectorProps> = ({
       </div>
 
       {/* Which segment the crowd is looking at */}
-      <div className={`grid gap-2 ${sport === 'cricket' ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
-        {SEGMENTS.filter(segment => sport === 'cricket' || !segment.cricketOnly).map(({ stage, label, icon: Icon }) => (
+      <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
+        {SEGMENTS.map(({ stage, label, footballLabel, icon: Icon }) => (
           <button
             key={stage}
             disabled={busy}
@@ -185,7 +185,7 @@ export const BigScreenDirector: React.FC<BigScreenDirectorProps> = ({
             }`}
           >
             <Icon className="w-4 h-4" />
-            <span>{label}</span>
+            <span>{sport === 'football' && footballLabel ? footballLabel : label}</span>
           </button>
         ))}
       </div>

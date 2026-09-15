@@ -2,9 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import type {
-  Match, FootballMatchState, CricketMatchState, Team, Player,
-  MatchLineupEntry, ScorecardInnings, ScoreboardState,
+  Match, FootballMatchState, CricketMatchState, Team, Player, FootballEvent, FootballPeriod,
+  FootballScorecardSide, MatchLineupEntry, ScorecardInnings, ScoreboardState,
 } from '../../types';
+import {
+  FOOTBALL_EVENT_ICONS, FOOTBALL_EVENT_LABELS, PERIOD_LABELS, formatClock, onPitchIds, periodLabel, useFootballClock,
+} from '../../lib/football';
+import { SubstitutionDialog } from '../../components/SubstitutionDialog';
 import { websocketUrl } from '../../config';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
@@ -52,8 +56,25 @@ interface MatchPayload {
   cricket_state?: CricketMatchState;
   lineups: MatchLineupEntry[];
   scorecard: ScorecardInnings[];
+  football_scorecard?: FootballScorecardSide[] | null;
+  sent_off_player_ids?: string[];
   scoreboard: ScoreboardState;
 }
+
+type FootballTimerAction = 'start' | 'pause' | 'half_time' | 'set_half' | 'set_minute' | 'finish' | 'reopen';
+
+/**
+ * The period control that moves the match on from where it is. Full time is
+ * offered separately at every stage, because a sevens match may end after
+ * two halves, extra time or a shoot-out.
+ */
+const NEXT_PERIOD: Partial<Record<FootballPeriod, { label: string; action: FootballTimerAction; half?: FootballPeriod }>> = {
+  '1': { label: 'Half Time', action: 'half_time' },
+  half_time: { label: 'Kick Off 2nd Half', action: 'set_half', half: '2' },
+  '2': { label: 'Start Extra Time', action: 'set_half', half: 'extra_1' },
+  extra_1: { label: 'Extra Time 2nd Half', action: 'set_half', half: 'extra_2' },
+  extra_2: { label: 'Go to Penalties', action: 'set_half', half: 'penalties' },
+};
 
 export const OrgLiveScorerPage: React.FC = () => {
   const confirm = useConfirm();
@@ -66,10 +87,17 @@ export const OrgLiveScorerPage: React.FC = () => {
   const [tabChosen, setTabChosen] = useState(false);
   const [activeScoringTeam, setActiveScoringTeam] = useState<'A' | 'B'>('A');
 
-  // Football Event state
+  // Football event state. No player is picked by default: a goal credited to
+  // whoever happened to be first in the squad is worse than one left unnamed.
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
-  const [selectedAssistId, _setSelectedAssistId] = useState<string>('');
-  const [eventMinute, setEventMinute] = useState<number>(25);
+  const [selectedAssistId, setSelectedAssistId] = useState<string>('');
+  // Blank means "read the minute off the clock", which the server does.
+  const [minuteOverride, setMinuteOverride] = useState<string>('');
+  const [clockCorrection, setClockCorrection] = useState<string>('');
+  const [substitutionOpen, setSubstitutionOpen] = useState(false);
+  const [footballBusy, setFootballBusy] = useState(false);
+  // Every hook runs before the loading return below.
+  const footballClock = useFootballClock(matchData?.football_state);
 
   // Cricket delivery state. The crease is held locally because nothing is
   // written until a ball is recorded — the server only learns who is batting
@@ -92,13 +120,6 @@ export const OrgLiveScorerPage: React.FC = () => {
     try {
       const res: MatchPayload = await api.get(`/matches/${matchId || 'match-fb-live-1'}`);
       setMatchData(res);
-
-      if (res.football_state) {
-        setEventMinute(res.football_state.match_minute || 25);
-      }
-      if (res.team_a?.players?.length > 0 && !selectedPlayerId) {
-        setSelectedPlayerId(res.team_a.players[0].id);
-      }
 
       // Open on whatever still needs doing, but only before the scorer has
       // picked a tab themselves — nothing is more annoying than a screen that
@@ -174,60 +195,88 @@ export const OrgLiveScorerPage: React.FC = () => {
   /* =========================================================================
    * FOOTBALL ACTIONS
    * ========================================================================= */
-  const handleAddFootballGoal = async () => {
-    if (!matchData) return;
+  /**
+   * Record one event for the side selected above. Guarded against a double
+   * tap, which on a touchline phone would otherwise log the goal twice.
+   */
+  const postFootballEvent = async (
+    eventType: FootballEvent['event_type'],
+    extra: Record<string, string | undefined> = {},
+  ) => {
+    if (!matchData || footballBusy) return;
     const targetTeam = activeScoringTeam === 'A' ? matchData.team_a : matchData.team_b;
+    const minute = minuteOverride.trim() === '' ? undefined : Number(minuteOverride);
+
+    if (minute !== undefined && (!Number.isInteger(minute) || minute < 0 || minute > 200)) {
+      toast.error('The minute must be a whole number between 0 and 200');
+      return;
+    }
+
+    setFootballBusy(true);
     try {
       await api.post(`/matches/${matchData.match.id}/football/event`, {
         team_id: targetTeam.id,
-        player_id: selectedPlayerId || targetTeam.players?.[0]?.id,
-        assist_player_id: selectedAssistId || undefined,
-        event_type: 'goal',
-        minute: eventMinute
+        event_type: eventType,
+        player_id: eventType === 'substitution' ? undefined : (selectedPlayerId || undefined),
+        assist_player_id: eventType === 'goal' ? (selectedAssistId || undefined) : undefined,
+        minute,
+        ...extra,
       });
-      fetchMatch();
+      setSelectedAssistId('');
+      setMinuteOverride('');
+      setSubstitutionOpen(false);
+      await fetchMatch();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to record goal');
+      toast.error(err.message || `Failed to record the ${FOOTBALL_EVENT_LABELS[eventType].toLowerCase()}`);
+    } finally {
+      setFootballBusy(false);
     }
   };
 
-  const handleAddFootballCard = async (type: 'yellow_card' | 'red_card') => {
-    if (!matchData) return;
-    const targetTeam = activeScoringTeam === 'A' ? matchData.team_a : matchData.team_b;
-    try {
-      await api.post(`/matches/${matchData.match.id}/football/event`, {
-        team_id: targetTeam.id,
-        player_id: selectedPlayerId || targetTeam.players?.[0]?.id,
-        event_type: type,
-        minute: eventMinute
-      });
-      fetchMatch();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to record card');
-    }
-  };
+  const handleFootballTimer = async (action: FootballTimerAction, payload: { half?: FootballPeriod; minute?: number } = {}) => {
+    if (!matchData || footballBusy) return;
 
-  const handleFootballTimer = async (action: 'start' | 'pause' | 'set_half' | 'finish', payload?: any) => {
-    if (!matchData) return;
-    try {
-      await api.post(`/matches/${matchData.match.id}/football/timer`, {
-        action,
-        half: payload?.half,
-        minute: eventMinute
+    if (action === 'finish') {
+      const proceed = await confirm({
+        title: 'Blow the final whistle?',
+        message: 'The result is settled on the score as it stands. You can reopen the match afterwards if this was a mistake.',
+        confirmLabel: 'Full time',
+        tone: 'danger',
       });
-      fetchMatch();
+      if (!proceed) return;
+    }
+
+    if (action === 'reopen') {
+      const proceed = await confirm({
+        title: 'Reopen this match?',
+        message: 'The result is cleared and the match goes back to the second half with the clock stopped, so play can be recorded again.',
+        confirmLabel: 'Reopen match',
+      });
+      if (!proceed) return;
+    }
+
+    setFootballBusy(true);
+    try {
+      await api.post(`/matches/${matchData.match.id}/football/timer`, { action, ...payload });
+      if (action === 'set_minute') setClockCorrection('');
+      await fetchMatch();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to update timer');
+      toast.error(err.message || 'Failed to update the match clock');
+    } finally {
+      setFootballBusy(false);
     }
   };
 
   const handleFootballUndo = async () => {
-    if (!matchData) return;
+    if (!matchData || footballBusy) return;
+    setFootballBusy(true);
     try {
       await api.post(`/matches/${matchData.match.id}/football/undo`);
-      fetchMatch();
+      await fetchMatch();
     } catch (err: any) {
       toast.error(err.message || 'Failed to undo event');
+    } finally {
+      setFootballBusy(false);
     }
   };
 
@@ -340,7 +389,51 @@ export const OrgLiveScorerPage: React.FC = () => {
   const { match, tournament, team_a, team_b, football_state, cricket_state, scoreboard } = matchData;
   const isFootball = match.sport_code === 'football';
   const scoringTeam = activeScoringTeam === 'A' ? team_a : team_b;
+  const otherTeam = activeScoringTeam === 'A' ? team_b : team_a;
   const lineups = matchData.lineups ?? [];
+
+  /* ---------------------------------------------------------- Football view */
+
+  const footballEvents = football_state?.events ?? [];
+  const sentOffIds = matchData.sent_off_player_ids ?? [];
+  const footballFinished = isFootball && match.status === 'completed';
+  const currentPeriod: FootballPeriod = football_state?.current_half ?? '1';
+  const nextPeriod = NEXT_PERIOD[currentPeriod];
+
+  const squad = scoringTeam.players ?? [];
+  const onPitchSet = onPitchIds(lineups, footballEvents, scoringTeam.id, sentOffIds);
+  const onPitchPlayers = squad.filter(player => onPitchSet.has(player.id));
+  const benchPlayers = squad.filter(player => !onPitchSet.has(player.id) && !sentOffIds.includes(player.id));
+  const sentOffPlayers = squad.filter(player => sentOffIds.includes(player.id));
+
+  // A selection that no longer belongs to the side on screen (the scorer
+  // switched teams) is treated as no selection at all.
+  const pickedPlayerId = squad.some(player => player.id === selectedPlayerId) ? selectedPlayerId : '';
+  const pickedAssistId = squad.some(player => player.id === selectedAssistId) && selectedAssistId !== pickedPlayerId
+    ? selectedAssistId
+    : '';
+  const pickedIsSentOff = Boolean(pickedPlayerId) && sentOffIds.includes(pickedPlayerId);
+  const canRecordFootball = isFootball && !footballFinished && match.status !== 'cancelled' && !footballBusy;
+
+  const allPlayers = [...(team_a.players || []), ...(team_b.players || [])];
+  const footballName = (playerId?: string | null) =>
+    (playerId && allPlayers.find(player => player.id === playerId)?.full_name) || 'Unnamed';
+
+  const describeEvent = (event: FootballEvent) => {
+    if (event.event_type === 'substitution') {
+      return `${footballName(event.sub_in_player_id)} on for ${footballName(event.sub_out_player_id)}`;
+    }
+    const assist = event.event_type === 'goal' && event.assist_player_id
+      ? ` (assist ${footballName(event.assist_player_id)})`
+      : '';
+    return `${footballName(event.player_id)}${assist}`;
+  };
+
+  const playerOption = (player: Player) => (
+    <option key={player.id} value={player.id}>
+      #{player.jersey_number} {player.full_name}{player.football_position ? ` (${player.football_position})` : ''}
+    </option>
+  );
 
   /* ----------------------------------------------------------- Cricket view */
 
@@ -530,11 +623,14 @@ export const OrgLiveScorerPage: React.FC = () => {
 
           <div className="text-center shrink-0">
             <div className="text-[11px] font-semibold text-slate-400 uppercase">
-              {isFootball ? 'Minute' : `Over ${inningsOvers}`}
+              {isFootball ? (footballFinished ? 'Full Time' : periodLabel(currentPeriod)) : `Over ${inningsOvers}`}
             </div>
-            <div className="font-mono text-lg font-bold text-white">
+            <div className="font-mono text-lg font-bold text-white flex items-center justify-center gap-1.5">
+              {isFootball && football_state?.is_timer_running && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              )}
               {isFootball
-                ? `${football_state?.match_minute ?? 0}'`
+                ? formatClock(footballClock)
                 : `CRR ${cricket_state?.current_run_rate ?? 0}`}
             </div>
           </div>
@@ -605,12 +701,18 @@ export const OrgLiveScorerPage: React.FC = () => {
       {/* ------------------------------------------------------------ SETUP */}
       {tab === 'setup' && (
         <div className="space-y-4">
-          {!isFootball && (
-            <TossPanel match={match} teamA={team_a} teamB={team_b} onUpdated={() => fetchMatch()} />
+          {isFootball && !match.toss_decision && (
+            <p className="px-4 py-3 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-400">
+              The toss is optional in football — kick off from the Scoring tab whenever you are ready. Recording it
+              puts the result on the big screen and lets the side kicking off lead the squad reveal.
+            </p>
           )}
+
+          <TossPanel match={match} teamA={team_a} teamB={team_b} onUpdated={() => fetchMatch()} />
 
           <MatchLineupEditor
             matchId={match.id}
+            sport={match.sport_code}
             teams={[team_a, team_b]}
             lineups={lineups}
             onSaved={fetchMatch}
@@ -637,6 +739,7 @@ export const OrgLiveScorerPage: React.FC = () => {
             cricketState={cricket_state}
             footballState={football_state}
             scorecard={matchData.scorecard}
+            footballScorecard={matchData.football_scorecard}
           />
         </div>
       )}
@@ -645,147 +748,325 @@ export const OrgLiveScorerPage: React.FC = () => {
       {tab === 'scoring' && isFootball && (
         <div className="grid md:grid-cols-12 gap-4">
           <div className="md:col-span-7 space-y-4">
-            <div className="p-6 rounded-3xl glass-panel border border-slate-800 space-y-4">
+            {footballFinished && (
+              <div className="px-4 py-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="text-xs font-black uppercase tracking-wider text-emerald-300">Full time</div>
+                  <div className="text-base font-bold text-white">{match.result_summary || 'Result recorded'}</div>
+                  <div className="text-xs text-slate-400">
+                    The big screen is showing the match card. Undo corrects the last event and keeps the result up to date.
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleFootballTimer('reopen')}
+                  disabled={footballBusy}
+                  className="shrink-0 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs disabled:opacity-50"
+                >
+                  Reopen match
+                </button>
+              </div>
+            )}
+
+            <div className="p-5 sm:p-6 rounded-3xl glass-panel border border-slate-800 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                  Select Scoring Team
+                  Team
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => { setActiveScoringTeam('A'); setSelectedPlayerId(team_a.players?.[0]?.id || ''); }}
-                    className={`py-3 px-4 rounded-2xl border text-xs font-bold transition-all ${
-                      activeScoringTeam === 'A'
-                        ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-md'
-                        : 'bg-slate-900 border-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {team_a.name}
-                  </button>
-                  <button
-                    onClick={() => { setActiveScoringTeam('B'); setSelectedPlayerId(team_b.players?.[0]?.id || ''); }}
-                    className={`py-3 px-4 rounded-2xl border text-xs font-bold transition-all ${
-                      activeScoringTeam === 'B'
-                        ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-md'
-                        : 'bg-slate-900 border-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {team_b.name}
-                  </button>
+                  {(['A', 'B'] as const).map(side => {
+                    const team = side === 'A' ? team_a : team_b;
+                    return (
+                      <button
+                        key={side}
+                        onClick={() => { setActiveScoringTeam(side); setSelectedPlayerId(''); setSelectedAssistId(''); }}
+                        className={`py-3 px-4 rounded-2xl border text-xs font-bold transition-all truncate ${
+                          activeScoringTeam === side
+                            ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-md'
+                            : 'bg-slate-900 border-slate-800 text-slate-400'
+                        }`}
+                      >
+                        {team.name}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">Goal Scorer / Player</label>
+                  <label className="block text-slate-400 mb-1 font-semibold">Player</label>
                   <select
-                    value={selectedPlayerId}
+                    value={pickedPlayerId}
                     onChange={(e) => setSelectedPlayerId(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl glass-input bg-slate-900 text-white"
                   >
-                    {scoringTeam.players?.map(p => (
-                      <option key={p.id} value={p.id}>
-                        #{p.jersey_number} {p.full_name} ({p.football_position || 'Forward'})
-                      </option>
-                    ))}
+                    <option value="">— Not named —</option>
+                    {onPitchPlayers.length > 0 && <optgroup label="On the pitch">{onPitchPlayers.map(playerOption)}</optgroup>}
+                    {benchPlayers.length > 0 && <optgroup label="Bench">{benchPlayers.map(playerOption)}</optgroup>}
+                    {sentOffPlayers.length > 0 && <optgroup label="Sent off">{sentOffPlayers.map(playerOption)}</optgroup>}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">Match Minute</label>
+                  <label className="block text-slate-400 mb-1 font-semibold">Assist (goals only)</label>
+                  <select
+                    value={pickedAssistId}
+                    onChange={(e) => setSelectedAssistId(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl glass-input bg-slate-900 text-white"
+                  >
+                    <option value="">— No assist —</option>
+                    {onPitchPlayers.filter(player => player.id !== pickedPlayerId).map(playerOption)}
+                    {benchPlayers.filter(player => player.id !== pickedPlayerId).length > 0 && (
+                      <optgroup label="Bench">{benchPlayers.filter(player => player.id !== pickedPlayerId).map(playerOption)}</optgroup>
+                    )}
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-slate-400 mb-1 font-semibold">Minute</label>
                   <input
                     type="number"
-                    min="1"
-                    max="120"
-                    value={eventMinute}
-                    onChange={(e) => setEventMinute(Number(e.target.value))}
+                    min="0"
+                    max="200"
+                    inputMode="numeric"
+                    value={minuteOverride}
+                    onChange={(e) => setMinuteOverride(e.target.value)}
+                    placeholder={`From the clock: ${Math.floor(footballClock / 60) + 1}'`}
                     className="w-full px-3 py-2.5 rounded-xl glass-input font-mono font-bold text-center"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-2">
+              {pickedIsSentOff && (
+                <div className="px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/40 text-rose-200 text-xs font-semibold">
+                  {footballName(pickedPlayerId)} has been sent off — they can still be booked, but not score.
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
                 <button
-                  onClick={handleAddFootballGoal}
-                  className="py-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-2 hover:scale-[1.02] transition-all"
+                  onClick={() => postFootballEvent('goal')}
+                  disabled={!canRecordFootball || pickedIsSentOff}
+                  className="col-span-2 py-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <span className="text-xl">⚽</span>
-                  <span>RECORD GOAL</span>
+                  <span>GOAL — {scoringTeam.name}</span>
                 </button>
 
                 <button
-                  onClick={() => handleAddFootballCard('yellow_card')}
-                  className="py-5 rounded-2xl bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/40 text-yellow-300 font-bold text-xs flex items-center justify-center gap-2 transition-all"
+                  onClick={() => postFootballEvent('penalty_goal')}
+                  disabled={!canRecordFootball || pickedIsSentOff}
+                  className="py-3.5 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-200 font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Penalty scored
+                </button>
+                <button
+                  onClick={() => postFootballEvent('penalty_missed')}
+                  disabled={!canRecordFootball || pickedIsSentOff}
+                  className="py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Penalty missed
+                </button>
+
+                <button
+                  onClick={() => postFootballEvent('own_goal')}
+                  disabled={!canRecordFootball}
+                  title={`Scored by a ${scoringTeam.name} player, counts for ${otherTeam.name}`}
+                  className="col-span-2 py-3.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-200 font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Own goal by {scoringTeam.name} — counts for {otherTeam.name}
+                </button>
+
+                <button
+                  onClick={() => postFootballEvent('yellow_card')}
+                  disabled={!canRecordFootball || !pickedPlayerId}
+                  className="py-4 rounded-2xl bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/40 text-yellow-300 font-bold text-xs flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <span className="text-lg">🟨</span>
-                  <span>YELLOW CARD</span>
+                  <span>YELLOW</span>
                 </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={() => handleAddFootballCard('red_card')}
-                  className="py-4 rounded-2xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 transition-all"
+                  onClick={() => postFootballEvent('red_card')}
+                  disabled={!canRecordFootball || !pickedPlayerId}
+                  className="py-4 rounded-2xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <span className="text-lg">🟥</span>
-                  <span>RED CARD</span>
+                  <span>RED</span>
                 </button>
 
                 <button
-                  onClick={handleFootballUndo}
-                  className="py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-2 transition-all"
+                  onClick={() => setSubstitutionOpen(true)}
+                  disabled={!canRecordFootball}
+                  className="py-3.5 rounded-2xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <RotateCcw className="w-4 h-4 text-slate-400" />
-                  <span>UNDO LAST EVENT</span>
+                  🔁 Substitution
+                </button>
+                <button
+                  onClick={() => postFootballEvent('injury')}
+                  disabled={!canRecordFootball || !pickedPlayerId}
+                  className="py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  ✚ Injury
                 </button>
               </div>
+
+              {!pickedPlayerId && canRecordFootball && (
+                <p className="text-[11px] text-slate-500">Pick a player to record a card or an injury.</p>
+              )}
+            </div>
+
+            {/* The log, newest first, with the one entry undo would remove marked. */}
+            <div className="p-5 rounded-3xl glass-panel border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Match Events</h3>
+                <button
+                  onClick={handleFootballUndo}
+                  disabled={footballBusy || footballEvents.length === 0}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center gap-1.5 disabled:opacity-40"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Undo Last</span>
+                </button>
+              </div>
+
+              {footballEvents.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-3">Nothing recorded yet.</p>
+              ) : (
+                <ol className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+                  {[...footballEvents].reverse().map((event, index) => (
+                    <li
+                      key={event.id}
+                      className={`flex items-center gap-3 p-2.5 rounded-xl border text-xs ${
+                        index === 0 ? 'bg-slate-900 border-slate-700' : 'bg-slate-950 border-slate-900'
+                      }`}
+                    >
+                      <span className="w-9 shrink-0 font-mono font-black text-emerald-400 text-right">{event.minute}'</span>
+                      <span className="text-base shrink-0">{FOOTBALL_EVENT_ICONS[event.event_type]}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-bold text-white truncate">
+                          {FOOTBALL_EVENT_LABELS[event.event_type]} — {describeEvent(event)}
+                        </span>
+                        <span className="block text-[11px] text-slate-500 truncate">
+                          {event.team_id === team_a.id ? team_a.name : team_b.name}
+                          {event.event_type === 'own_goal' && ` (counts for ${event.team_id === team_a.id ? team_b.name : team_a.name})`}
+                        </span>
+                      </span>
+                      {index === 0 && <span className="shrink-0 text-[10px] font-bold uppercase text-slate-500">Last</span>}
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
           </div>
 
           <div className="md:col-span-5 space-y-4">
-            <div className="p-6 rounded-3xl glass-panel border border-slate-800 space-y-4">
+            <div className="p-5 sm:p-6 rounded-3xl glass-panel border border-slate-800 space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Match Timer & Clock Control
+                Match Clock
               </h3>
 
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
-                <div className="text-3xl font-black font-mono text-white tracking-tight">
-                  {football_state?.match_minute ?? 0}' : 00"
+                <div className="text-[11px] font-black uppercase tracking-wider text-emerald-400">
+                  {footballFinished ? 'Full Time' : periodLabel(currentPeriod)}
                 </div>
-                <div className="text-xs text-emerald-400 font-semibold mt-1">
-                  {football_state?.is_timer_running ? '🟢 Clock Running' : '⏸️ Clock Paused'}
+                <div className="text-4xl font-black font-mono text-white tracking-tight mt-1">
+                  {formatClock(footballClock)}
+                </div>
+                <div className={`text-xs font-semibold mt-1 ${football_state?.is_timer_running ? 'text-emerald-400' : 'text-slate-500'}`}>
+                  {football_state?.is_timer_running ? '● Clock running' : 'Clock stopped'}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => handleFootballTimer('start')}
-                  className="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20"
-                >
-                  <Play className="w-4 h-4" />
-                  <span>Start Clock</span>
-                </button>
-                <button
-                  onClick={() => handleFootballTimer('pause')}
-                  className="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5"
-                >
-                  <Pause className="w-4 h-4" />
-                  <span>Pause Clock</span>
-                </button>
-              </div>
+              {!footballFinished && (
+                <>
+                  {currentPeriod !== 'penalties' && currentPeriod !== 'half_time' && (
+                    <button
+                      onClick={() => handleFootballTimer(football_state?.is_timer_running ? 'pause' : 'start')}
+                      disabled={footballBusy || match.status === 'cancelled'}
+                      className={`w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 ${
+                        football_state?.is_timer_running
+                          ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20'
+                      }`}
+                    >
+                      {football_state?.is_timer_running ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      <span>
+                        {football_state?.is_timer_running
+                          ? 'Pause Clock'
+                          : footballEvents.length === 0 && footballClock === 0 ? 'Kick Off' : 'Start Clock'}
+                      </span>
+                    </button>
+                  )}
 
-              <div className="pt-2 border-t border-slate-800 space-y-2">
-                <button
-                  onClick={() => handleFootballTimer('set_half', { half: '2' })}
-                  className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-semibold text-xs border border-slate-800"
-                >
-                  Start 2nd Half (45')
-                </button>
-                <button
-                  onClick={() => handleFootballTimer('finish')}
-                  className="w-full py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 font-bold text-xs border border-rose-600/30"
-                >
-                  Full Time (Final Whistle 🏁)
-                </button>
-              </div>
+                  <div className="pt-2 border-t border-slate-800 space-y-2">
+                    {nextPeriod && (
+                      <button
+                        onClick={() => handleFootballTimer(nextPeriod.action, nextPeriod.half ? { half: nextPeriod.half } : {})}
+                        disabled={footballBusy || match.status === 'cancelled'}
+                        className="w-full py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 font-bold text-xs border border-amber-500/40 disabled:opacity-50"
+                      >
+                        {nextPeriod.label}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleFootballTimer('finish')}
+                      disabled={footballBusy || match.status === 'cancelled'}
+                      className="w-full py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 font-bold text-xs border border-rose-600/30 disabled:opacity-50"
+                    >
+                      Full Time (Final Whistle 🏁)
+                    </button>
+                  </div>
+
+                  {/* Corrections, for a clock started late or a wrong period tapped. */}
+                  <details className="pt-2 border-t border-slate-800 text-xs">
+                    <summary className="cursor-pointer font-bold text-slate-400 select-none">Correct the clock or period</summary>
+                    <div className="mt-3 space-y-3">
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max="200"
+                          inputMode="numeric"
+                          value={clockCorrection}
+                          onChange={(e) => setClockCorrection(e.target.value)}
+                          placeholder="Minute"
+                          className="flex-1 min-w-0 px-3 py-2 rounded-xl glass-input font-mono font-bold text-center"
+                        />
+                        <button
+                          onClick={() => {
+                            const minute = Number(clockCorrection);
+                            if (clockCorrection.trim() === '' || !Number.isInteger(minute) || minute < 0 || minute > 200) {
+                              toast.error('Enter a whole minute between 0 and 200');
+                              return;
+                            }
+                            handleFootballTimer('set_minute', { minute });
+                          }}
+                          disabled={footballBusy}
+                          className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold disabled:opacity-50"
+                        >
+                          Set clock
+                        </button>
+                      </div>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const half = e.target.value as FootballPeriod;
+                          if (!half) return;
+                          handleFootballTimer(half === 'half_time' ? 'half_time' : 'set_half', half === 'half_time' ? {} : { half });
+                        }}
+                        disabled={footballBusy}
+                        className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-white"
+                      >
+                        <option value="">Jump to period…</option>
+                        {(['1', 'half_time', '2', 'extra_1', 'extra_2', 'penalties'] as FootballPeriod[])
+                          .filter(half => half !== currentPeriod)
+                          .map(half => <option key={half} value={half}>{PERIOD_LABELS[half]}</option>)}
+                      </select>
+                      <p className="text-[11px] text-slate-500">
+                        Kicking off a period sets the clock to where that period starts, from the tournament's half length.
+                      </p>
+                    </div>
+                  </details>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -990,6 +1271,17 @@ export const OrgLiveScorerPage: React.FC = () => {
           tone={pendingChoice.tone}
           onSelect={playerId => setCrease(previous => ({ ...previous, [pendingChoice.field]: playerId }))}
           onCancel={() => setPromptDismissed(pendingKey)}
+        />
+      )}
+
+      {substitutionOpen && isFootball && (
+        <SubstitutionDialog
+          teamName={scoringTeam.name}
+          onPitch={onPitchPlayers}
+          bench={benchPlayers}
+          busy={footballBusy}
+          onConfirm={change => postFootballEvent('substitution', change)}
+          onCancel={() => setSubstitutionOpen(false)}
         />
       )}
 

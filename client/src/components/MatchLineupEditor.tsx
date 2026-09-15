@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { useToast } from './ui/Toast';
-import type { MatchLineupEntry, Player, Team } from '../types';
+import type { MatchLineupEntry, Player, SportCode, Team } from '../types';
 import { ChevronUp, ChevronDown, Star, Hand, Save, Users } from 'lucide-react';
 
 interface MatchLineupEditorProps {
   matchId: string;
+  sport: SportCode;
   teams: (Team & { players?: Player[] })[];
   lineups: MatchLineupEntry[];
   onSaved: () => void;
@@ -32,11 +33,16 @@ interface EditorRow {
  */
 export const MatchLineupEditor: React.FC<MatchLineupEditorProps> = ({
   matchId,
+  sport,
   teams,
   lineups,
   onSaved,
 }) => {
   const toast = useToast();
+  const isFootball = sport === 'football';
+  // The keeper flag is one column for both sports: gloves behind the stumps,
+  // or in goal.
+  const keeperLabel = isFootball ? 'Goalkeeper' : 'Wicketkeeper';
   const [activeTeamId, setActiveTeamId] = useState(teams[0]?.id ?? '');
   const [rows, setRows] = useState<EditorRow[]>([]);
   const [saving, setSaving] = useState(false);
@@ -115,7 +121,7 @@ export const MatchLineupEditor: React.FC<MatchLineupEditorProps> = ({
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-amber-400" />
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-            Team Sheets & Batting Order
+            {isFootball ? 'Team Sheets & Starting Line-up' : 'Team Sheets & Batting Order'}
           </span>
         </div>
         <span className="text-[11px] font-mono text-slate-500">{playingCount} playing</span>
@@ -154,7 +160,7 @@ export const MatchLineupEditor: React.FC<MatchLineupEditorProps> = ({
                   ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
                   : 'bg-slate-900 border-slate-800 text-slate-500'
               }`}
-              title={row.is_playing ? 'Drop from the XI' : 'Add to the XI'}
+              title={row.is_playing ? (isFootball ? 'Move to the bench' : 'Drop from the XI') : (isFootball ? 'Add to the starting line-up' : 'Add to the XI')}
             >
               {row.is_playing ? 'In' : 'Out'}
             </button>
@@ -182,7 +188,7 @@ export const MatchLineupEditor: React.FC<MatchLineupEditorProps> = ({
                   ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300'
                   : 'bg-slate-900 border-slate-800 text-slate-600'
               }`}
-              title="Wicketkeeper"
+              title={keeperLabel}
             >
               <Hand className="w-3.5 h-3.5" />
             </button>
@@ -192,7 +198,7 @@ export const MatchLineupEditor: React.FC<MatchLineupEditorProps> = ({
                 onClick={() => move(index, -1)}
                 disabled={index === 0}
                 className="p-0.5 text-slate-500 hover:text-white disabled:opacity-30"
-                title="Move up the order"
+                title={isFootball ? 'Move up the sheet' : 'Move up the order'}
               >
                 <ChevronUp className="w-3.5 h-3.5" />
               </button>
@@ -200,7 +206,7 @@ export const MatchLineupEditor: React.FC<MatchLineupEditorProps> = ({
                 onClick={() => move(index, 1)}
                 disabled={index === rows.length - 1}
                 className="p-0.5 text-slate-500 hover:text-white disabled:opacity-30"
-                title="Move down the order"
+                title={isFootball ? 'Move down the sheet' : 'Move down the order'}
               >
                 <ChevronDown className="w-3.5 h-3.5" />
               </button>

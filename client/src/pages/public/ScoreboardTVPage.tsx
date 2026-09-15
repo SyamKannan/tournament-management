@@ -2,13 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../../services/api';
 import type {
-  Match, Tournament, Team, Advertisement, Announcement,
+  Match, Tournament, Team, Advertisement, Announcement, FootballMatchState, FootballScorecardSide,
   MatchLineupEntry, ScorecardInnings, ScorecardBattingRow, ScoreboardState,
 } from '../../types';
 import { websocketUrl } from '../../config';
 import { CoinFlip, COIN_FLIP_MS } from '../../components/CoinFlip';
 import { LineupReveal, LINEUP_REVEAL_SECONDS } from '../../components/LineupReveal';
 import { BigScreenScorecard } from '../../components/BigScreenScorecard';
+import { BigScreenFootballCard } from '../../components/BigScreenFootballCard';
+import { firstTeamId, formatClock, periodLabel, tossDecisionPhrase, useFootballClock } from '../../lib/football';
 import {
   Radio, Clock, Maximize2, Minimize2, MapPin, Sparkles, Phone, Globe
 } from 'lucide-react';
@@ -45,7 +47,7 @@ const DISMISSAL_WORDS: Record<string, string> = {
  * when it deserves none — a dot ball and a single are read off the scoreline,
  * and flashing them would make the flash mean nothing.
  */
-const flashFor = (payload: any): ScoreFlash | null => {
+const flashFor = (payload: any, nameOf: (playerId?: string | null) => string | undefined = () => undefined): ScoreFlash | null => {
   const delivery = payload?.delivery;
 
   if (delivery) {
@@ -71,12 +73,24 @@ const flashFor = (payload: any): ScoreFlash | null => {
     }
   }
 
-  switch (payload?.event?.event_type) {
-    case 'goal':
-    case 'penalty_goal': return { label: 'GOAL!', tone: 'emerald', ms: 5000 };
-    case 'own_goal': return { label: 'OWN GOAL', tone: 'amber', ms: 4000 };
-    case 'yellow_card': return { label: 'YELLOW', detail: 'Booking', tone: 'amber', ms: 3200 };
-    case 'red_card': return { label: 'RED CARD', detail: 'Sent off', tone: 'rose', ms: 4500 };
+  const event = payload?.event;
+  const who = nameOf(event?.player_id);
+  const at = (text?: string) => [text, event?.minute != null ? `${event.minute}'` : undefined].filter(Boolean).join(' ') || undefined;
+
+  switch (event?.event_type) {
+    case 'goal': return { label: 'GOAL!', detail: at(who), tone: 'emerald', ms: 5000 };
+    case 'penalty_goal': return { label: 'GOAL!', detail: at(who ? `${who} (pen)` : 'Penalty'), tone: 'emerald', ms: 5000 };
+    case 'own_goal': return { label: 'OWN GOAL', detail: at(who), tone: 'amber', ms: 4000 };
+    case 'penalty_missed': return { label: 'MISSED!', detail: at(who ? `${who} misses the penalty` : 'Penalty missed'), tone: 'rose', ms: 3800 };
+    case 'yellow_card': return { label: 'YELLOW', detail: at(who || 'Booking'), tone: 'amber', ms: 3200 };
+    case 'red_card': return { label: 'RED CARD', detail: at(who ? `${who} is sent off` : 'Sent off'), tone: 'rose', ms: 4500 };
+    case 'substitution': {
+      const on = nameOf(event.sub_in_player_id);
+      const off = nameOf(event.sub_out_player_id);
+      return on || off
+        ? { label: 'SUB', detail: `${on ?? '—'} on, ${off ?? '—'} off`, tone: 'cyan', ms: 3200 }
+        : null;
+    }
     default: return null;
   }
 };
@@ -108,12 +122,18 @@ export const ScoreboardTVPage: React.FC = () => {
     tournament: Tournament;
     team_a: Team & { players?: any[] };
     team_b: Team & { players?: any[] };
-    football_state?: any;
+    football_state?: FootballMatchState | null;
     cricket_state?: any;
     lineups: MatchLineupEntry[];
     scorecard: ScorecardInnings[];
+    football_scorecard?: FootballScorecardSide[] | null;
+    sent_off_player_ids?: string[];
     scoreboard: ScoreboardState;
   } | null>(null);
+
+  // Called before any early return, like every hook. Ticks only while the
+  // football clock runs; a cricket match never starts it.
+  const footballClock = useFootballClock(data?.football_state);
 
   const [loading, setLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -207,12 +227,15 @@ export const ScoreboardTVPage: React.FC = () => {
     const deliveries = res.cricket_state?.deliveries || [];
     const events = res.football_state?.events || [];
     const seen = lastSeenPlayRef.current;
+    const players = [...(res.team_a?.players || []), ...(res.team_b?.players || [])];
+    const nameOf = (playerId?: string | null) =>
+      playerId ? players.find((player: any) => player.id === playerId)?.full_name : undefined;
 
     if (seen) {
       if (deliveries.length === seen.deliveries + 1) {
         showFlash(flashFor({ delivery: deliveries[deliveries.length - 1] }));
       } else if (events.length === seen.events + 1) {
-        showFlash(flashFor({ event: events[events.length - 1] }));
+        showFlash(flashFor({ event: events[events.length - 1] }, nameOf));
       }
     }
 
@@ -407,13 +430,28 @@ export const ScoreboardTVPage: React.FC = () => {
     return Math.floor((Date.now() - anchor) / (seconds * 1000)) + 1;
   })();
 
-  const teamAGoals = football_state?.events?.filter((e: any) => e.team_id === team_a.id && e.event_type === 'goal') || [];
-  const teamBGoals = football_state?.events?.filter((e: any) => e.team_id === team_b.id && e.event_type === 'goal') || [];
+  // Goals under the side they counted for: an own goal is scored by one team's
+  // player and credited to the other, and a penalty is as much a goal as any.
+  const footballEvents = football_state?.events || [];
+  const goalsFor = (teamId: string) => footballEvents.filter(event =>
+    ((event.event_type === 'goal' || event.event_type === 'penalty_goal') && event.team_id === teamId) ||
+    (event.event_type === 'own_goal' && event.team_id !== teamId));
+  const teamAGoals = goalsFor(team_a.id);
+  const teamBGoals = goalsFor(team_b.id);
 
-  const getPlayerName = (team: any, playerId: string) => {
-    const player = team?.players?.find((p: any) => p.id === playerId);
+  const sentOff = data.sent_off_player_ids || [];
+  const redCardsFor = (teamId: string) => {
+    const squad = new Set(((teamId === team_a.id ? team_a : team_b).players || []).map((player: any) => player.id));
+    return sentOff.filter(playerId => squad.has(playerId)).length;
+  };
+
+  const getPlayerName = (playerId?: string | null) => {
+    if (!playerId) return 'Player';
+    const player = [...(team_a.players || []), ...(team_b.players || [])].find((p: any) => p.id === playerId);
     return player ? player.full_name : 'Player';
   };
+
+  const goalTag = (type: string) => (type === 'penalty_goal' ? ' (pen)' : type === 'own_goal' ? ' (OG)' : '');
 
   // Cricket: everything below is derived from real state — the innings in
   // progress decides which side's tally is on show, and who's at the crease.
@@ -562,11 +600,26 @@ export const ScoreboardTVPage: React.FC = () => {
               lineups={lineups}
               teamA={team_a}
               teamB={team_b}
-              battingFirstTeamId={match.batting_first_team_id}
+              firstTeamId={firstTeamId(match)}
+              sport={match.sport_code}
               revealed={revealedPlayers}
             />
           </div>
-        ) : stage === 'scorecard' && !isFootball ? (
+        ) : stage === 'scorecard' && isFootball ? (
+          /* ===================================================================
+           * FOOTBALL MATCH CARD — scorers, bookings and changes for both sides,
+           * at half time and full time.
+           * =================================================================== */
+          <div className="flex-1 min-h-0">
+            <BigScreenFootballCard
+              match={match}
+              teamA={team_a}
+              teamB={team_b}
+              card={data.football_scorecard || []}
+              footballState={football_state}
+            />
+          </div>
+        ) : stage === 'scorecard' ? (
           /* ===================================================================
            * FULL SCORECARD — every batter and bowler, between innings and at
            * full time. The server switches to this on its own when an innings
@@ -623,11 +676,21 @@ export const ScoreboardTVPage: React.FC = () => {
                   <span className="text-amber-400"> won the toss</span>
                 </h2>
                 {match.toss_decision ? (
-                  <p className="tv-team font-bold text-slate-300">
-                    Elected to <span className="text-white uppercase">{match.toss_decision}</span> first
-                  </p>
+                  <>
+                    <p className="tv-team font-bold text-slate-300">
+                      Elected to <span className="text-white uppercase">{tossDecisionPhrase(match.toss_decision)}</span>
+                      {!isFootball && ' first'}
+                    </p>
+                    {isFootball && match.kick_off_team_id && (
+                      <p className="tv-sub font-black text-emerald-400">
+                        {match.kick_off_team_id === team_a.id ? team_a.name : team_b.name} kick off
+                      </p>
+                    )}
+                  </>
                 ) : (
-                  <p className="tv-sub text-slate-400 animate-pulse-subtle">Deciding whether to bat or bowl…</p>
+                  <p className="tv-sub text-slate-400 animate-pulse-subtle">
+                    {isFootball ? 'Choosing the kick-off or an end…' : 'Deciding whether to bat or bowl…'}
+                  </p>
                 )}
               </div>
             ) : (
@@ -643,13 +706,17 @@ export const ScoreboardTVPage: React.FC = () => {
               <div className="flex justify-center mb-6">
                 <div className="inline-flex items-center gap-3 px-5 py-2 rounded-full bg-slate-950 border border-slate-800 shadow-inner">
                   <span className="flex items-center gap-1.5 tv-label font-bold text-emerald-400 uppercase">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>{football_state?.current_half === '1' ? '1st Half' : football_state?.current_half === '2' ? '2nd Half' : 'Extra Time'}</span>
+                    <span className={`w-2 h-2 rounded-full ${football_state?.is_timer_running ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} />
+                    <span>{match.status === 'completed' ? 'Full Time' : periodLabel(football_state?.current_half)}</span>
                   </span>
-                  <span className="w-1 h-3 bg-slate-800" />
-                  <span className="font-mono tv-sub font-black text-white tracking-wider">
-                    {football_state?.match_minute ?? 0}:00
-                  </span>
+                  {football_state?.current_half !== 'penalties' && (
+                    <>
+                      <span className="w-1 h-3 bg-slate-800" />
+                      <span className="font-mono tv-sub font-black text-white tracking-wider">
+                        {formatClock(footballClock)}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -662,13 +729,16 @@ export const ScoreboardTVPage: React.FC = () => {
                     />
                     <span className="tv-label font-bold uppercase text-slate-400">{team_a.village || 'Home'}</span>
                   </div>
-                  <h2 className="tv-team font-black font-heading text-white tracking-tight">{team_a.name}</h2>
+                  <h2 className="tv-team font-black font-heading text-white tracking-tight">
+                    {team_a.name}
+                    <RedCards count={redCardsFor(team_a.id)} />
+                  </h2>
 
                   <div className="mt-2 flex flex-wrap gap-1.5 justify-end">
-                    {teamAGoals.slice(-5).map((g: any) => (
+                    {teamAGoals.slice(-5).map(g => (
                       <span key={g.id} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-slate-950/80 border border-slate-800 tv-label text-emerald-400 font-mono">
                         <span>⚽</span>
-                        <span>{getPlayerName(team_a, g.player_id)}</span>
+                        <span>{getPlayerName(g.player_id)}{goalTag(g.event_type)}</span>
                         <span className="text-slate-500">{g.minute}'</span>
                       </span>
                     ))}
@@ -693,13 +763,16 @@ export const ScoreboardTVPage: React.FC = () => {
                       style={{ backgroundColor: team_b.jersey_color || '#10B981' }}
                     />
                   </div>
-                  <h2 className="tv-team font-black font-heading text-white tracking-tight">{team_b.name}</h2>
+                  <h2 className="tv-team font-black font-heading text-white tracking-tight">
+                    {team_b.name}
+                    <RedCards count={redCardsFor(team_b.id)} />
+                  </h2>
 
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    {teamBGoals.slice(-5).map((g: any) => (
+                    {teamBGoals.slice(-5).map(g => (
                       <span key={g.id} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-slate-950/80 border border-slate-800 tv-label text-emerald-400 font-mono">
                         <span>⚽</span>
-                        <span>{getPlayerName(team_b, g.player_id)}</span>
+                        <span>{getPlayerName(g.player_id)}{goalTag(g.event_type)}</span>
                         <span className="text-slate-500">{g.minute}'</span>
                       </span>
                     ))}
@@ -839,6 +912,16 @@ export const ScoreboardTVPage: React.FC = () => {
     </div>
   );
 };
+
+/** A red card per player a side has had sent off, beside its name. */
+const RedCards: React.FC<{ count: number }> = ({ count }) =>
+  count > 0 ? (
+    <span className="inline-flex gap-1 ml-3 align-middle" aria-label={`${count} sent off`}>
+      {Array.from({ length: count }, (_, index) => (
+        <span key={index} className="inline-block w-[0.45em] h-[0.65em] rounded-[0.08em] bg-rose-600" />
+      ))}
+    </span>
+  ) : null;
 
 /**
  * One batter at the crease: their name, then the only figures worth reading

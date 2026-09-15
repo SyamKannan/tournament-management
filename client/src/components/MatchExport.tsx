@@ -4,8 +4,9 @@ import autoTable from 'jspdf-autotable';
 import { FileText, Download } from 'lucide-react';
 import { useToast } from './ui/Toast';
 import type {
-  Match, Team, Player, CricketMatchState, FootballMatchState, ScorecardInnings,
+  Match, Team, Player, CricketMatchState, FootballMatchState, FootballScorecardSide, ScorecardInnings,
 } from '../types';
+import { FOOTBALL_EVENT_LABELS, tossDecisionPhrase } from '../lib/football';
 
 interface MatchExportProps {
   match: Match;
@@ -15,6 +16,7 @@ interface MatchExportProps {
   cricketState?: CricketMatchState;
   footballState?: FootballMatchState;
   scorecard?: ScorecardInnings[];
+  footballScorecard?: FootballScorecardSide[] | null;
 }
 
 /**
@@ -35,6 +37,7 @@ export const MatchExport: React.FC<MatchExportProps> = ({
   cricketState,
   footballState,
   scorecard = [],
+  footballScorecard,
 }) => {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -69,14 +72,22 @@ export const MatchExport: React.FC<MatchExportProps> = ({
     const rows: string[][] = [];
 
     if (isFootball) {
-      rows.push(['Minute', 'Team', 'Event', 'Player', 'Assist']);
+      rows.push(['Minute', 'Team', 'Event', 'Player', 'Assist', 'Player On', 'Player Off', 'Counts For']);
       (footballState?.events || []).forEach(event => {
+        // An own goal is logged against the scorer's side but counts for the other.
+        const countsFor = event.event_type === 'own_goal'
+          ? teamName(event.team_id === teamA.id ? teamB.id : teamA.id)
+          : ['goal', 'penalty_goal'].includes(event.event_type) ? teamName(event.team_id) : '';
+
         rows.push([
           String(event.minute),
           teamName(event.team_id),
           event.event_type,
-          playerName(event.player_id),
+          event.event_type === 'substitution' ? '' : playerName(event.player_id),
           playerName(event.assist_player_id),
+          playerName(event.sub_in_player_id),
+          playerName(event.sub_out_player_id),
+          countsFor,
         ]);
       });
     } else {
@@ -155,8 +166,11 @@ export const MatchExport: React.FC<MatchExportProps> = ({
       if (match.toss_winner_team_id) {
         summary.push([
           'Toss',
-          `${teamName(match.toss_winner_team_id)} won and chose to ${match.toss_decision || '—'}`,
+          `${teamName(match.toss_winner_team_id)} won and chose to ${tossDecisionPhrase(match.toss_decision)}`,
         ]);
+      }
+      if (isFootball) {
+        summary.push(['Score', `${teamA.name} ${footballState?.team_a_score ?? 0} - ${footballState?.team_b_score ?? 0} ${teamB.name}`]);
       }
       if (match.result_summary) summary.push(['Result', match.result_summary]);
       if (match.man_of_the_match_player_id) {
@@ -173,6 +187,7 @@ export const MatchExport: React.FC<MatchExportProps> = ({
       });
 
       if (isFootball) {
+        appendFootballCard(doc, footballScorecard, teamName);
         appendFootball(doc, footballState, teamName, playerName);
       } else {
         appendCricket(doc, scorecard, teamName);
@@ -274,7 +289,44 @@ const appendCricket = (
   });
 };
 
-/** The goal and card timeline. */
+/** Each side's scorers, bookings and changes — the card the big screen shows. */
+const appendFootballCard = (
+  doc: jsPDF,
+  card: FootballScorecardSide[] | null | undefined,
+  teamName: (id?: string | null) => string,
+) => {
+  (card || []).forEach(side => {
+    const goals = side.goals.map(goal => [
+      `${goal.minute}'`,
+      `${goal.name || 'Unnamed'}${goal.type === 'penalty_goal' ? ' (pen)' : goal.type === 'own_goal' ? ' (OG)' : ''}`,
+      goal.assist_name ? `Assist: ${goal.assist_name}` : '',
+    ]);
+    const bookings = side.cards.map(booking => [
+      `${booking.minute}'`,
+      booking.name || 'Unnamed',
+      booking.type === 'red_card' ? 'Red card' : 'Yellow card',
+    ]);
+    const changes = side.substitutions.map(sub => [
+      `${sub.minute}'`,
+      `${sub.in_name || '—'} on`,
+      `${sub.out_name || '—'} off`,
+    ]);
+
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 8,
+      head: [[`${teamName(side.team_id)} — ${side.score}`, '', '']],
+      body: [...goals, ...bookings, ...changes].length > 0
+        ? [...goals, ...bookings, ...changes]
+        : [['—', 'Nothing recorded', '']],
+      theme: 'striped',
+      headStyles: { fillColor: [4, 120, 87], textColor: [255, 255, 255] },
+      columnStyles: { 0: { cellWidth: 18 } },
+      styles: { fontSize: 8 },
+    });
+  });
+};
+
+/** The full event timeline, in order. */
 const appendFootball = (
   doc: jsPDF,
   state: FootballMatchState | undefined,
@@ -285,14 +337,18 @@ const appendFootball = (
 
   autoTable(doc, {
     startY: (doc as any).lastAutoTable.finalY + 10,
-    head: [['Min', 'Team', 'Event', 'Player', 'Assist']],
+    head: [['Min', 'Team', 'Event', 'Player', 'Detail']],
     body: events.length > 0
       ? events.map(event => [
         `${event.minute}'`,
         teamName(event.team_id),
-        event.event_type.replace(/_/g, ' '),
-        playerName(event.player_id),
-        playerName(event.assist_player_id),
+        FOOTBALL_EVENT_LABELS[event.event_type] ?? event.event_type.replace(/_/g, ' '),
+        event.event_type === 'substitution'
+          ? `${playerName(event.sub_in_player_id)} on`
+          : playerName(event.player_id),
+        event.event_type === 'substitution'
+          ? `${playerName(event.sub_out_player_id)} off`
+          : event.assist_player_id ? `Assist: ${playerName(event.assist_player_id)}` : '',
       ])
       : [['—', '—', 'No events recorded', '—', '—']],
     theme: 'striped',

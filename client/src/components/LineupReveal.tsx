@@ -1,5 +1,5 @@
 import React from 'react';
-import type { MatchLineupEntry, Team } from '../types';
+import type { MatchLineupEntry, SportCode, Team } from '../types';
 import { Shield, Star, Hand } from 'lucide-react';
 import { PlayerAvatar } from './PlayerAvatar';
 
@@ -11,18 +11,20 @@ import { PlayerAvatar } from './PlayerAvatar';
 export const LINEUP_REVEAL_SECONDS = 3;
 
 interface LineupRevealProps {
-  /** Already in reveal order — the side batting first leads. */
+  /** Already in reveal order — the side batting first or kicking off leads. */
   lineups: MatchLineupEntry[];
   teamA: Team;
   teamB: Team;
-  battingFirstTeamId?: string | null;
+  /** Cricket: the side batting first. Football: the side kicking off. */
+  firstTeamId?: string | null;
+  sport: SportCode;
   /** How many players have been announced so far. */
   revealed: number;
 }
 
 /**
  * The post-toss walk-out: both squads announced onto the big screen a player
- * at a time, the side batting first leading.
+ * at a time, the side batting first (or kicking off) leading.
  *
  * Presentational only. How far the reveal has got is decided by the organizer
  * through the scoreboard stage and passed in as `revealed`, so every display
@@ -33,9 +35,11 @@ export const LineupReveal: React.FC<LineupRevealProps> = ({
   lineups,
   teamA,
   teamB,
-  battingFirstTeamId,
+  firstTeamId,
+  sport,
   revealed,
 }) => {
+  const isFootball = sport === 'football';
   const playing = lineups.filter((row) => row.is_playing);
 
   if (playing.length === 0) {
@@ -51,7 +55,11 @@ export const LineupReveal: React.FC<LineupRevealProps> = ({
   const current = playing[index];
   const teamOf = (teamId: string) => (teamId === teamA.id ? teamA : teamB);
   const team = teamOf(current.team_id);
-  const isBattingFirst = current.team_id === (battingFirstTeamId || teamA.id);
+  const isFirst = current.team_id === (firstTeamId || teamA.id);
+  // Before a football toss nobody has been given the kick-off, so no badge.
+  const sideBadge = isFootball
+    ? (firstTeamId && isFirst ? 'Kicking Off' : null)
+    : (isFirst ? 'Batting First' : 'Bowling First');
 
   // Only this player's own side, and only those already announced.
   const announced = playing
@@ -83,15 +91,17 @@ export const LineupReveal: React.FC<LineupRevealProps> = ({
           </div>
         </div>
 
-        <span
-          className={`px-3 py-1.5 rounded-full tv-label font-black uppercase border ${
-            isBattingFirst
-              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-              : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-          }`}
-        >
-          {isBattingFirst ? 'Batting First' : 'Bowling First'}
-        </span>
+        {sideBadge && (
+          <span
+            className={`px-3 py-1.5 rounded-full tv-label font-black uppercase border ${
+              isFirst
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+            }`}
+          >
+            {sideBadge}
+          </span>
+        )}
       </div>
 
       {/* The player currently being announced. Keyed on the player so each one
@@ -145,7 +155,7 @@ export const LineupReveal: React.FC<LineupRevealProps> = ({
             {current.is_wicketkeeper && (
               <span className="px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-500/40 tv-label font-black text-cyan-300 uppercase flex items-center gap-1.5">
                 <Hand className="w-3.5 h-3.5" />
-                Wicketkeeper
+                {isFootball ? 'Goalkeeper' : 'Wicketkeeper'}
               </span>
             )}
           </div>

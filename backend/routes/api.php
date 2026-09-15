@@ -163,17 +163,25 @@ Route::prefix('matches')->group(function () {
     Route::get('{id}/lineup', [LineupController::class, 'show']);
 
     Route::middleware('auth.required')->group(function () {
-        Route::put('{id}', [MatchController::class, 'update']);
+        // Status and result — the organizer's or the scorer's, like scoring.
+        Route::put('{id}', [MatchController::class, 'update'])->middleware('role:ORG_ADMIN,SCORER,SUPER_ADMIN');
         Route::post('{id}/cancel', [MatchController::class, 'cancel'])->middleware('role:ORG_ADMIN,SUPER_ADMIN');
-
-        Route::post('{id}/football/event', [MatchController::class, 'recordFootballEvent']);
-        Route::post('{id}/football/timer', [MatchController::class, 'controlFootballTimer']);
-        Route::post('{id}/football/undo', [MatchController::class, 'undoFootballEvent']);
 
         // Same role list as poster generation below — the organizer, the
         // on-ground scorer, or a super admin; not a team manager, who only
-        // manages their own team's roster.
+        // manages their own team's roster. Scoring sits in here too: it used
+        // to need nothing more than a login, so a player or a manager could
+        // change any match's score. The controller adds the tenant check.
         Route::middleware('role:ORG_ADMIN,SCORER,SUPER_ADMIN')->group(function () {
+            Route::post('{id}/football/event', [MatchController::class, 'recordFootballEvent']);
+            Route::post('{id}/football/timer', [MatchController::class, 'controlFootballTimer']);
+            Route::post('{id}/football/undo', [MatchController::class, 'undoFootballEvent']);
+
+            Route::post('{id}/cricket/ball', [MatchController::class, 'recordCricketBall']);
+            Route::post('{id}/cricket/undo', [MatchController::class, 'undoCricketBall']);
+            Route::post('{id}/cricket/switch-innings', [MatchController::class, 'switchInnings']);
+            Route::post('{id}/cricket/finish', [MatchController::class, 'finishCricketMatch']);
+
             Route::post('{id}/toss/call', [TossController::class, 'call']);
             Route::post('{id}/toss/decision', [TossController::class, 'decision']);
             Route::post('{id}/toss/manual', [TossController::class, 'manual']);
@@ -184,11 +192,6 @@ Route::prefix('matches')->group(function () {
             Route::put('{id}/lineup', [LineupController::class, 'update']);
             Route::post('{id}/scoreboard/stage', [MatchController::class, 'setScoreboardStage']);
         });
-
-        Route::post('{id}/cricket/ball', [MatchController::class, 'recordCricketBall']);
-        Route::post('{id}/cricket/undo', [MatchController::class, 'undoCricketBall']);
-        Route::post('{id}/cricket/switch-innings', [MatchController::class, 'switchInnings']);
-        Route::post('{id}/cricket/finish', [MatchController::class, 'finishCricketMatch']);
     });
 });
 
@@ -277,15 +280,6 @@ Route::prefix('sponsors')->group(function () {
 /* ------------------------------------------------------------------- Media Uploads */
 
 Route::post('upload', [UploadController::class, 'upload'])->middleware('throttle:60,1');
-
-/* ------------------------------------------------------------- Organizations */
-
-Route::prefix('organizations')->group(function () {
-    Route::get('{slug}/public', [OrganizationController::class, 'publicProfile']);
-    Route::get('{id}', [OrganizationController::class, 'show']);
-    Route::put('{id}', [OrganizationController::class, 'update'])->middleware('auth.required');
-    Route::get('{id}/usage', [OrganizationController::class, 'usage'])->middleware('auth.required');
-});
 
 /* ------------------------------------------------------------------- Players */
 

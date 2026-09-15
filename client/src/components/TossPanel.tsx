@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { api } from '../services/api';
 import { useToast } from './ui/Toast';
-import type { Match, Team, TossResult } from '../types';
+import type { Match, Team, TossDecision, TossResult } from '../types';
 import { CoinFlip, COIN_FLIP_MS } from './CoinFlip';
+import { TOSS_DECISIONS, tossDecisionPhrase } from '../lib/football';
 
 interface TossPanelProps {
   match: Match;
@@ -18,16 +19,21 @@ interface TossPanelProps {
  * face the coin showed) or digital (the server flips at random and the away
  * side calls it). Locked out once the toss decision is in, matching the
  * server-side gate that gates cricket scoring on it.
+ *
+ * The winner's choice follows the sport: bat or bowl in cricket, the kick-off
+ * or an end in football.
  */
 export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpdated }) => {
   const toast = useToast();
+  const decisions = TOSS_DECISIONS[match.sport_code] ?? TOSS_DECISIONS.cricket;
+  const isFootball = match.sport_code === 'football';
   // Manual first: most grounds toss a real coin and the scorer records what it
   // showed. The digital flip is the alternative, not the default.
   const [mode, setMode] = useState<'digital' | 'manual'>('manual');
   const [callerTeamId, setCallerTeamId] = useState(teamB.id);
   const [call, setCall] = useState<'heads' | 'tails'>('heads');
   const [manualWinnerId, setManualWinnerId] = useState(teamA.id);
-  const [manualDecision, setManualDecision] = useState<'bat' | 'bowl'>('bat');
+  const [manualDecision, setManualDecision] = useState<TossDecision>(decisions[0].value);
   const [manualResult, setManualResult] = useState<'' | 'heads' | 'tails'>('');
   const [isFlipping, setIsFlipping] = useState(false);
   const [flipResult, setFlipResult] = useState<'heads' | 'tails' | null>(null);
@@ -61,7 +67,7 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
     }
   };
 
-  const handleDecision = async (decision: 'bat' | 'bowl') => {
+  const handleDecision = async (decision: TossDecision) => {
     if (submitting) return;
     setSubmitting(true);
     try {
@@ -128,8 +134,11 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
         </div>
         <p className="text-white font-bold">
           <span className="text-amber-400">{teamName(match.toss_winner_team_id)}</span> won the toss and chose to{' '}
-          <span className="uppercase">{match.toss_decision}</span>.
+          <span className="uppercase">{tossDecisionPhrase(match.toss_decision)}</span>.
         </p>
+        {isFootball && match.kick_off_team_id && (
+          <p className="text-xs font-bold text-emerald-300">{teamName(match.kick_off_team_id)} kick off.</p>
+        )}
         <p className="text-xs text-slate-400">
           {match.toss_method === 'digital'
             ? `Decided by a random digital coin flip${match.toss_result ? ` — it landed ${match.toss_result}` : ''}.`
@@ -139,7 +148,7 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
     );
   }
 
-  // Coin called, winner known — waiting on their bat/bowl decision.
+  // Coin called, winner known — waiting on their decision.
   if (match.toss_winner_team_id) {
     return (
       <div className="p-6 rounded-3xl glass-panel border border-slate-800 space-y-4">
@@ -166,21 +175,21 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
           {match.toss_method === 'manual' && (
             <p className="text-[11px] text-slate-500">Recorded by the scorer, not flipped by the server.</p>
           )}
-          <div className="flex items-center justify-center gap-2">
-            <button
-              onClick={() => handleDecision('bat')}
-              disabled={submitting}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs shadow-md shadow-emerald-600/20"
-            >
-              Elects to BAT
-            </button>
-            <button
-              onClick={() => handleDecision('bowl')}
-              disabled={submitting}
-              className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-bold text-xs shadow-md shadow-cyan-600/20"
-            >
-              Elects to BOWL
-            </button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {decisions.map(({ value, label }, index) => (
+              <button
+                key={value}
+                onClick={() => handleDecision(value)}
+                disabled={submitting}
+                className={`px-4 py-2 rounded-xl disabled:opacity-50 text-white font-bold text-xs shadow-md uppercase ${
+                  index === 0
+                    ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
+                    : 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-600/20'
+                }`}
+              >
+                Elects to {label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -193,7 +202,9 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
       <div className="flex items-center justify-between">
         <div>
           <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Coin Toss</span>
-          <h3 className="text-lg font-bold text-white font-heading">Decide Who Bats First</h3>
+          <h3 className="text-lg font-bold text-white font-heading">
+            {isFootball ? 'Decide Kick-off & Ends' : 'Decide Who Bats First'}
+          </h3>
         </div>
         <div className="flex rounded-xl bg-slate-900 border border-slate-800 p-1 text-xs font-bold">
           <button
@@ -283,11 +294,12 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
               <label className="block text-slate-400 mb-1 font-semibold">Their Decision</label>
               <select
                 value={manualDecision}
-                onChange={(e) => setManualDecision(e.target.value as 'bat' | 'bowl')}
-                className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-white capitalize"
+                onChange={(e) => setManualDecision(e.target.value as TossDecision)}
+                className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-white"
               >
-                <option value="bat">Bat</option>
-                <option value="bowl">Bowl</option>
+                {decisions.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
               </select>
             </div>
           </div>

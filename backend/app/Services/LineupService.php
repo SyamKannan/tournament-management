@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\GameMatch;
 use App\Models\MatchLineup;
 use App\Models\Player;
+use App\Models\Tournament;
 use App\Support\Ids;
 use Illuminate\Support\Facades\DB;
 
@@ -23,8 +24,7 @@ use Illuminate\Support\Facades\DB;
 class LineupService
 {
     /**
-     * Default team-sheet size when the organizer hasn't picked one — eleven
-     * for both supported sports.
+     * Default team-sheet size when the tournament doesn't say otherwise.
      */
     private const DEFAULT_PLAYING_COUNT = 11;
 
@@ -47,6 +47,7 @@ class LineupService
             ->groupBy('team_id');
 
         $rows = [];
+        $playingCount = $this->defaultPlayingCount($match);
 
         foreach ($this->revealTeamOrder($match) as $teamId) {
             $teamPlayers = $players->get($teamId) ?? collect();
@@ -56,11 +57,29 @@ class LineupService
                 $rows,
                 $teamSaved && $teamSaved->isNotEmpty()
                     ? $this->savedRows($teamSaved, $teamPlayers)
-                    : $this->defaultRows($match->id, $teamId, $teamPlayers),
+                    : $this->defaultRows($match->id, $teamId, $teamPlayers, $playingCount),
             );
         }
 
         return $rows;
+    }
+
+    /**
+     * How many start by default: the number in a football tournament's format
+     * ("7-a-side" → 7), eleven otherwise. A sevens side defaulted to eleven
+     * starters had four bench players marked as on the pitch.
+     */
+    private function defaultPlayingCount(GameMatch $match): int
+    {
+        if ($match->sport_code !== 'football') {
+            return self::DEFAULT_PLAYING_COUNT;
+        }
+
+        $format = (string) (Tournament::find($match->tournament_id)?->settings['football_format'] ?? '');
+
+        return preg_match('/^(\d+)\s*-?\s*a\s*-?\s*side/i', $format, $found) && (int) $found[1] > 0
+            ? (int) $found[1]
+            : self::DEFAULT_PLAYING_COUNT;
     }
 
     /**
@@ -126,14 +145,15 @@ class LineupService
     }
 
     /**
-     * Team A and B ordered for the reveal — whoever bats first leads it, so the
-     * squad walk-out follows the toss. Falls back to team A pre-toss.
+     * Team A and B ordered for the reveal — whoever bats first (cricket) or
+     * kicks off (football) leads it, so the squad walk-out follows the toss.
+     * Falls back to team A pre-toss.
      *
      * @return array<int, string>
      */
     private function revealTeamOrder(GameMatch $match): array
     {
-        $first = $match->batting_first_team_id ?: $match->team_a_id;
+        $first = $match->batting_first_team_id ?: ($match->kick_off_team_id ?: $match->team_a_id);
 
         return $first === $match->team_b_id
             ? [$match->team_b_id, $match->team_a_id]
@@ -165,13 +185,13 @@ class LineupService
 
     /**
      * The sheet an organizer gets without picking one: squad order by jersey
-     * number, the first eleven playing, captain and keeper carried over from
-     * the player records.
+     * number, the first `$playingCount` playing, captain and keeper carried
+     * over from the player records.
      *
      * @param  \Illuminate\Support\Collection<int, Player>  $players
      * @return array<int, array<string, mixed>>
      */
-    private function defaultRows(string $matchId, string $teamId, $players): array
+    private function defaultRows(string $matchId, string $teamId, $players, int $playingCount): array
     {
         return $players
             ->sortBy([['jersey_number', 'asc'], ['full_name', 'asc']])
@@ -182,7 +202,7 @@ class LineupService
                 'team_id' => $teamId,
                 'player_id' => $player->id,
                 'batting_order' => $index + 1,
-                'is_playing' => $index < self::DEFAULT_PLAYING_COUNT,
+                'is_playing' => $index < $playingCount,
                 'is_captain' => (bool) $player->is_captain,
                 'is_wicketkeeper' => (bool) $player->is_wicketkeeper,
                 'player' => $player->toArray(),

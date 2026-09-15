@@ -153,10 +153,10 @@ export const OrgTeamsPage: React.FC = () => {
       </Link>
 
       {/* Top Header Card — anchors the page to the specific tournament */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-slate-800 shadow-2xl relative">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+      <div className="p-4 sm:p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-slate-800 shadow-2xl relative">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 sm:gap-6">
           <div className="flex items-start gap-4 min-w-0 w-full lg:w-auto">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 p-0.5 shadow-lg shadow-emerald-500/20 flex items-center justify-center shrink-0">
+            <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 p-0.5 shadow-lg shadow-emerald-500/20 items-center justify-center shrink-0">
               <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
                 <Users className="w-7 h-7 text-emerald-400" />
               </div>
@@ -190,14 +190,14 @@ export const OrgTeamsPage: React.FC = () => {
                 )}
               </div>
 
-              <h1 className="text-2xl sm:text-3xl font-black font-heading text-white tracking-tight truncate">
+              <h1 className="text-xl sm:text-3xl font-black font-heading text-white tracking-tight leading-tight sm:truncate">
                 {activeTournament ? activeTournament.name : 'Teams & Ground Fee Payments'}
               </h1>
-              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+              <p className="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                 {activeTournament && (activeTournament.village || activeTournament.district) && (
                   <>
                     <MapPin className="w-3 h-3 text-slate-500 shrink-0" />
-                    <span className="truncate">{activeTournament.village}{activeTournament.village && activeTournament.district ? ', ' : ''}{activeTournament.district}</span>
+                    <span className="sm:truncate">{activeTournament.village}{activeTournament.village && activeTournament.district ? ', ' : ''}{activeTournament.district}</span>
                     <span className="text-slate-700">•</span>
                   </>
                 )}
@@ -224,7 +224,7 @@ export const OrgTeamsPage: React.FC = () => {
       ) : (
       <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
         <div className="overflow-x-auto min-w-0">
-          <table className="w-full min-w-[720px] text-xs text-left">
+          <table className="responsive-table w-full min-w-[720px] text-xs text-left">
             <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
               <tr>
                 <th className="px-5 py-3.5">Team Name</th>
@@ -245,7 +245,7 @@ export const OrgTeamsPage: React.FC = () => {
 
                 return (
                   <tr key={team.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="px-5 py-4">
+                    <td className="rt-full px-5 py-4">
                       <div className="flex items-center gap-3">
                         <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: team.jersey_color }} />
                         <div>
@@ -255,7 +255,7 @@ export const OrgTeamsPage: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="px-4 py-4">
+                    <td data-label="Manager" className="px-4 py-4">
                       <div className="font-medium text-white">{team.manager_name}</div>
                       <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
                         <Phone className="w-3 h-3 text-slate-500" />
@@ -263,7 +263,7 @@ export const OrgTeamsPage: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="px-4 py-4 text-center">
+                    <td data-label="Squad" className="px-4 py-4 text-center">
                       <button
                         onClick={() => setRosterTeam(team)}
                         className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[11px] font-semibold transition-colors"
@@ -272,7 +272,7 @@ export const OrgTeamsPage: React.FC = () => {
                       </button>
                     </td>
 
-                    <td className="px-4 py-4 font-mono font-bold text-emerald-400">
+                    <td data-label="Fee Paid" className="px-4 py-4 font-mono font-bold text-emerald-400">
                       ₹{paidAmount.toLocaleString()}
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className={`px-1.5 py-px rounded text-[10px] font-bold uppercase ${
@@ -287,11 +287,11 @@ export const OrgTeamsPage: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="px-4 py-4">
+                    <td data-label="Balance" className="px-4 py-4">
                       {remaining > 0 ? (
                         <div>
                           <span className="font-mono font-bold text-amber-400">₹{remaining.toLocaleString()}</span>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
                             <button
                               onClick={() => handleMarkPaid(team)}
                               className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-[11px] font-bold"
@@ -311,7 +311,7 @@ export const OrgTeamsPage: React.FC = () => {
                       )}
                     </td>
 
-                    <td className="px-4 py-4 text-center">
+                    <td data-label="Approval" className="px-4 py-4 text-center">
                       <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase ${
                         team.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400' :
                         team.status === 'pending' ? 'bg-amber-500/20 text-amber-400' : 'bg-rose-500/20 text-rose-400'
@@ -320,8 +320,8 @@ export const OrgTeamsPage: React.FC = () => {
                       </span>
                     </td>
 
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="rt-full px-5 py-4 text-right">
+                      <div className="flex items-center justify-start md:justify-end gap-1.5">
                         {team.status === 'pending' && (
                           <>
                             <button

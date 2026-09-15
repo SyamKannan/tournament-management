@@ -13,6 +13,7 @@ use App\Services\Poster\ArtDirectorService;
 use App\Services\Poster\BackgroundService;
 use App\Services\Poster\PaletteService;
 use App\Services\RealtimeBroadcaster;
+use App\Services\TossService;
 use App\Support\Ids;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -172,7 +173,7 @@ class GeneratePoster implements ShouldQueue
 
         if ($this->posterType === 'toss') {
             $data['toss_winner'] = $match->toss_winner_team_id ? Team::find($match->toss_winner_team_id)?->name : null;
-            $data['toss_decision'] = $match->toss_decision;
+            $data['toss_decision'] = TossService::decisionPhrase($match->toss_decision);
         }
 
         if (in_array($this->posterType, ['result', 'player_of_match'], true)) {
@@ -259,7 +260,7 @@ class GeneratePoster implements ShouldQueue
             return [
                 ...$common,
                 'winnerTeam' => $this->teamArray($winnerTeamModel) ?: $teamA,
-                'decision' => $match?->toss_decision ?: 'bat',
+                'decision' => TossService::decisionPhrase($match?->toss_decision),
             ];
         }
 
@@ -322,7 +323,7 @@ class GeneratePoster implements ShouldQueue
             'matchday' => ["{$teamA} vs {$teamB}", $match?->round_name ?: $tournament->name, 'split_vs'],
             'toss' => [
                 (Team::find($match?->toss_winner_team_id)?->name ?: $teamA).' Win The Toss',
-                'Elect to '.ucfirst($match?->toss_decision ?: 'bat'),
+                'Elect to '.ucwords(TossService::decisionPhrase($match?->toss_decision)),
                 'centered',
             ],
             'result' => [

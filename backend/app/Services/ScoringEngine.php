@@ -7,6 +7,7 @@ use App\Models\CricketMatchState;
 use App\Models\FootballEvent;
 use App\Models\FootballMatchState;
 use App\Models\GameMatch;
+use App\Models\Player;
 use App\Models\PlayerStat;
 use App\Models\Standing;
 use App\Models\Team;
@@ -31,6 +32,12 @@ class ScoringEngine
      | Football
      * -------------------------------------------------------------------*/
 
+    /** Event types that put the ball in the net, and so need a scorer on the pitch. */
+    private const FOOTBALL_SCORING_EVENTS = ['goal', 'penalty_goal'];
+
+    /** Periods the clock runs in, in the order a match moves through them. */
+    public const FOOTBALL_PERIODS = ['1', '2', 'extra_1', 'extra_2', 'penalties'];
+
     public function footballState(string $matchId): FootballMatchState
     {
         $state = FootballMatchState::query()->where('match_id', $matchId)->first();
@@ -43,6 +50,7 @@ class ScoringEngine
                 'team_b_score' => 0,
                 'current_half' => '1',
                 'match_minute' => 0,
+                'elapsed_seconds' => 0,
                 'is_timer_running' => false,
             ]);
         }
@@ -51,39 +59,44 @@ class ScoringEngine
     }
 
     /**
-     * @param  array{matchId: string, teamId: string, playerId: ?string, eventType: string, minute: int, assistPlayerId?: ?string, subInPlayerId?: ?string, subOutPlayerId?: ?string, extraInfo?: ?string}  $params
+     * @param  array{matchId: string, teamId: string, playerId: ?string, eventType: string, minute?: ?int, assistPlayerId?: ?string, subInPlayerId?: ?string, subOutPlayerId?: ?string, extraInfo?: ?string}  $params
      * @return array{state: FootballMatchState, event: FootballEvent}
      *
-     * @throws \RuntimeException when the match does not exist
+     * @throws \RuntimeException when the match does not exist, isn't football,
+     *                            is cancelled or finished, or the event names
+     *                            a team or player that can't take part in it
      */
     public function addFootballEvent(array $params): array
     {
-        $match = GameMatch::find($params['matchId']);
-
-        if (! $match) {
-            throw new \RuntimeException('Match not found');
-        }
+        $match = $this->findFootballMatch($params['matchId']);
 
         $this->assertNotCancelled($match);
+        $this->assertNotCompleted($match);
 
         return DB::transaction(function () use ($params, $match) {
-            $state = $this->footballState($params['matchId']);
+            $state = $this->footballState($match->id);
+            $params = $this->validateFootballEvent($match, $state, $params);
+
+            // Left out, the minute is read off the clock: the minute a goal
+            // goes in is the one the clock is *in*, so 0:40 is the 1st minute.
+            $minute = $params['minute'] ?? intdiv($state->clock_seconds, 60) + 1;
 
             $event = FootballEvent::create([
                 'id' => Ids::unique('ev'),
-                'match_id' => $params['matchId'],
-                'sequence' => $this->nextFootballSequence($params['matchId']),
+                'match_id' => $match->id,
+                'sequence' => $this->nextFootballSequence($match->id),
                 'team_id' => $params['teamId'],
                 'player_id' => $params['playerId'] ?? '',
                 'event_type' => $params['eventType'],
-                'minute' => $params['minute'],
+                'minute' => $minute,
                 'assist_player_id' => $params['assistPlayerId'] ?? null,
                 'sub_in_player_id' => $params['subInPlayerId'] ?? null,
                 'sub_out_player_id' => $params['subOutPlayerId'] ?? null,
                 'extra_info' => $params['extraInfo'] ?? null,
             ]);
 
-            $state->match_minute = $params['minute'];
+            // The minute on the event is the scorer's to set, and may be typed
+            // in after the fact; the clock is not moved by it.
             $this->applyGoal($state, $match, $params['eventType'], $params['teamId'], 1);
             $state->save();
 
@@ -92,21 +105,138 @@ class ScoringEngine
                 $match->save();
             }
 
-            $this->syncFootballPlayerStats($params);
+            $this->applyFootballPlayerStats($event, 1);
             $this->recalculateFootballStandings($match->tournament_id);
 
-            return ['state' => $this->footballState($params['matchId']), 'event' => $event];
+            return ['state' => $this->footballState($match->id), 'event' => $event];
         });
     }
 
+    /**
+     * Check an event against the match before it is written, and tidy what
+     * the scorer sent: an assist only rides on an open-play goal, and a
+     * substitution is logged against the player coming on.
+     *
+     * Rolling substitutions are common at village level and the team sheet is
+     * often left at its default, so a scorer is *not* made to prove who is on
+     * the pitch. What is refused is what can't have happened: a player from
+     * the other side, a sent-off player scoring or coming back on, a player
+     * assisting their own goal, or someone replacing themselves.
+     *
+     * @return array<string, mixed>
+     */
+    private function validateFootballEvent(GameMatch $match, FootballMatchState $state, array $params): array
+    {
+        $teamId = $params['teamId'];
+
+        if (! in_array($teamId, [$match->team_a_id, $match->team_b_id], true)) {
+            throw new \RuntimeException('That team is not playing in this match');
+        }
+
+        $squad = Player::query()->where('team_id', $teamId)->pluck('id')->all();
+        $onSquad = fn (?string $playerId) => $playerId !== null && in_array($playerId, $squad, true);
+        $sentOff = $this->sentOffPlayerIds($state);
+        $type = $params['eventType'];
+
+        foreach (['playerId', 'assistPlayerId', 'subInPlayerId', 'subOutPlayerId'] as $key) {
+            $params[$key] = ! empty($params[$key]) ? $params[$key] : null;
+        }
+
+        if ($type !== 'goal') {
+            $params['assistPlayerId'] = null;
+        }
+
+        if ($type === 'substitution') {
+            if (! $params['subInPlayerId'] || ! $params['subOutPlayerId']) {
+                throw new \RuntimeException('A substitution needs both the player coming on and the player going off');
+            }
+            if ($params['subInPlayerId'] === $params['subOutPlayerId']) {
+                throw new \RuntimeException('A player cannot replace themselves');
+            }
+            if (! $onSquad($params['subInPlayerId']) || ! $onSquad($params['subOutPlayerId'])) {
+                throw new \RuntimeException('Both players in a substitution must be in that team’s squad');
+            }
+            if (in_array($params['subInPlayerId'], $sentOff, true)) {
+                throw new \RuntimeException('A sent-off player cannot come back on');
+            }
+
+            $params['playerId'] = $params['subInPlayerId'];
+
+            return $params;
+        }
+
+        $params['subInPlayerId'] = null;
+        $params['subOutPlayerId'] = null;
+
+        if ($params['playerId'] && ! $onSquad($params['playerId'])) {
+            throw new \RuntimeException('That player is not in this team’s squad');
+        }
+
+        if ($params['assistPlayerId']) {
+            if (! $onSquad($params['assistPlayerId'])) {
+                throw new \RuntimeException('The assisting player is not in this team’s squad');
+            }
+            if ($params['assistPlayerId'] === $params['playerId']) {
+                throw new \RuntimeException('A player cannot assist their own goal');
+            }
+        }
+
+        if (in_array($type, [...self::FOOTBALL_SCORING_EVENTS, 'penalty_missed'], true)) {
+            foreach ([$params['playerId'], $params['assistPlayerId']] as $playerId) {
+                if ($playerId && in_array($playerId, $sentOff, true)) {
+                    throw new \RuntimeException('That player has been sent off');
+                }
+            }
+        }
+
+        return $params;
+    }
+
+    /**
+     * Players who are off for good: shown a red, or a second yellow.
+     *
+     * @return array<int, string>
+     */
+    public function sentOffPlayerIds(FootballMatchState $state): array
+    {
+        $yellows = [];
+        $off = [];
+
+        foreach ($state->events as $event) {
+            if (! $event->player_id) {
+                continue;
+            }
+
+            if ($event->event_type === 'red_card') {
+                $off[$event->player_id] = true;
+            } elseif ($event->event_type === 'yellow_card') {
+                $yellows[$event->player_id] = ($yellows[$event->player_id] ?? 0) + 1;
+                if ($yellows[$event->player_id] >= 2) {
+                    $off[$event->player_id] = true;
+                }
+            }
+        }
+
+        return array_keys($off);
+    }
+
+    /**
+     * Take the last event back out: its goal off the scoreline, its goal,
+     * assist or card off the players' career totals, and — if the match has
+     * already finished — the result settled again on the corrected score.
+     *
+     * A finished match stays finished. The final whistle ended it, not the
+     * event being corrected; reopening play is its own action.
+     */
     public function undoLastFootballEvent(string $matchId): FootballMatchState
     {
-        return DB::transaction(function () use ($matchId) {
-            $match = GameMatch::find($matchId);
-            $state = $this->footballState($matchId);
+        $match = $this->findFootballMatch($matchId);
+
+        return DB::transaction(function () use ($match) {
+            $state = $this->footballState($match->id);
 
             $last = FootballEvent::query()
-                ->where('match_id', $matchId)
+                ->where('match_id', $match->id)
                 ->orderByDesc('sequence')
                 ->first();
 
@@ -114,18 +244,20 @@ class ScoringEngine
                 return $state;
             }
 
-            if ($match) {
-                $this->applyGoal($state, $match, $last->event_type, $last->team_id, -1);
-                $state->save();
-            }
+            $this->applyGoal($state, $match, $last->event_type, $last->team_id, -1);
+            $state->save();
 
+            $this->applyFootballPlayerStats($last, -1);
             $last->delete();
 
-            if ($match) {
-                $this->recalculateFootballStandings($match->tournament_id);
+            if ($match->status === 'completed') {
+                $this->concludeFootballMatch($match, $state);
+                $match->save();
             }
 
-            return $this->footballState($matchId);
+            $this->recalculateFootballStandings($match->tournament_id);
+
+            return $this->footballState($match->id);
         });
     }
 
@@ -154,110 +286,230 @@ class ScoringEngine
     }
 
     /**
+     * Drive the match clock and move the match through its periods.
+     *
+     * - `start` / `pause` run and stop the clock without losing a second.
+     * - `half_time` stops it and puts the match on its break.
+     * - `set_half` kicks off a period (1, 2, extra_1, extra_2) with the clock
+     *   set to where that period begins, or goes to `penalties` (clock
+     *   stopped), `half_time` or `full_time`.
+     * - `set_minute` corrects the clock.
+     * - `finish` is the final whistle; `reopen` takes it back.
+     *
      * @param  array{half?: ?string, minute?: ?int}  $payload
      *
-     * @throws \RuntimeException when the match does not exist
+     * @throws \RuntimeException when the match does not exist, isn't football,
+     *                            is cancelled, or is finished (for anything
+     *                            but `reopen`)
      */
     public function updateFootballTimer(string $matchId, string $action, array $payload = []): FootballMatchState
     {
-        return DB::transaction(function () use ($matchId, $action, $payload) {
-            $match = GameMatch::find($matchId);
-            $state = $this->footballState($matchId);
+        $match = $this->findFootballMatch($matchId);
+
+        $this->assertNotCancelled($match);
+
+        if ($action === 'set_half' && ($payload['half'] ?? null) === 'full_time') {
+            $action = 'finish';
+        }
+        if ($action === 'set_half' && ($payload['half'] ?? null) === 'half_time') {
+            $action = 'half_time';
+        }
+
+        if ($action === 'reopen') {
+            if ($match->status !== 'completed') {
+                throw new \RuntimeException('Only a finished match can be reopened');
+            }
+        } else {
+            $this->assertNotCompleted($match);
+        }
+
+        return DB::transaction(function () use ($match, $action, $payload) {
+            $state = $this->footballState($match->id);
 
             switch ($action) {
                 case 'start':
-                    $state->is_timer_running = true;
-                    $state->timer_started_at_epoch = Ids::millis();
-                    if ($match && $match->status !== 'in_progress') {
-                        $match->status = 'in_progress';
+                    // Kicking off again after the break is the second half.
+                    if ($state->current_half === 'half_time') {
+                        $state->current_half = '2';
+                        $state->elapsed_seconds = max($state->elapsed_seconds, $this->footballPeriodStart($match, '2'));
                     }
+                    // Starting a clock that is already running used to restart
+                    // its reference point and drop the time since.
+                    if (! $state->is_timer_running) {
+                        $this->runClock($state);
+                    }
+                    $match->status = 'in_progress';
                     break;
 
                 case 'pause':
-                    $state->is_timer_running = false;
-                    $state->timer_started_at_epoch = null;
+                    $this->stopClock($state);
+                    break;
+
+                case 'half_time':
+                    $this->stopClock($state);
+                    $state->current_half = 'half_time';
+                    $match->status = 'half_time';
                     break;
 
                 case 'set_half':
-                    $state->current_half = $payload['half'] ?? $state->current_half;
-                    if (($payload['half'] ?? null) === 'full_time' && $match) {
-                        $state->is_timer_running = false;
-                        $this->concludeFootballMatch($match, $state, withSummary: true);
+                    $half = $payload['half'] ?? null;
+
+                    if (! in_array($half, self::FOOTBALL_PERIODS, true)) {
+                        throw new \RuntimeException('Unknown period');
                     }
+
+                    $this->stopClock($state);
+                    $state->current_half = $half;
+
+                    // A shoot-out has no clock; every other period starts
+                    // with it set to where that period begins, and running.
+                    if ($half !== 'penalties') {
+                        $state->elapsed_seconds = $this->footballPeriodStart($match, $half);
+                        $this->runClock($state);
+                    }
+
+                    $match->status = 'in_progress';
                     break;
 
                 case 'set_minute':
-                    $state->match_minute = (int) ($payload['minute'] ?? $state->match_minute);
+                    $running = $state->is_timer_running;
+                    $this->stopClock($state);
+                    $state->elapsed_seconds = max(0, (int) ($payload['minute'] ?? 0)) * 60;
+                    if ($running) {
+                        $this->runClock($state);
+                    }
                     break;
 
                 case 'finish':
-                    if ($match) {
-                        $state->is_timer_running = false;
-                        $state->current_half = 'full_time';
-                        $this->concludeFootballMatch($match, $state, withSummary: false);
-                    }
+                    $this->stopClock($state);
+                    $state->current_half = 'full_time';
+                    $this->concludeFootballMatch($match, $state);
                     break;
+
+                case 'reopen':
+                    // Back to the second half with the clock stopped where the
+                    // whistle went; the scorer moves it on to extra time if
+                    // that is where the match really was.
+                    $state->current_half = '2';
+                    $match->status = 'in_progress';
+                    $match->winner_team_id = null;
+                    $match->result_summary = null;
+                    break;
+
+                default:
+                    throw new \RuntimeException('Unknown clock action');
             }
 
+            $state->match_minute = intdiv($state->clock_seconds, 60);
             $state->save();
-            $match?->save();
+            $match->save();
 
-            if ($match) {
-                $this->recalculateFootballStandings($match->tournament_id);
-            }
+            $this->recalculateFootballStandings($match->tournament_id);
 
-            return $this->footballState($matchId);
+            return $this->footballState($match->id);
         });
     }
 
-    private function concludeFootballMatch(GameMatch $match, FootballMatchState $state, bool $withSummary): void
+    private function runClock(FootballMatchState $state): void
     {
-        $match->status = 'completed';
+        $state->is_timer_running = true;
+        $state->timer_started_at_epoch = now()->getTimestampMs();
+    }
 
-        if ($state->team_a_score > $state->team_b_score) {
-            $match->winner_team_id = $match->team_a_id;
-            $summary = "Team A won {$state->team_a_score} - {$state->team_b_score}";
-        } elseif ($state->team_b_score > $state->team_a_score) {
-            $match->winner_team_id = $match->team_b_id;
-            $summary = "Team B won {$state->team_b_score} - {$state->team_a_score}";
-        } else {
-            $match->winner_team_id = null;
-            $summary = "Match Drawn {$state->team_a_score} - {$state->team_b_score}";
+    /** Fold the running time into the stored clock, so a pause loses nothing. */
+    private function stopClock(FootballMatchState $state): void
+    {
+        $state->elapsed_seconds = $state->clock_seconds;
+        $state->is_timer_running = false;
+        $state->timer_started_at_epoch = null;
+    }
+
+    /**
+     * Where the clock stands when a period kicks off, from the tournament's own
+     * half length — a 25-minute-half sevens and a 45-minute league both run
+     * through here. Extra-time halves are a third of a half (15 of 45),
+     * unless the tournament sets them.
+     */
+    public function footballPeriodStart(GameMatch $match, string $period): int
+    {
+        $settings = Tournament::find($match->tournament_id)?->settings ?? [];
+        $half = (int) ($settings['half_duration_minutes'] ?? 0);
+
+        if ($half <= 0) {
+            $full = (int) ($settings['match_duration_minutes'] ?? 0);
+            $half = $full > 0 ? intdiv($full, 2) : 45;
         }
 
-        if ($withSummary) {
-            $match->result_summary = $summary;
+        $extra = (int) ($settings['extra_time_half_minutes'] ?? 0);
+        $extra = $extra > 0 ? $extra : max(1, (int) round($half / 3));
+
+        return 60 * match ($period) {
+            '2' => $half,
+            'extra_1' => 2 * $half,
+            'extra_2' => 2 * $half + $extra,
+            default => 0,
+        };
+    }
+
+    /** Settle the result on the score as it stands, naming the winner. */
+    private function concludeFootballMatch(GameMatch $match, FootballMatchState $state): void
+    {
+        $match->status = 'completed';
+        $a = $state->team_a_score;
+        $b = $state->team_b_score;
+
+        if ($a === $b) {
+            $match->winner_team_id = null;
+            $match->result_summary = "Match drawn {$a} - {$b}";
+
+            return;
+        }
+
+        $winnerId = $a > $b ? $match->team_a_id : $match->team_b_id;
+        $match->winner_team_id = $winnerId;
+        $match->result_summary = sprintf(
+            '%s won %d - %d',
+            Team::query()->whereKey($winnerId)->value('name') ?: ($a > $b ? 'Team A' : 'Team B'),
+            max($a, $b),
+            min($a, $b),
+        );
+    }
+
+    /**
+     * Fold one event into the players' career totals, or take it back out
+     * with `$direction = -1` when it is undone — before this, an undone goal
+     * stayed on the scorer's record for good.
+     */
+    private function applyFootballPlayerStats(FootballEvent $event, int $direction): void
+    {
+        $column = match ($event->event_type) {
+            'goal', 'penalty_goal' => 'goals',
+            'yellow_card' => 'yellow_cards',
+            'red_card' => 'red_cards',
+            default => null,
+        };
+
+        if ($column && $event->player_id) {
+            $this->bumpFootballStat($event->player_id, $column, $direction);
+        }
+
+        if ($event->event_type === 'goal' && $event->assist_player_id) {
+            $this->bumpFootballStat($event->assist_player_id, 'assists', $direction);
         }
     }
 
-    private function syncFootballPlayerStats(array $params): void
+    private function bumpFootballStat(string $playerId, string $column, int $direction): void
     {
-        if (! empty($params['playerId'])) {
-            $stats = PlayerStat::query()->where('player_id', $params['playerId'])->first();
+        $stats = PlayerStat::query()->where('player_id', $playerId)->first();
 
-            if ($stats && is_array($stats->football)) {
-                $football = $stats->football;
-                $football = match ($params['eventType']) {
-                    'goal', 'penalty_goal' => [...$football, 'goals' => ($football['goals'] ?? 0) + 1],
-                    'yellow_card' => [...$football, 'yellow_cards' => ($football['yellow_cards'] ?? 0) + 1],
-                    'red_card' => [...$football, 'red_cards' => ($football['red_cards'] ?? 0) + 1],
-                    default => $football,
-                };
-                $stats->football = $football;
-                $stats->save();
-            }
+        if (! $stats || ! is_array($stats->football)) {
+            return;
         }
 
-        if (! empty($params['assistPlayerId'])) {
-            $assistStats = PlayerStat::query()->where('player_id', $params['assistPlayerId'])->first();
-
-            if ($assistStats && is_array($assistStats->football)) {
-                $football = $assistStats->football;
-                $football['assists'] = ($football['assists'] ?? 0) + 1;
-                $assistStats->football = $football;
-                $assistStats->save();
-            }
-        }
+        $football = $stats->football;
+        $football[$column] = max(0, ($football[$column] ?? 0) + $direction);
+        $stats->football = $football;
+        $stats->save();
     }
 
     public function recalculateFootballStandings(string $tournamentId): void
@@ -383,13 +635,10 @@ class ScoringEngine
      */
     public function recordCricketBall(array $params): array
     {
-        $match = GameMatch::find($params['matchId']);
-
-        if (! $match) {
-            throw new \RuntimeException('Match not found');
-        }
+        $match = $this->findCricketMatch($params['matchId']);
 
         $this->assertNotCancelled($match);
+        $this->assertNotCompleted($match);
 
         return DB::transaction(function () use ($params, $match) {
             $state = $this->cricketState($params['matchId']);
@@ -605,6 +854,12 @@ class ScoringEngine
     {
         return DB::transaction(function () use ($matchId) {
             $match = GameMatch::find($matchId);
+
+            // Reading the state would create a cricket row for a football match.
+            if (! $match || $match->sport_code !== 'cricket') {
+                return null;
+            }
+
             $state = $this->cricketState($matchId);
 
             if (! $state) {
@@ -704,11 +959,9 @@ class ScoringEngine
      */
     public function switchCricketInnings(string $matchId): CricketMatchState
     {
-        $match = GameMatch::find($matchId);
+        $match = $this->findCricketMatch($matchId);
 
-        if (! $match) {
-            throw new \RuntimeException('Match not found');
-        }
+        $this->assertNotCancelled($match);
 
         return DB::transaction(function () use ($matchId, $match) {
             $state = $this->cricketState($matchId);
@@ -987,5 +1240,45 @@ class ScoringEngine
         if ($match->status === 'cancelled') {
             throw new \RuntimeException('This match has been cancelled');
         }
+    }
+
+    /**
+     * A finished match takes no more play: a goal or a ball recorded after the
+     * result would change the score under a result that no longer matches it.
+     * Corrections go through undo (and, for football, reopening the match).
+     */
+    private function assertNotCompleted(GameMatch $match): void
+    {
+        if ($match->status === 'completed') {
+            throw new \RuntimeException('This match is finished. Undo the last entry or reopen the match to change it.');
+        }
+    }
+
+    /**
+     * @throws \RuntimeException when there is no such match, or it is cricket —
+     *                            a football event on a cricket match would
+     *                            quietly create a scoreline nobody can see
+     */
+    private function findFootballMatch(string $matchId): GameMatch
+    {
+        $match = GameMatch::find($matchId);
+
+        if (! $match || $match->sport_code !== 'football') {
+            throw new \RuntimeException('Football match not found');
+        }
+
+        return $match;
+    }
+
+    /** @throws \RuntimeException when there is no such match, or it is football */
+    private function findCricketMatch(string $matchId): GameMatch
+    {
+        $match = GameMatch::find($matchId);
+
+        if (! $match || $match->sport_code !== 'cricket') {
+            throw new \RuntimeException('Cricket match not found');
+        }
+
+        return $match;
     }
 }

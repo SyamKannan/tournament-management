@@ -7,7 +7,12 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * The pre-match coin toss: who calls it, the server-generated flip, the
- * winner's bat/bowl decision, and the resulting batting-first side.
+ * winner's decision, and the side it puts first.
+ *
+ * The decision depends on the sport. In cricket the winner bats or bowls,
+ * which sets `batting_first_team_id`. In football the winner takes the
+ * kick-off or picks an end (and the other side then kicks off), which sets
+ * `kick_off_team_id`. Each sport's column is left null for the other.
  *
  * Recorded directly on `matches` (like `winner_team_id`) rather than folded
  * into ScoringEngine's ball-by-ball state — it's a one-time fact set before
@@ -20,7 +25,31 @@ class TossService
 {
     private const CALLS = ['heads', 'tails'];
 
-    private const DECISIONS = ['bat', 'bowl'];
+    /** The decisions open to the toss winner, per sport. */
+    public const DECISIONS = [
+        'cricket' => ['bat', 'bowl'],
+        'football' => ['kick_off', 'ends'],
+    ];
+
+    /** Every decision any sport accepts, for request validation. */
+    public static function allDecisions(): array
+    {
+        return array_merge(...array_values(self::DECISIONS));
+    }
+
+    /**
+     * The decision as a phrase that follows "elected to", for the posters and
+     * anything else that says the toss out loud.
+     */
+    public static function decisionPhrase(?string $decision): string
+    {
+        return match ($decision) {
+            'kick_off' => 'take the kick-off',
+            'ends' => 'choose ends',
+            'bowl' => 'bowl',
+            default => 'bat',
+        };
+    }
 
     /**
      * The away-team captain (or whichever side didn't get the option to bat/
@@ -58,6 +87,7 @@ class TossService
             $match->toss_method = 'digital';
             $match->toss_time = now();
             $match->batting_first_team_id = null;
+            $match->kick_off_team_id = null;
             $match->save();
 
             return $match;
@@ -65,23 +95,22 @@ class TossService
     }
 
     /**
-     * The toss winner's bat/bowl call. Derives `batting_first_team_id`.
+     * The toss winner's decision. Derives the side that goes first.
      *
-     * @throws \RuntimeException when the match doesn't exist, no one has won
-     *                            the toss yet, or a decision is already recorded
+     * @throws \RuntimeException when the match doesn't exist, the decision
+     *                            isn't one this sport has, no one has won the
+     *                            toss yet, or a decision is already recorded
      */
     public function decide(string $matchId, string $decision): GameMatch
     {
-        if (! in_array($decision, self::DECISIONS, true)) {
-            throw new \RuntimeException('Decision must be bat or bowl');
-        }
-
         return DB::transaction(function () use ($matchId, $decision) {
             $match = GameMatch::query()->whereKey($matchId)->lockForUpdate()->first();
 
             if (! $match) {
                 throw new \RuntimeException('Match not found');
             }
+
+            $this->assertDecisionFitsSport($match, $decision);
 
             if (! $match->toss_winner_team_id) {
                 throw new \RuntimeException('Flip the coin before recording a decision');
@@ -92,7 +121,7 @@ class TossService
             }
 
             $match->toss_decision = $decision;
-            $match->batting_first_team_id = $this->resolveBattingFirst($match, $decision);
+            $this->applyDecision($match, $decision);
             $match->save();
 
             return $match;
@@ -113,10 +142,6 @@ class TossService
      */
     public function recordManual(string $matchId, string $winnerTeamId, string $decision, ?string $result = null): GameMatch
     {
-        if (! in_array($decision, self::DECISIONS, true)) {
-            throw new \RuntimeException('Decision must be bat or bowl');
-        }
-
         if ($result !== null && ! in_array($result, self::CALLS, true)) {
             throw new \RuntimeException('The recorded coin face must be heads or tails');
         }
@@ -128,6 +153,7 @@ class TossService
                 throw new \RuntimeException('Match not found');
             }
 
+            $this->assertDecisionFitsSport($match, $decision);
             $this->assertNotAlreadyTossed($match);
             $this->assertTeamIsInMatch($match, $winnerTeamId);
 
@@ -138,7 +164,7 @@ class TossService
             $match->toss_decision = $decision;
             $match->toss_method = 'manual';
             $match->toss_time = now();
-            $match->batting_first_team_id = $this->resolveBattingFirst($match, $decision);
+            $this->applyDecision($match, $decision);
             $match->save();
 
             return $match;
@@ -179,6 +205,7 @@ class TossService
             $match->toss_method = null;
             $match->toss_time = null;
             $match->batting_first_team_id = null;
+            $match->kick_off_team_id = null;
             $match->save();
 
             return $match;
@@ -204,10 +231,33 @@ class TossService
         return $teamId === $match->team_a_id ? $match->team_b_id : $match->team_a_id;
     }
 
-    private function resolveBattingFirst(GameMatch $match, string $decision): string
+    private function assertDecisionFitsSport(GameMatch $match, string $decision): void
     {
-        $loserTeamId = $this->otherTeam($match, $match->toss_winner_team_id);
+        $allowed = self::DECISIONS[$match->sport_code] ?? self::DECISIONS['cricket'];
 
-        return $decision === 'bat' ? $match->toss_winner_team_id : $loserTeamId;
+        if (! in_array($decision, $allowed, true)) {
+            throw new \RuntimeException('Decision must be '.implode(' or ', $allowed));
+        }
+    }
+
+    /**
+     * Set the side the decision puts first. Batting or taking the kick-off
+     * puts the winner first; bowling or choosing an end puts the other side
+     * first.
+     */
+    private function applyDecision(GameMatch $match, string $decision): void
+    {
+        $winnerTeamId = $match->toss_winner_team_id;
+        $first = in_array($decision, ['bat', 'kick_off'], true)
+            ? $winnerTeamId
+            : $this->otherTeam($match, $winnerTeamId);
+
+        if ($match->sport_code === 'football') {
+            $match->kick_off_team_id = $first;
+            $match->batting_first_team_id = null;
+        } else {
+            $match->batting_first_team_id = $first;
+            $match->kick_off_team_id = null;
+        }
     }
 }

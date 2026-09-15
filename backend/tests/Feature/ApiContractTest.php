@@ -155,7 +155,8 @@ class ApiContractTest extends TestCase
             ->assertOk()
             ->assertJsonStructure([
                 'match', 'tournament', 'team_a', 'team_b', 'venue',
-                'football_state', 'lineups', 'scorecard',
+                'football_state' => ['clock_seconds', 'current_half', 'events'],
+                'lineups', 'scorecard', 'football_scorecard', 'sent_off_player_ids',
                 'scoreboard' => ['stage', 'resolved_stage', 'cursor', 'stage_at', 'item_id', 'item', 'ends_at'],
             ]);
     }

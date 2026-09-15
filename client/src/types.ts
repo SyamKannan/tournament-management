@@ -453,10 +453,12 @@ export interface Match {
   toss_call?: 'heads' | 'tails' | null;
   toss_result?: 'heads' | 'tails' | null;
   toss_winner_team_id?: string | null;
-  toss_decision?: 'bat' | 'bowl' | null;
+  toss_decision?: TossDecision | null;
   toss_method?: 'digital' | 'manual' | null;
   toss_time?: string | null;
   batting_first_team_id?: string | null;
+  /** Football: the side kicking off, as the toss decided. */
+  kick_off_team_id?: string | null;
   /** What the big screen is showing; `auto` follows `status` as it always did. */
   scoreboard_stage?: ScoreboardStage;
   /** Squad-reveal position: -1 plays, anything else holds on that many players. */
@@ -557,11 +559,15 @@ export interface TossResult {
   toss_call: 'heads' | 'tails' | null;
   toss_result: 'heads' | 'tails' | null;
   toss_winner_team_id: string | null;
-  toss_decision: 'bat' | 'bowl' | null;
+  toss_decision: TossDecision | null;
   toss_method: 'digital' | 'manual' | null;
   toss_time: string | null;
   batting_first_team_id: string | null;
+  kick_off_team_id: string | null;
 }
+
+/** Cricket: bat or bowl. Football: take the kick-off, or choose ends. */
+export type TossDecision = 'bat' | 'bowl' | 'kick_off' | 'ends';
 
 export type FootballEventType = 
   | 'goal'
@@ -580,10 +586,10 @@ export interface FootballEvent {
   player_id: string;
   event_type: FootballEventType;
   minute: number;
-  assist_player_id?: string;
-  sub_in_player_id?: string;
-  sub_out_player_id?: string;
-  extra_info?: string;
+  assist_player_id?: string | null;
+  sub_in_player_id?: string | null;
+  sub_out_player_id?: string | null;
+  extra_info?: string | null;
   created_at: string;
 }
 
@@ -594,11 +600,57 @@ export interface FootballMatchState {
   team_b_score: number;
   team_a_penalties?: number;
   team_b_penalties?: number;
-  current_half: '1' | '2' | 'extra_1' | 'extra_2' | 'penalties' | 'full_time';
+  current_half: FootballPeriod;
   match_minute: number;
+  /** The clock as it stood when last stopped. */
+  elapsed_seconds: number;
+  /** The clock when the server answered; count on from here while it runs. */
+  clock_seconds: number;
   is_timer_running: boolean;
-  timer_started_at_epoch?: number;
+  timer_started_at_epoch?: number | null;
   events: FootballEvent[];
+}
+
+export type FootballPeriod = '1' | 'half_time' | '2' | 'extra_1' | 'extra_2' | 'penalties' | 'full_time';
+
+export interface FootballCardGoal {
+  event_id: string;
+  minute: number;
+  type: 'goal' | 'penalty_goal' | 'own_goal';
+  player_id: string | null;
+  name: string | null;
+  assist_player_id: string | null;
+  assist_name: string | null;
+}
+
+export interface FootballCardBooking {
+  event_id: string;
+  minute: number;
+  type: 'yellow_card' | 'red_card';
+  player_id: string | null;
+  name: string | null;
+}
+
+export interface FootballCardSubstitution {
+  event_id: string;
+  minute: number;
+  in_player_id: string | null;
+  in_name: string | null;
+  out_player_id: string | null;
+  out_name: string | null;
+}
+
+/**
+ * One side of the football match card derived from the event log; never
+ * stored. Goals sit under the side they counted for, own goals included.
+ */
+export interface FootballScorecardSide {
+  team_id: string;
+  score: number;
+  goals: FootballCardGoal[];
+  cards: FootballCardBooking[];
+  substitutions: FootballCardSubstitution[];
+  missed_penalties: { event_id: string; minute: number; player_id: string | null; name: string | null }[];
 }
 
 export interface CricketDelivery {
@@ -626,7 +678,7 @@ export interface CricketMatchState {
   match_id: string;
   total_overs: number;
   toss_winner_team_id?: string;
-  toss_decision?: 'bat' | 'bowl';
+  toss_decision?: TossDecision;
   current_innings: 1 | 2;
   batting_team_id: string;
   bowling_team_id: string;

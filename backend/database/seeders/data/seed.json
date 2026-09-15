@@ -1249,8 +1249,9 @@
       "team_b_score": 1,
       "current_half": "1",
       "match_minute": 24,
-      "is_timer_running": true,
-      "timer_started_at_epoch": 1787538235949,
+      "elapsed_seconds": 1440,
+      "is_timer_running": false,
+      "timer_started_at_epoch": null,
       "events": [
         {
           "id": "ev-1",

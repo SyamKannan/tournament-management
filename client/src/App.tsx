@@ -71,7 +71,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className={`min-h-screen text-slate-100 flex flex-col font-sans ${hasSidebar ? 'app-shell' : 'bg-slate-950'}`}>
       <a href="#main-content" className="skip-link">Skip to content</a>
 
       <Navbar showMenuButton={hasSidebar} onMenuClick={() => setSidebarOpen(true)} />

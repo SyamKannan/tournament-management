@@ -116,10 +116,12 @@ class ScoreboardDirector
             return 'toss';
         }
 
-        // Between innings and at full time the crowd wants the whole card, not
-        // the two batters who are no longer out there. Cricket only: a football
-        // match's final score already says everything a card would.
-        if ($match->sport_code === 'cricket' && in_array($match->status, ['innings_break', 'completed'], true)) {
+        // At the break and at full time the crowd wants the whole card: every
+        // batter and bowler between innings, every scorer, booking and change
+        // at half time in football.
+        $breaks = $match->sport_code === 'football' ? ['half_time', 'completed'] : ['innings_break', 'completed'];
+
+        if (in_array($match->status, $breaks, true)) {
             return 'scorecard';
         }
 

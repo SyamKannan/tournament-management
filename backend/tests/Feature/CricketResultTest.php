@@ -234,13 +234,13 @@ class CricketResultTest extends TestCase
         $this->assertSame('live', app(ScoreboardDirector::class)->resolve($this->match()));
     }
 
-    public function test_a_finished_football_match_keeps_its_final_score_on_screen(): void
+    public function test_a_finished_football_match_shows_its_match_card(): void
     {
         $match = GameMatch::find('match-fb-live-1');
         $match->status = 'completed';
         $match->scoreboard_stage = 'auto';
 
-        $this->assertSame('live', app(ScoreboardDirector::class)->resolve($match));
+        $this->assertSame('scorecard', app(ScoreboardDirector::class)->resolve($match));
     }
 
     /* ----------------------------------------------------------- Setting */

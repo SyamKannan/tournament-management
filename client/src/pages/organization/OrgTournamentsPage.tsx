@@ -339,12 +339,12 @@ export const OrgTournamentsPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black font-heading text-white">Organization Tournaments</h1>
-          <p className="text-xs text-slate-400 mt-1">Host Cricket tournaments with Direct Team Registration</p>
+          <h1 className="text-2xl sm:text-3xl font-black font-heading text-white tracking-tight">Organization Tournaments</h1>
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">Host football and cricket tournaments with direct team registration</p>
         </div>
         <button
           onClick={openCreateModal}
-          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center gap-1.5"
+          className="w-full sm:w-auto justify-center px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center gap-1.5"
         >
           <Plus className="w-4 h-4" />
           <span>Create New Tournament</span>
@@ -362,12 +362,12 @@ export const OrgTournamentsPage: React.FC = () => {
           return (
             <div key={t.id} className={`p-4 sm:p-6 rounded-3xl glass-card border border-slate-800 flex flex-col justify-between min-w-0 hover:border-slate-700 transition-all ${isCancelled ? 'opacity-70' : ''}`}>
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0">
                     <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
                       isFb ? 'bg-emerald-500/20 text-emerald-400' : 'bg-cyan-500/20 text-cyan-400'
                     }`}>
-                      {isFb ? '⚽ Football' : '🏏 Cricket'} • {t.format}
+                      {isFb ? '⚽ Football' : '🏏 Cricket'} • {t.format.replace(/_/g, ' ')}
                     </span>
 
                     {isCancelled && (
@@ -388,19 +388,19 @@ export const OrgTournamentsPage: React.FC = () => {
                     )}
                   </div>
 
-                  <span className="text-xs font-mono font-bold text-emerald-400">Fee: ₹{t.ground_fee}</span>
+                  <span className="shrink-0 px-2 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono font-bold text-emerald-400 whitespace-nowrap">₹{t.ground_fee}</span>
                 </div>
 
-                <h3 className="text-xl font-bold text-white font-heading">{t.name}</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-white font-heading leading-snug">{t.name}</h3>
                 <p className="text-xs text-slate-400 mt-1">{t.location || t.district}</p>
 
                 {/* Registration Link Box */}
                 <div className="mt-4 p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="font-semibold text-slate-300">
                       {hasAuctionEnabled ? 'Direct Team Entry Link' : 'Public Team Registration Link'}
                     </span>
-                    <span className="text-[11px] text-emerald-400 font-bold">{t.teams_count || 4}/{t.max_teams} Teams</span>
+                    <span className="shrink-0 text-[11px] text-emerald-400 font-bold">{t.teams_count || 4}/{t.max_teams} Teams</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 min-w-0">
                     <input
@@ -427,7 +427,7 @@ export const OrgTournamentsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-800 flex flex-wrap items-center justify-end gap-3 text-xs">
+              <div className="mt-5 sm:mt-6 pt-4 border-t border-slate-800 flex flex-wrap items-center justify-start sm:justify-end gap-3 text-xs">
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"

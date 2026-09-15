@@ -56,7 +56,7 @@ class TossController extends Controller
             return response()->json(['error' => 'Match not found'], 404);
         }
 
-        if ($denied = $this->denyMissingFeature($match)) {
+        if ($denied = $this->denyToss($request, $match)) {
             return $denied;
         }
 
@@ -74,7 +74,7 @@ class TossController extends Controller
     public function decision(Request $request, string $id): JsonResponse
     {
         $data = $request->validate([
-            'decision' => ['required', 'string', 'in:bat,bowl'],
+            'decision' => ['required', 'string', 'in:'.implode(',', TossService::allDecisions())],
         ]);
 
         $existing = GameMatch::find($id);
@@ -83,7 +83,7 @@ class TossController extends Controller
             return response()->json(['error' => 'Match not found'], 404);
         }
 
-        if ($denied = $this->denyMissingFeature($existing)) {
+        if ($denied = $this->denyToss($request, $existing)) {
             return $denied;
         }
 
@@ -107,7 +107,7 @@ class TossController extends Controller
     {
         $data = $request->validate([
             'winner_team_id' => ['required', 'string'],
-            'decision' => ['required', 'string', 'in:bat,bowl'],
+            'decision' => ['required', 'string', 'in:'.implode(',', TossService::allDecisions())],
             // The face of the real coin, if the scorer noted it — optional,
             // since plenty of grounds just report who won.
             'toss_result' => ['nullable', 'string', 'in:heads,tails'],
@@ -119,7 +119,7 @@ class TossController extends Controller
             return response()->json(['error' => 'Match not found'], 404);
         }
 
-        if ($denied = $this->denyMissingFeature($existing)) {
+        if ($denied = $this->denyToss($request, $existing)) {
             return $denied;
         }
 
@@ -139,7 +139,7 @@ class TossController extends Controller
         return response()->json($this->tossPayload($match));
     }
 
-    public function reset(string $id): JsonResponse
+    public function reset(Request $request, string $id): JsonResponse
     {
         $existing = GameMatch::find($id);
 
@@ -147,7 +147,7 @@ class TossController extends Controller
             return response()->json(['error' => 'Match not found'], 404);
         }
 
-        if ($denied = $this->denyMissingFeature($existing)) {
+        if ($denied = $this->denyToss($request, $existing)) {
             return $denied;
         }
 
@@ -169,11 +169,17 @@ class TossController extends Controller
     }
 
     /**
-     * `coin_toss` is a plan-gated feature — organizers on plans that don't
+     * Only the match's own organization records its toss — a scorer from
+     * another club could otherwise decide who bats or kicks off — and
+     * `coin_toss` is a plan-gated feature: organizers on plans that don't
      * include it can't record a toss at all (digital, manual, or otherwise).
      */
-    private function denyMissingFeature(GameMatch $match): ?JsonResponse
+    private function denyToss(Request $request, GameMatch $match): ?JsonResponse
     {
+        if ($denied = $this->denyForeignTenant($request, $match->organization_id)) {
+            return $denied;
+        }
+
         if ($this->billing->hasFeature($match->organization_id, 'coin_toss')) {
             return null;
         }
@@ -209,6 +215,7 @@ class TossController extends Controller
             'toss_method' => $match->toss_method,
             'toss_time' => $match->toss_time,
             'batting_first_team_id' => $match->batting_first_team_id,
+            'kick_off_team_id' => $match->kick_off_team_id,
         ];
     }
 
