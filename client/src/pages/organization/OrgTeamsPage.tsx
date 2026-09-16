@@ -6,6 +6,7 @@ import {
   Download, Phone, ArrowLeft, Users, MapPin, Clock, CheckCircle2
 } from 'lucide-react';
 import { ReceiptModal } from '../../components/ReceiptModal';
+import { PlayerCodeBadge } from '../../components/PlayerCodeBadge';
 import { OfflinePaymentModal } from '../../components/OfflinePaymentModal';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
@@ -388,6 +389,7 @@ export const OrgTeamsPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
+                  <PlayerCodeBadge code={p.player_code} size="sm" />
                 </div>
               ))}
             </div>

@@ -43,7 +43,7 @@ class PosterController extends Controller
 
         if (! $this->billing->hasFeature($match->organization_id, 'ai_tournament_poster')) {
             return response()->json([
-                'error' => 'AI tournament poster creation is not available on your current plan. Upgrade to unlock it.',
+                'error' => 'Poster creation is not available on your current plan. Upgrade your plan to use it.',
             ], 403);
         }
 

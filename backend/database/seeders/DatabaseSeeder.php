@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Services\PlayerIdentity;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -121,6 +122,9 @@ class DatabaseSeeder extends Seeder
         $this->insert('venues', $seed['venues']);
         $this->insert('teams', $seed['teams']);
         $this->insert('players', $seed['players']);
+
+        // Raw inserts skip the model's creating hook, so the codes are handed out here.
+        app(PlayerIdentity::class)->backfillCodes();
         $this->insert('registration_payments', $seed['registration_payments']);
         $this->insert('registration_receipts', $seed['registration_receipts'], json: ['receipt_data']);
     }
@@ -168,7 +172,6 @@ class DatabaseSeeder extends Seeder
         $this->insert('sponsors', $seed['sponsors']);
         $this->insert('advertisements', $seed['advertisements']);
         $this->insert('announcements', $seed['announcements']);
-        $this->insert('player_stats', $seed['player_stats'], json: ['cricket', 'football', 'recent_performances', 'awards']);
     }
 
     /* ---------------------------------------------------------------------
@@ -286,7 +289,7 @@ class DatabaseSeeder extends Seeder
     private function truncateAll(): void
     {
         $tables = [
-            'player_stats', 'announcements', 'advertisements', 'sponsors',
+            'announcements', 'advertisements', 'sponsors',
             'auction_bids', 'auction_players', 'auctions',
             'standings', 'cricket_deliveries', 'cricket_match_states',
             'football_events', 'football_match_states', 'matches',

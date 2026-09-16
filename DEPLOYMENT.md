@@ -21,9 +21,9 @@ Add a virtual host (`httpd-vhosts.conf`):
 
 ```apache
 <VirtualHost *:8000>
-    DocumentRoot "/path/to/sports-saas/backend/public"
+    DocumentRoot "/path/to/sportivo/backend/public"
 
-    <Directory "/path/to/sports-saas/backend/public">
+    <Directory "/path/to/sportivo/backend/public">
         AllowOverride All
         Require all granted
     </Directory>
@@ -35,7 +35,7 @@ Laravel's routing depends on the `.htaccess` already in `backend/public`.
 
 ### 2. Create the database
 
-In phpMyAdmin, create a database (`sports_saas`, collation
+In phpMyAdmin, create a database (`sportivo`, collation
 `utf8mb4_unicode_ci`), then point `backend/.env` at it:
 
 ```ini
@@ -46,7 +46,7 @@ APP_URL=http://localhost:8000
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306          # MAMP often uses 8889
-DB_DATABASE=sports_saas
+DB_DATABASE=sportivo
 DB_USERNAME=root
 DB_PASSWORD=root      # change this
 

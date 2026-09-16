@@ -40,6 +40,10 @@ class ResolveApiUser
 
     private function resolveDemoUser(Request $request): ?User
     {
+        if (! config('app.demo_role_switcher')) {
+            return null;
+        }
+
         $role = $request->header('x-demo-role');
         if (! $role) {
             return null;

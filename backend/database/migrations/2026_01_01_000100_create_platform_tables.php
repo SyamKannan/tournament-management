@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Platform-level tables: settings, sports, SaaS plans, organizations, users,
+ * Platform-level tables: settings, sports, subscription plans, organizations, users,
  * subscriptions, invoices and the global audit trail.
  */
 return new class extends Migration

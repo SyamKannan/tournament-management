@@ -23,10 +23,38 @@ class PlatformSetting extends Model
         'enabled_payment_methods' => 'array',
         'subscription_payment_methods' => 'array',
         'payment_gateways' => 'array',
+        'footer' => 'array',
+    ];
+
+    public const SOCIAL_NETWORKS = ['facebook', 'instagram', 'youtube', 'x', 'whatsapp'];
+
+    public const FOOTER_DEFAULTS = [
+        'tagline' => 'Run the game. We handle the rest.',
+        'links' => [
+            ['label' => 'Find My Stats', 'url' => '/players'],
+            ['label' => 'Register Your Club', 'url' => '/register-club'],
+            ['label' => 'Join as Player', 'url' => '/register-player'],
+            ['label' => 'Sign In', 'url' => '/login'],
+        ],
+        'social' => ['facebook' => '', 'instagram' => '', 'youtube' => '', 'x' => '', 'whatsapp' => ''],
+        'copyright' => '',
+        'show_contact' => true,
     ];
 
     public static function current(): self
     {
         return static::query()->firstOrFail();
+    }
+
+    /** Stored footer merged over the defaults, so readers always get every key. */
+    public function footerContent(): array
+    {
+        $stored = $this->footer ?? [];
+
+        return [
+            ...self::FOOTER_DEFAULTS,
+            ...$stored,
+            'social' => [...self::FOOTER_DEFAULTS['social'], ...($stored['social'] ?? [])],
+        ];
     }
 }

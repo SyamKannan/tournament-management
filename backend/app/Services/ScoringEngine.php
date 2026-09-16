@@ -8,7 +8,6 @@ use App\Models\FootballEvent;
 use App\Models\FootballMatchState;
 use App\Models\GameMatch;
 use App\Models\Player;
-use App\Models\PlayerStat;
 use App\Models\Standing;
 use App\Models\Team;
 use App\Models\Tournament;
@@ -20,9 +19,9 @@ use Illuminate\Support\Facades\DB;
  *
  * Football and cricket each keep a single mutable state row plus an append-only
  * log (events / deliveries). Every scoring action writes to the log, folds its
- * effect into the state row, syncs the players' career statistics, and
- * recomputes the tournament table — so undo is just "drop the last log entry and
- * reverse its effect".
+ * effect into the state row and recomputes the tournament table — so undo is
+ * just "drop the last log entry and reverse its effect". Player statistics are
+ * not kept here at all: PlayerStatsService reads them straight off the log.
  */
 class ScoringEngine
 {
@@ -105,7 +104,6 @@ class ScoringEngine
                 $match->save();
             }
 
-            $this->applyFootballPlayerStats($event, 1);
             $this->recalculateFootballStandings($match->tournament_id);
 
             return ['state' => $this->footballState($match->id), 'event' => $event];
@@ -221,9 +219,9 @@ class ScoringEngine
     }
 
     /**
-     * Take the last event back out: its goal off the scoreline, its goal,
-     * assist or card off the players' career totals, and — if the match has
-     * already finished — the result settled again on the corrected score.
+     * Take the last event back out: its goal off the scoreline and — if the
+     * match has already finished — the result settled again on the corrected
+     * score. Player stats are read from the log, so they follow on their own.
      *
      * A finished match stays finished. The final whistle ended it, not the
      * event being corrected; reopening play is its own action.
@@ -247,7 +245,6 @@ class ScoringEngine
             $this->applyGoal($state, $match, $last->event_type, $last->team_id, -1);
             $state->save();
 
-            $this->applyFootballPlayerStats($last, -1);
             $last->delete();
 
             if ($match->status === 'completed') {
@@ -475,43 +472,6 @@ class ScoringEngine
         );
     }
 
-    /**
-     * Fold one event into the players' career totals, or take it back out
-     * with `$direction = -1` when it is undone — before this, an undone goal
-     * stayed on the scorer's record for good.
-     */
-    private function applyFootballPlayerStats(FootballEvent $event, int $direction): void
-    {
-        $column = match ($event->event_type) {
-            'goal', 'penalty_goal' => 'goals',
-            'yellow_card' => 'yellow_cards',
-            'red_card' => 'red_cards',
-            default => null,
-        };
-
-        if ($column && $event->player_id) {
-            $this->bumpFootballStat($event->player_id, $column, $direction);
-        }
-
-        if ($event->event_type === 'goal' && $event->assist_player_id) {
-            $this->bumpFootballStat($event->assist_player_id, 'assists', $direction);
-        }
-    }
-
-    private function bumpFootballStat(string $playerId, string $column, int $direction): void
-    {
-        $stats = PlayerStat::query()->where('player_id', $playerId)->first();
-
-        if (! $stats || ! is_array($stats->football)) {
-            return;
-        }
-
-        $football = $stats->football;
-        $football[$column] = max(0, ($football[$column] ?? 0) + $direction);
-        $stats->football = $football;
-        $stats->save();
-    }
-
     public function recalculateFootballStandings(string $tournamentId): void
     {
         $tournament = Tournament::find($tournamentId);
@@ -723,16 +683,6 @@ class ScoringEngine
             $this->rotateStrike($state, $params, $isLegalBall, $legalBallsAfter, $runsRun);
             $state->save();
 
-            $this->applyCricketPlayerStats([
-                'strikerId' => $delivery->striker_id,
-                'bowlerId' => $delivery->bowler_id,
-                'runsScored' => $params['runsScored'],
-                'extras' => $extras,
-                'extrasRuns' => $extrasRuns,
-                'isWicket' => $params['isWicket'],
-                'wicketType' => $params['wicketType'] ?? null,
-            ], 1);
-
             // The first ball of either innings puts the match in play. Leaving
             // `innings_break` out of this kept a match on its break for the
             // whole of the second innings.
@@ -776,80 +726,6 @@ class ScoringEngine
         }
     }
 
-    /**
-     * Dismissals that aren't the bowler's to claim, so they never count toward
-     * a bowling figure.
-     */
-    private const UNBOWLED_DISMISSALS = ['run_out', 'retired_hurt', 'obstructing_field'];
-
-    /**
-     * Fold one delivery into the two players' career totals, or peel it back
-     * out again with `$direction = -1` when the ball is undone.
-     *
-     * Undo has to reverse these as precisely as it reverses the scoreline —
-     * now that real player ids reach this method on every ball, a delivery
-     * undone without it would leave runs and wickets credited for a ball that
-     * no longer exists.
-     *
-     * @param  array{strikerId?: ?string, bowlerId?: ?string, runsScored: int, extras: string, extrasRuns: int, isWicket: bool, wicketType?: ?string}  $ball
-     */
-    private function applyCricketPlayerStats(array $ball, int $direction): void
-    {
-        $extras = $ball['extras'] ?: 'none';
-
-        if (! empty($ball['strikerId'])) {
-            $stats = PlayerStat::query()->where('player_id', $ball['strikerId'])->first();
-
-            if ($stats && is_array($stats->cricket)) {
-                $cricket = $stats->cricket;
-                $cricket['runs_scored'] = max(0, ($cricket['runs_scored'] ?? 0) + $direction * $ball['runsScored']);
-
-                // A wide is never a ball faced; a no-ball is — the striker had
-                // to play at it, and it counts against their strike rate.
-                if ($extras !== 'wide') {
-                    $cricket['balls_faced'] = max(0, ($cricket['balls_faced'] ?? 0) + $direction);
-                }
-                if ($ball['runsScored'] === 4) {
-                    $cricket['fours'] = max(0, ($cricket['fours'] ?? 0) + $direction);
-                }
-                if ($ball['runsScored'] === 6) {
-                    $cricket['sixes'] = max(0, ($cricket['sixes'] ?? 0) + $direction);
-                }
-                $stats->cricket = $cricket;
-                $stats->save();
-            }
-        }
-
-        if (! empty($ball['bowlerId'])) {
-            $stats = PlayerStat::query()->where('player_id', $ball['bowlerId'])->first();
-
-            if ($stats && is_array($stats->cricket)) {
-                $cricket = $stats->cricket;
-                $cricket['runs_conceded'] = max(0, ($cricket['runs_conceded'] ?? 0) + $direction * $this->runsChargedToBowler($ball));
-
-                if ($ball['isWicket'] && ! in_array($ball['wicketType'] ?? '', self::UNBOWLED_DISMISSALS, true)) {
-                    $cricket['wickets_taken'] = max(0, ($cricket['wickets_taken'] ?? 0) + $direction);
-                }
-                $stats->cricket = $cricket;
-                $stats->save();
-            }
-        }
-    }
-
-    /**
-     * Byes and leg-byes go to the team but never onto the bowler's analysis;
-     * wides and no-balls do.
-     *
-     * @param  array{runsScored: int, extras: string, extrasRuns: int}  $ball
-     */
-    private function runsChargedToBowler(array $ball): int
-    {
-        $extras = $ball['extras'] ?: 'none';
-        $chargeable = in_array($extras, ['bye', 'leg_bye'], true) ? 0 : $ball['extrasRuns'];
-
-        return $ball['runsScored'] + $chargeable;
-    }
-
     public function undoLastCricketBall(string $matchId): ?CricketMatchState
     {
         return DB::transaction(function () use ($matchId) {
@@ -877,16 +753,6 @@ class ScoringEngine
 
             $totalDeliveryRuns = $last->runs_scored + $last->extras_runs;
             $innings = $last->innings;
-
-            $this->applyCricketPlayerStats([
-                'strikerId' => $last->striker_id,
-                'bowlerId' => $last->bowler_id,
-                'runsScored' => $last->runs_scored,
-                'extras' => $last->extras,
-                'extrasRuns' => $last->extras_runs,
-                'isWicket' => (bool) $last->is_wicket,
-                'wicketType' => $last->wicket_type,
-            ], -1);
 
             // The delivery row records who was where when it was bowled, so
             // undoing it restores exactly that — otherwise the next ball would

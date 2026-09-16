@@ -16,7 +16,7 @@ use App\Support\Ids;
 use Illuminate\Support\Facades\DB;
 
 /**
- * SaaS subscription lifecycle: plan limits, feature gating, usage reporting,
+ * Subscription lifecycle: plan limits, feature gating, usage reporting,
  * plan changes with invoicing, and platform-wide revenue metrics.
  */
 class BillingService

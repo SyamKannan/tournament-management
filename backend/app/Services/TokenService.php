@@ -11,6 +11,8 @@ use Firebase\JWT\Key;
  */
 class TokenService
 {
+    public const DEV_FALLBACK_SECRET = 'local-development-only-jwt-secret-change-me';
+
     public function issue(User $user): string
     {
         $issuedAt = time();
@@ -21,7 +23,7 @@ class TokenService
             'email' => $user->email,
             'iat' => $issuedAt,
             'exp' => $issuedAt + (int) config('auth.jwt.ttl'),
-        ], (string) config('auth.jwt.secret'), 'HS256');
+        ], $this->secret(), 'HS256');
     }
 
     /**
@@ -29,8 +31,10 @@ class TokenService
      */
     public function decode(string $token): ?array
     {
+        $key = new Key($this->secret(), 'HS256');
+
         try {
-            $payload = (array) JWT::decode($token, new Key((string) config('auth.jwt.secret'), 'HS256'));
+            $payload = (array) JWT::decode($token, $key);
         } catch (\Throwable) {
             return null;
         }
@@ -44,5 +48,21 @@ class TokenService
             'role' => (string) ($payload['role'] ?? ''),
             'email' => (string) ($payload['email'] ?? ''),
         ];
+    }
+
+    /**
+     * The committed fallback secret is public, so anyone could forge a
+     * super-admin token with it. Production refuses to run on it rather than
+     * silently accepting forged tokens.
+     */
+    private function secret(): string
+    {
+        $secret = (string) config('auth.jwt.secret');
+
+        if (app()->environment('production') && ($secret === self::DEV_FALLBACK_SECRET || strlen($secret) < 32)) {
+            throw new \RuntimeException('JWT_SECRET must be set to a random value of at least 32 characters in production.');
+        }
+
+        return $secret;
     }
 }

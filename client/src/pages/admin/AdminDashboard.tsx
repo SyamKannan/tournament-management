@@ -44,14 +44,14 @@ export const AdminDashboard: React.FC = () => {
           <div className="flex items-center gap-2 mb-1">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold uppercase tracking-wider">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Platform Command Center
+              Platform Overview
             </span>
           </div>
           <h1 className="text-3xl font-black font-heading text-white tracking-tight">
             Super Admin Overview
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Real-time platform revenue metrics, multi-tenant club health, and subscriber growth
+            Revenue, active clubs and subscriptions at a glance
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -72,11 +72,11 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Primary Financial Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: MRR */}
+        {/* Card 1: monthly revenue */}
         <div className="relative p-5 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-slate-800/90 hover:border-emerald-500/40 shadow-xl shadow-black/40 overflow-hidden group transition-all">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400 opacity-80" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Monthly Recurring (MRR)</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Monthly Revenue</span>
             <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/10 group-hover:scale-110 transition-transform">
               <DollarSign className="w-5 h-5" />
             </div>
@@ -150,8 +150,8 @@ export const AdminDashboard: React.FC = () => {
             </div>
             <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition-colors" />
           </div>
-          <h3 className="text-base font-bold text-white font-heading">Organizations (Tenants)</h3>
-          <p className="text-xs text-slate-400 mt-1.5">Manage sports clubs, suspend/activate tenants, or 1-click login as club admin.</p>
+          <h3 className="text-base font-bold text-white font-heading">Organizations</h3>
+          <p className="text-xs text-slate-400 mt-1.5">Manage clubs, suspend or activate them, or sign in as a club admin.</p>
         </Link>
 
         <Link

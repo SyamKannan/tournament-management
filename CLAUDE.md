@@ -6,7 +6,7 @@ Use fewer tokens and get a good product: read only what's needed, act, avoid nar
 
 ## What this is
 
-Multi-tenant SaaS for running village/club sports tournaments (football and cricket) —
+Multi-organization platform for running village/club sports tournaments (football and cricket) —
 live scoring, big-screen scoreboards, player auctions, ground-fee collection, and
 per-organizer subscriptions.
 
@@ -75,6 +75,23 @@ writes to the log, folds into state, updates career stats, and recomputes the
 tournament table. The log tables are re-serialized into `events` / `deliveries` /
 `bid_history` arrays in API responses, so response shape stays stable regardless of
 storage.
+
+**Player stats are never stored.** `PlayerStatsService` derives every number (runs,
+wickets, goals, matches, clean sheets, player-of-the-match awards) from the scoring logs,
+`match_lineups` and `matches` on each read, a tournament at a time. So undo and
+cancellation need no stats bookkeeping — don't add counters back to `ScoringEngine`. The
+public read-only API is `GET /api/players/search?q=` (the no-login "Find My Stats" page at
+`/players`), `GET /api/players/{id}/profile|matches|career` and
+`/api/players/tournament/{idOrSlug}/stats|leaderboard` (throttled, no mobile/dob/age,
+draft tournaments 404). Careers join squad entries through the user account (id or phone).
+
+**AI assistant (Scorey).** `POST /api/assistant/chat` (public, `throttle:10,1`) — `AssistantService` runs a model
+tool loop over raw HTTP: Gemini when `GEMINI_API_KEY` is set (free tier, `GEMINI_MODEL`), else Claude via
+`ANTHROPIC_API_KEY` (`ASSISTANT_MODEL`). Both share one tool list, whose tools
+read only public data: non-draft tournaments, and the public `PlayerController`/`MatchController` actions.
+Never give a tool contact fields (phones, emails, addresses). "How does Sportivo work" answers come from the
+platform guide in its `SYSTEM_PROMPT` — update it when a user-facing flow changes. No key → 503; widget is
+`client/src/components/AssistantChat.tsx`, history kept in sessionStorage.
 
 **Real-time gateway** (`php artisan websocket:serve`, `app/Console/Commands/WebSocketServe.php`)
 is a standalone Workerman process, separate from the API, holding two listeners on one

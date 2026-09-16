@@ -191,6 +191,21 @@ class ApiContractTest extends TestCase
             ->assertJsonStructure(['auction', 'tournament', 'organization', 'registered_players_count']);
     }
 
+    public function test_the_home_page_ticker_lists_live_matches_first_without_contact_details(): void
+    {
+        $matches = $this->getJson('/api/matches/current')
+            ->assertOk()
+            ->assertJsonStructure(['*' => ['id', 'sport_code', 'status', 'is_live', 'tournament' => ['name', 'slug'], 'team_a' => ['id', 'name', 'short_name', 'logo'], 'team_b', 'football', 'cricket']])
+            ->json();
+
+        $this->assertTrue($matches[0]['is_live']);
+        $this->assertContains('match-crick-live-1', array_column($matches, 'id'));
+        $this->assertArrayNotHasKey('manager_phone', $matches[0]['team_a']);
+
+        $cricket = collect($matches)->firstWhere('id', 'match-crick-live-1');
+        $this->assertSame('team-kozhikode-kings', $cricket['cricket']['innings'][0]['team_id']);
+    }
+
     public function test_a_player_profile_includes_career_statistics(): void
     {
         $this->getJson('/api/players/pl-mb-1/profile')
@@ -198,7 +213,7 @@ class ApiContractTest extends TestCase
             ->assertJsonStructure([
                 'player' => ['id', 'full_name', 'jersey_number'],
                 'team', 'tournament', 'organization',
-                'stats' => ['id', 'player_id', 'full_name', 'sport_code'],
+                'stats' => ['id', 'player_id', 'full_name', 'team_name', 'sport_code', 'football' => ['matches', 'goals', 'assists', 'clean_sheets', 'player_of_match_count'], 'recent_performances', 'awards'],
                 'auction_info',
             ]);
     }

@@ -44,7 +44,7 @@ export const AdminAuditLogsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black font-heading text-white">Platform Audit & Security Logs</h1>
-          <p className="text-xs text-slate-400 mt-1">Immutable security tracking for admin actions, tenant switches, and scoring events</p>
+          <p className="text-xs text-slate-400 mt-1">A record of admin actions, account switches and scoring changes</p>
         </div>
 
         <div className="relative w-full sm:w-64">

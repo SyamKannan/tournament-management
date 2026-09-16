@@ -630,7 +630,7 @@ class TournamentController extends Controller
             'details' => sprintf(
                 'Generated poster for tournament [%s]%s',
                 $tournament->name,
-                $result['used_ai'] ? ' with AI artwork' : ''
+                $result['used_ai'] ? ' with custom artwork' : ''
             ),
             'ip_address' => $request->ip(),
         ]);

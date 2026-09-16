@@ -16,6 +16,7 @@ interface NavbarProps {
 
 const PUBLIC_LINKS = [
   { to: '/', label: 'Home' },
+  { to: '/players', label: 'Find My Stats' },
   { to: '/register-player', label: 'Join as Player' },
   { to: '/register-club', label: 'Register Club' },
   { to: '/login', label: 'Sign In' },
@@ -114,6 +115,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
           <nav className="hidden lg:flex items-center gap-1 text-sm font-medium text-slate-300" aria-label="Main">
             <Link to="/" className="px-3 py-2 rounded-lg hover:text-white hover:bg-slate-800/60 transition-colors text-sm font-semibold">
               Home
+            </Link>
+            <Link to="/players" className="px-3 py-2 rounded-lg hover:text-white hover:bg-slate-800/60 transition-colors text-sm font-semibold">
+              Find My Stats
             </Link>
             {isAuthenticated && (
               <Link

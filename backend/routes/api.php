@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AdminController;
+use App\Http\Controllers\Api\AssistantController;
 use App\Http\Controllers\Api\AuctionController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\LineupController;
@@ -40,6 +41,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('plans', [PlatformController::class, 'plans']);
 Route::get('sports', [PlatformController::class, 'sports']);
 Route::get('payment-methods', [PlatformController::class, 'paymentMethods']);
+Route::get('footer', [PlatformController::class, 'footer']);
 Route::get('health', [PlatformController::class, 'health']);
 Route::post('payments/demo/{orderId}/pay', [PaymentController::class, 'demoPay'])->middleware('throttle:30,1');
 
@@ -152,6 +154,8 @@ Route::prefix('teams')->group(function () {
 
 Route::prefix('matches')->group(function () {
     Route::get('tournament/{tournamentId}', [MatchController::class, 'forTournament']);
+    // The home-page ticker. Declared before `{id}` so "current" isn't read as a match id.
+    Route::get('current', [MatchController::class, 'current'])->middleware('throttle:60,1');
     Route::get('scoreboard/match/{id}', [MatchController::class, 'scoreboard']);
 
     Route::post('auto-generate-fixtures', [MatchController::class, 'generateFixtures'])->middleware('auth.required');
@@ -286,9 +290,25 @@ Route::post('upload', [UploadController::class, 'upload'])->middleware('throttle
 Route::prefix('players')->group(function () {
     Route::get('me/dashboard', [PlayerController::class, 'dashboard'])->middleware('auth.required');
     Route::post('me/profile', [PlayerController::class, 'updateProfile'])->middleware('auth.required');
-    Route::get('tournament/{tournamentId}/leaderboard', [PlayerController::class, 'leaderboard']);
-    Route::get('{id}/profile', [PlayerController::class, 'profile']);
+
+    // Public, read-only statistics — no login, so share links and outside
+    // sites can read them. Throttled because each one is computed on request.
+    Route::middleware('throttle:60,1')->group(function () {
+        Route::get('search', [PlayerController::class, 'search']);
+        Route::get('code/{code}', [PlayerController::class, 'byCode']);
+        Route::get('tournament/{tournamentId}/leaderboard', [PlayerController::class, 'leaderboard']);
+        Route::get('tournament/{tournament}/stats', [PlayerController::class, 'tournamentStats']);
+        Route::get('{id}/profile', [PlayerController::class, 'profile']);
+        Route::get('{id}/matches', [PlayerController::class, 'matches']);
+        Route::get('{id}/career', [PlayerController::class, 'career']);
+    });
 });
+
+/* ----------------------------------------------------------------- Assistant */
+
+// Public AI chat about tournaments, scores and stats. Each turn is a paid model
+// call with several lookups, so it is throttled well below the API default.
+Route::post('assistant/chat', [AssistantController::class, 'chat'])->middleware('throttle:10,1');
 
 /* ------------------------------------------------------------------- Reports */
 

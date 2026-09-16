@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ReceiptModal } from '../../components/ReceiptModal';
+import { PlayerCodeBadge } from '../../components/PlayerCodeBadge';
 import { ImageUploadModal } from '../../components/ImageUploadModal';
 import { PhoneInput } from '../../components/PhoneInput';
 import { useToast } from '../../components/ui/Toast';
@@ -84,6 +85,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
 
   // Step 5: Completed Receipt
   const [completedReceipt, setCompletedReceipt] = useState<any>(null);
+  const [registeredPlayers, setRegisteredPlayers] = useState<{ id: string; full_name: string; jersey_number: number; player_code: string }[]>([]);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
   useEffect(() => {
@@ -213,6 +215,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
 
       confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 } });
       setCompletedReceipt(res.receipt);
+      setRegisteredPlayers(res.players || []);
       setCurrentStep(5);
     } catch (err: any) {
       toast.error(err.message || 'Registration failed');
@@ -845,6 +848,29 @@ export const PublicTeamRegisterPage: React.FC = () => {
                   <span className="font-mono">₹{completedReceipt.receipt_data.remaining_balance.toLocaleString()}</span>
                 </div>
               </div>
+
+              {/* Player Codes — the manager passes each one on */}
+              {registeredPlayers.length > 0 && (
+                <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 max-w-md mx-auto text-left text-xs space-y-3">
+                  <div>
+                    <div className="font-bold text-white">Player Codes</div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Share each code with the player. They can enter it on Find My Stats to see their own stats, with no login.
+                    </p>
+                  </div>
+                  <div className="divide-y divide-slate-800/70">
+                    {registeredPlayers.map(p => (
+                      <div key={p.id} className="py-2 flex items-center justify-between gap-3">
+                        <span className="text-slate-200 truncate">
+                          <span className="font-mono text-slate-500 mr-2">#{p.jersey_number}</span>
+                          {p.full_name}
+                        </span>
+                        <PlayerCodeBadge code={p.player_code} size="sm" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center justify-center gap-3">

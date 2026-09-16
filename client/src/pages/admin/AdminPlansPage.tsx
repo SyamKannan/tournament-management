@@ -46,7 +46,7 @@ export const AdminPlansPage: React.FC = () => {
     { id: 'advanced_analytics', label: 'Advanced Tournament Analytics' },
     { id: 'custom_branding', label: 'Custom Organization Branding' },
     { id: 'coin_toss', label: 'Pre-Match Coin Toss' },
-    { id: 'ai_tournament_poster', label: 'AI-Generated Tournament Posters' }
+    { id: 'ai_tournament_poster', label: 'Match & Tournament Posters' }
   ];
 
   const fetchPlans = async () => {

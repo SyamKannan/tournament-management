@@ -44,6 +44,20 @@ class PlatformController extends Controller
         return response()->json(PlatformSetting::current()->enabled_payment_methods ?? []);
     }
 
+    /** Landing-page footer: admin-edited content plus the public support contact. */
+    public function footer(): JsonResponse
+    {
+        $settings = PlatformSetting::current();
+        $footer = $settings->footerContent();
+
+        return response()->json([
+            ...$footer,
+            'platform_name' => $settings->platform_name,
+            'support_email' => $footer['show_contact'] ? $settings->support_email : null,
+            'support_phone' => $footer['show_contact'] ? $settings->support_phone : null,
+        ]);
+    }
+
     public function health(): JsonResponse
     {
         return response()->json([

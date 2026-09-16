@@ -3,9 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\GameMatch;
-use App\Models\PlayerStat;
+use App\Models\Player;
 use App\Services\FootballScorecard;
 use App\Services\LineupService;
+use App\Services\PlayerStatsService;
 use App\Services\ScoreboardDirector;
 use App\Services\ScoringEngine;
 use App\Services\TossService;
@@ -207,9 +208,6 @@ class FootballMatchFlowTest extends TestCase
 
     public function test_undo_takes_the_goal_and_assist_off_the_players_records(): void
     {
-        $scorer = $this->statsFor('pl-mb-3');
-        $assister = $this->statsFor('pl-mb-4');
-
         $this->scoring->addFootballEvent([
             'matchId' => self::LIVE,
             'teamId' => self::HOME,
@@ -219,19 +217,17 @@ class FootballMatchFlowTest extends TestCase
             'minute' => 40,
         ]);
 
-        $this->assertSame(1, $scorer->fresh()->football['goals']);
-        $this->assertSame(1, $assister->fresh()->football['assists']);
+        $this->assertSame(1, $this->footballStat('pl-mb-3', 'goals'));
+        $this->assertSame(1, $this->footballStat('pl-mb-4', 'assists'));
 
         $this->scoring->undoLastFootballEvent(self::LIVE);
 
-        $this->assertSame(0, $scorer->fresh()->football['goals']);
-        $this->assertSame(0, $assister->fresh()->football['assists']);
+        $this->assertSame(0, $this->footballStat('pl-mb-3', 'goals'));
+        $this->assertSame(0, $this->footballStat('pl-mb-4', 'assists'));
     }
 
     public function test_an_assist_only_counts_on_an_open_play_goal(): void
     {
-        $assister = $this->statsFor('pl-mb-4');
-
         $result = $this->scoring->addFootballEvent([
             'matchId' => self::LIVE,
             'teamId' => self::HOME,
@@ -242,7 +238,7 @@ class FootballMatchFlowTest extends TestCase
         ]);
 
         $this->assertNull($result['event']->assist_player_id);
-        $this->assertSame(0, $assister->fresh()->football['assists']);
+        $this->assertSame(0, $this->footballStat('pl-mb-4', 'assists'));
     }
 
     /* ------------------------------------------------------------ Validation */
@@ -527,15 +523,9 @@ class FootballMatchFlowTest extends TestCase
         $this->postJson('/api/matches/match-crick-live-1/cricket/undo')->assertForbidden();
     }
 
-    private function statsFor(string $playerId): PlayerStat
+    /** One of a player's football totals, as the stats service reads it off the log. */
+    private function footballStat(string $playerId, string $stat): mixed
     {
-        return PlayerStat::create([
-            'id' => 'ps-test-'.$playerId,
-            'player_id' => $playerId,
-            'full_name' => $playerId,
-            'organization_id' => 'org-green-valley',
-            'sport_code' => 'football',
-            'football' => ['goals' => 0, 'assists' => 0, 'yellow_cards' => 0, 'red_cards' => 0],
-        ]);
+        return app(PlayerStatsService::class)->forPlayer(Player::findOrFail($playerId))['football'][$stat];
     }
 }

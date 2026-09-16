@@ -11,7 +11,7 @@ use Tests\TestCase;
 
 /**
  * Ground fees teams pay organizers to enter a tournament — distinct from the
- * organizer's own SaaS subscription.
+ * organizer's own platform subscription.
  */
 class GroundFeePaymentTest extends TestCase
 {

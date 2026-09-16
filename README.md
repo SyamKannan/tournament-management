@@ -1,8 +1,8 @@
-# Antigravity Sports SaaS
+# Sportivo
 
 Multi-tenant platform for running village and club sports tournaments — football and
 cricket — with live scoring, big-screen scoreboards, player auctions, ground-fee
-collection and per-organizer SaaS subscriptions.
+collection and per-organizer subscriptions.
 
 ```
 backend/   Laravel 13 API + real-time WebSocket gateway

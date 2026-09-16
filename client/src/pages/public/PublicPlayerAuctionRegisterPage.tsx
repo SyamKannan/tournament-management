@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
+import { SHOW_DEMO_ACCOUNTS } from '../../config';
 import type { Auction, Tournament, Organization, AuctionCategory, FootballPosition, CricketRole, CricketBattingStyle, CricketBowlingStyle } from '../../types';
 import { 
   Gavel, CheckCircle2,
@@ -256,13 +257,15 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
               <h2 className="text-base font-bold text-white font-heading">
                 Player Details & Base Price Category
               </h2>
-              <button
-                type="button"
-                onClick={handleSampleFill}
-                className="px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-bold border border-slate-700 transition-colors"
-              >
-                ⚡ 1-Click Demo Fill
-              </button>
+              {SHOW_DEMO_ACCOUNTS && (
+                <button
+                  type="button"
+                  onClick={handleSampleFill}
+                  className="px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-bold border border-slate-700 transition-colors"
+                >
+                  Fill Sample Data
+                </button>
+              )}
             </div>
 
             {error && (

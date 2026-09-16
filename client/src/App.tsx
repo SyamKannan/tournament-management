@@ -1,53 +1,74 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { PlatformConfigProvider } from './context/PlatformConfigContext';
 import { Navbar } from './components/Navbar';
+import { AssistantChat } from './components/AssistantChat';
 import { Sidebar } from './components/Sidebar';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ToastProvider } from './components/ui/Toast';
 import { ConfirmProvider } from './components/ui/ConfirmDialog';
-
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { LandingPage } from './pages/LandingPage';
-import { LoginPage } from './pages/auth/LoginPage';
-import { RegisterClubPage } from './pages/auth/RegisterClubPage';
-import { PublicTournamentPage } from './pages/public/PublicTournamentPage';
-import { PublicOrganizationPage } from './pages/public/PublicOrganizationPage';
-import { PublicTeamRegisterPage } from './pages/public/PublicTeamRegisterPage';
-import { ScoreboardTVPage } from './pages/public/ScoreboardTVPage';
+
+/**
+ * Pages are split into their own chunks so a visitor on the landing page or a
+ * public scoreboard doesn't download the admin, scorer and auction screens.
+ */
+function lazyPage<K extends string>(load: () => Promise<Record<K, React.ComponentType>>, name: K) {
+  return lazy(() => load().then(module => ({ default: module[name] })));
+}
+
+const PageLoader: React.FC = () => (
+  <div className="min-h-[60vh] flex items-center justify-center" role="status" aria-label="Loading">
+    <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
+
+const LoginPage = lazyPage(() => import('./pages/auth/LoginPage'), 'LoginPage');
+const RegisterClubPage = lazyPage(() => import('./pages/auth/RegisterClubPage'), 'RegisterClubPage');
+const RegisterPlayerPage = lazyPage(() => import('./pages/auth/RegisterPlayerPage'), 'RegisterPlayerPage');
+const NotFoundPage = lazyPage(() => import('./pages/NotFoundPage'), 'NotFoundPage');
+const PublicTournamentPage = lazyPage(() => import('./pages/public/PublicTournamentPage'), 'PublicTournamentPage');
+const PublicOrganizationPage = lazyPage(() => import('./pages/public/PublicOrganizationPage'), 'PublicOrganizationPage');
+const PublicPlayerSearchPage = lazyPage(() => import('./pages/public/PublicPlayerSearchPage'), 'PublicPlayerSearchPage');
+const PublicTeamRegisterPage = lazyPage(() => import('./pages/public/PublicTeamRegisterPage'), 'PublicTeamRegisterPage');
+const ScoreboardTVPage = lazyPage(() => import('./pages/public/ScoreboardTVPage'), 'ScoreboardTVPage');
 
 // Player Auction & Statistics Pages
-import { PublicPlayerAuctionRegisterPage } from './pages/public/PublicPlayerAuctionRegisterPage';
-import { LiveAuctionArenaPage } from './pages/auction/LiveAuctionArenaPage';
-import { AuctionTVPage } from './pages/auction/AuctionTVPage';
-import { PlayerDashboardPage } from './pages/player/PlayerDashboardPage';
-import { PublicPlayerProfilePage } from './pages/public/PublicPlayerProfilePage';
-import { MyProfilePage } from './pages/account/MyProfilePage';
+const PublicPlayerAuctionRegisterPage = lazyPage(() => import('./pages/public/PublicPlayerAuctionRegisterPage'), 'PublicPlayerAuctionRegisterPage');
+const LiveAuctionArenaPage = lazyPage(() => import('./pages/auction/LiveAuctionArenaPage'), 'LiveAuctionArenaPage');
+const AuctionTVPage = lazyPage(() => import('./pages/auction/AuctionTVPage'), 'AuctionTVPage');
+const PlayerDashboardPage = lazyPage(() => import('./pages/player/PlayerDashboardPage'), 'PlayerDashboardPage');
+const PublicPlayerProfilePage = lazyPage(() => import('./pages/public/PublicPlayerProfilePage'), 'PublicPlayerProfilePage');
+const MyProfilePage = lazyPage(() => import('./pages/account/MyProfilePage'), 'MyProfilePage');
 
 // Super Admin Pages
-import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { AdminPlansPage } from './pages/admin/AdminPlansPage';
-import { AdminOrganizationsPage } from './pages/admin/AdminOrganizationsPage';
-import { AdminSubscriptionsPage } from './pages/admin/AdminSubscriptionsPage';
-import { AdminAuditLogsPage } from './pages/admin/AdminAuditLogsPage';
-import { AdminPlatformSettingsPage } from './pages/admin/AdminPlatformSettingsPage';
-import { AdminSportsPage } from './pages/admin/AdminSportsPage';
+const AdminDashboard = lazyPage(() => import('./pages/admin/AdminDashboard'), 'AdminDashboard');
+const AdminPlansPage = lazyPage(() => import('./pages/admin/AdminPlansPage'), 'AdminPlansPage');
+const AdminOrganizationsPage = lazyPage(() => import('./pages/admin/AdminOrganizationsPage'), 'AdminOrganizationsPage');
+const AdminSubscriptionsPage = lazyPage(() => import('./pages/admin/AdminSubscriptionsPage'), 'AdminSubscriptionsPage');
+const AdminAuditLogsPage = lazyPage(() => import('./pages/admin/AdminAuditLogsPage'), 'AdminAuditLogsPage');
+const AdminPlatformSettingsPage = lazyPage(() => import('./pages/admin/AdminPlatformSettingsPage'), 'AdminPlatformSettingsPage');
+const AdminSportsPage = lazyPage(() => import('./pages/admin/AdminSportsPage'), 'AdminSportsPage');
+const AdminUsersPage = lazyPage(() => import('./pages/admin/AdminUsersPage'), 'AdminUsersPage');
 
 // Organization Admin Pages
-import { OrgDashboard } from './pages/organization/OrgDashboard';
-import { OrgTournamentsPage } from './pages/organization/OrgTournamentsPage';
-import { OrgTeamsPage } from './pages/organization/OrgTeamsPage';
-import { OrgFixturesPage } from './pages/organization/OrgFixturesPage';
-import { OrgLiveScorerPage } from './pages/organization/OrgLiveScorerPage';
-import { OrgSponsorsAdsPage } from './pages/organization/OrgSponsorsAdsPage';
-import { OrgAnnouncementsPage } from './pages/organization/OrgAnnouncementsPage';
-import { OrgReportsPage } from './pages/organization/OrgReportsPage';
-import { OrgBillingPage } from './pages/organization/OrgBillingPage';
-import { OrgTournamentAuctionManagePage } from './pages/organization/OrgTournamentAuctionManagePage';
-import { OrgPostersPage } from './pages/organization/OrgPostersPage';
+const OrgDashboard = lazyPage(() => import('./pages/organization/OrgDashboard'), 'OrgDashboard');
+const OrgTournamentsPage = lazyPage(() => import('./pages/organization/OrgTournamentsPage'), 'OrgTournamentsPage');
+const OrgTeamsPage = lazyPage(() => import('./pages/organization/OrgTeamsPage'), 'OrgTeamsPage');
+const OrgFixturesPage = lazyPage(() => import('./pages/organization/OrgFixturesPage'), 'OrgFixturesPage');
+const OrgLiveScorerPage = lazyPage(() => import('./pages/organization/OrgLiveScorerPage'), 'OrgLiveScorerPage');
+const OrgSponsorsAdsPage = lazyPage(() => import('./pages/organization/OrgSponsorsAdsPage'), 'OrgSponsorsAdsPage');
+const OrgAnnouncementsPage = lazyPage(() => import('./pages/organization/OrgAnnouncementsPage'), 'OrgAnnouncementsPage');
+const OrgReportsPage = lazyPage(() => import('./pages/organization/OrgReportsPage'), 'OrgReportsPage');
+const OrgBillingPage = lazyPage(() => import('./pages/organization/OrgBillingPage'), 'OrgBillingPage');
+const OrgTournamentAuctionManagePage = lazyPage(() => import('./pages/organization/OrgTournamentAuctionManagePage'), 'OrgTournamentAuctionManagePage');
+const OrgPostersPage = lazyPage(() => import('./pages/organization/OrgPostersPage'), 'OrgPostersPage');
 
 // Team Manager Workspace
-import { TeamAuctionPage, TeamAuctionsListPage } from './pages/team/TeamAuctionPage';
+const TeamAuctionPage = lazyPage(() => import('./pages/team/TeamAuctionPage'), 'TeamAuctionPage');
+const TeamAuctionsListPage = lazyPage(() => import('./pages/team/TeamAuctionPage'), 'TeamAuctionsListPage');
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
@@ -67,7 +88,13 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, [location.pathname]);
 
   if (isTVMode) {
-    return <main className="min-h-screen bg-slate-950 text-slate-100">{children}</main>;
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100">
+        <ErrorBoundary resetKey={location.pathname}>
+          <Suspense fallback={<PageLoader />}>{children}</Suspense>
+        </ErrorBoundary>
+      </main>
+    );
   }
 
   return (
@@ -91,9 +118,13 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           // is what stops wide tables from pushing the whole page sideways.
           className={`flex-1 min-w-0 ${hasSidebar ? 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full' : ''}`}
         >
-          {children}
+          <ErrorBoundary resetKey={location.pathname}>
+          <Suspense fallback={<PageLoader />}>{children}</Suspense>
+        </ErrorBoundary>
         </main>
       </div>
+
+      <AssistantChat />
     </div>
   );
 };
@@ -111,6 +142,7 @@ export const App: React.FC = () => {
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register-club" element={<RegisterClubPage />} />
+                <Route path="/register-player" element={<RegisterPlayerPage />} />
                 <Route path="/tournaments/:slug" element={<PublicTournamentPage />} />
                 <Route path="/organizations/:slug" element={<PublicOrganizationPage />} />
                 <Route path="/register/team/:token" element={<PublicTeamRegisterPage />} />
@@ -120,6 +152,7 @@ export const App: React.FC = () => {
                 <Route path="/register/player-auction/:token" element={<PublicPlayerAuctionRegisterPage />} />
                 <Route path="/auction/:id" element={<LiveAuctionArenaPage />} />
                 <Route path="/auction/tv/:id" element={<AuctionTVPage />} />
+                <Route path="/players" element={<PublicPlayerSearchPage />} />
                 <Route path="/players/:id" element={<PublicPlayerProfilePage />} />
 
                 {/* Account Settings — every authenticated role manages their own profile here */}
@@ -154,6 +187,11 @@ export const App: React.FC = () => {
                 <Route path="/admin/sports" element={
                   <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
                     <AdminSportsPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/users" element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                    <AdminUsersPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/admin/organizations" element={
@@ -268,8 +306,8 @@ export const App: React.FC = () => {
               </ProtectedRoute>
             } />
 
-            {/* Fallback */}
-                <Route path="*" element={<Navigate to="/" replace />} />
+                {/* Fallback */}
+                <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </AppLayout>
           </BrowserRouter>

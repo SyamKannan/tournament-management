@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 /**
- * Super-admin console: platform metrics, SaaS plan catalogue, organization
+ * Super-admin console: platform metrics, subscription plan catalogue, organization
  * onboarding and suspension, billing overview and the audit trail.
  *
  * Every route here is behind `role:SUPER_ADMIN`.
@@ -412,7 +412,18 @@ class AdminController extends Controller
             'payment_gateways.*.provider' => ['required_with:payment_gateways', 'string', 'in:'.$providers],
             'payment_gateways.*.key_id' => ['nullable', 'string', 'max:64'],
             'payment_gateways.*.key_secret' => ['nullable', 'string', 'max:128'],
+            'footer' => ['sometimes', 'array'],
+            'footer.tagline' => ['nullable', 'string', 'max:160'],
+            'footer.copyright' => ['nullable', 'string', 'max:160'],
+            'footer.show_contact' => ['sometimes', 'boolean'],
+            'footer.links' => ['sometimes', 'array', 'max:8'],
+            'footer.links.*.label' => ['required', 'string', 'max:40'],
+            // Internal paths or http(s) only — never javascript: or data: URLs on a public page.
+            'footer.links.*.url' => ['required', 'string', 'max:255', 'regex:#^(/(?!/)|https?://)#i'],
+            'footer.social' => ['sometimes', 'array:'.implode(',', PlatformSetting::SOCIAL_NETWORKS)],
+            'footer.social.*' => ['nullable', 'string', 'max:255', 'url:http,https'],
         ], [
+            'footer.links.*.url.regex' => 'Footer links must start with / or https://.',
             'payment_gateways.*.provider.in' => 'The demo checkout cannot be used in production. Choose Razorpay.',
         ]);
 
@@ -420,6 +431,19 @@ class AdminController extends Controller
         unset($data['payment_gateways']);
 
         $settings = PlatformSetting::current();
+        if (isset($data['footer'])) {
+            $current = $settings->footerContent();
+            $incoming = array_intersect_key($data['footer'], PlatformSetting::FOOTER_DEFAULTS);
+            $footer = [...$current, ...$incoming];
+            $footer['tagline'] = (string) $footer['tagline'];
+            $footer['copyright'] = (string) $footer['copyright'];
+            $footer['links'] = array_values(array_map(
+                fn (array $link) => ['label' => $link['label'], 'url' => $link['url']],
+                $footer['links'],
+            ));
+            $footer['social'] = array_map('strval', [...$current['social'], ...($incoming['social'] ?? [])]);
+            $data['footer'] = $footer;
+        }
         $settings->fill($data)->save();
 
         if ($gateways !== null) {
@@ -434,8 +458,11 @@ class AdminController extends Controller
 
     private function settingsPayload(): array
     {
+        $settings = PlatformSetting::current();
+
         return [
-            ...PlatformSetting::current()->toArray(),
+            ...$settings->toArray(),
+            'footer' => $settings->footerContent(),
             'payment_gateways' => $this->gateway->adminConfig(),
         ];
     }

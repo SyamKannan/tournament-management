@@ -5,9 +5,10 @@ namespace Tests\Feature;
 use App\Models\CricketDelivery;
 use App\Models\CricketMatchState;
 use App\Models\GameMatch;
-use App\Models\PlayerStat;
+use App\Models\Player;
 use App\Models\Standing;
 use App\Services\CricketScorecard;
+use App\Services\PlayerStatsService;
 use App\Services\ScoringEngine;
 use Tests\TestCase;
 
@@ -283,10 +284,8 @@ class CricketScoringTest extends TestCase
 
     public function test_runs_and_wickets_reach_the_players_career_totals(): void
     {
-        $this->giveCareerStats('pl-kk-1', 'pl-cw-3');
-
-        $runsBefore = PlayerStat::query()->where('player_id', 'pl-kk-1')->first()->cricket['runs_scored'] ?? 0;
-        $wicketsBefore = PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['wickets_taken'] ?? 0;
+        $runsBefore = $this->careerStat('pl-kk-1', 'runs_scored');
+        $wicketsBefore = $this->careerStat('pl-cw-3', 'wickets_taken');
 
         $this->scoring->recordCricketBall([
             'matchId' => self::MATCH_ID,
@@ -312,15 +311,13 @@ class CricketScoringTest extends TestCase
             'bowlerId' => 'pl-cw-3',
         ]);
 
-        $this->assertSame($runsBefore + 6, PlayerStat::query()->where('player_id', 'pl-kk-1')->first()->cricket['runs_scored']);
-        $this->assertSame($wicketsBefore + 1, PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['wickets_taken']);
+        $this->assertSame($runsBefore + 6, $this->careerStat('pl-kk-1', 'runs_scored'));
+        $this->assertSame($wicketsBefore + 1, $this->careerStat('pl-cw-3', 'wickets_taken'));
     }
 
     public function test_a_run_out_is_not_credited_to_the_bowler(): void
     {
-        $this->giveCareerStats('pl-cw-3');
-
-        $before = PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['wickets_taken'] ?? 0;
+        $before = $this->careerStat('pl-cw-3', 'wickets_taken');
 
         $this->scoring->recordCricketBall([
             'matchId' => self::MATCH_ID,
@@ -335,14 +332,12 @@ class CricketScoringTest extends TestCase
             'bowlerId' => 'pl-cw-3',
         ]);
 
-        $this->assertSame($before, PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['wickets_taken'] ?? 0);
+        $this->assertSame($before, $this->careerStat('pl-cw-3', 'wickets_taken'));
     }
 
     public function test_byes_are_not_charged_to_the_bowler(): void
     {
-        $this->giveCareerStats('pl-cw-3');
-
-        $before = PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['runs_conceded'] ?? 0;
+        $before = $this->careerStat('pl-cw-3', 'runs_conceded');
 
         $this->scoring->recordCricketBall([
             'matchId' => self::MATCH_ID,
@@ -356,15 +351,13 @@ class CricketScoringTest extends TestCase
             'bowlerId' => 'pl-cw-3',
         ]);
 
-        $this->assertSame($before, PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['runs_conceded'] ?? 0);
+        $this->assertSame($before, $this->careerStat('pl-cw-3', 'runs_conceded'));
     }
 
     public function test_undo_takes_the_players_career_totals_back_with_it(): void
     {
-        $this->giveCareerStats('pl-kk-1', 'pl-cw-3');
-
-        $runsBefore = PlayerStat::query()->where('player_id', 'pl-kk-1')->first()->cricket['runs_scored'] ?? 0;
-        $wicketsBefore = PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['wickets_taken'] ?? 0;
+        $runsBefore = $this->careerStat('pl-kk-1', 'runs_scored');
+        $wicketsBefore = $this->careerStat('pl-cw-3', 'wickets_taken');
 
         $this->scoring->recordCricketBall([
             'matchId' => self::MATCH_ID,
@@ -379,8 +372,8 @@ class CricketScoringTest extends TestCase
 
         $this->scoring->undoLastCricketBall(self::MATCH_ID);
 
-        $this->assertSame($runsBefore, PlayerStat::query()->where('player_id', 'pl-kk-1')->first()->cricket['runs_scored']);
-        $this->assertSame($wicketsBefore, PlayerStat::query()->where('player_id', 'pl-cw-3')->first()->cricket['wickets_taken'] ?? 0);
+        $this->assertSame($runsBefore, $this->careerStat('pl-kk-1', 'runs_scored'));
+        $this->assertSame($wicketsBefore, $this->careerStat('pl-cw-3', 'wickets_taken'));
     }
 
     public function test_undo_puts_the_batters_back_at_the_ends_they_came_from(): void
@@ -514,25 +507,10 @@ class CricketScoringTest extends TestCase
         )[0];
     }
 
-    /**
-     * The demo dataset only carries a career row for the showcase player, so
-     * the two in this fixture are given empty ones before the tests that
-     * assert the engine folds a delivery into them.
-     */
-    private function giveCareerStats(string ...$playerIds): void
+    /** One of a player's cricket totals, as the stats service reads it off the log. */
+    private function careerStat(string $playerId, string $stat): mixed
     {
-        foreach ($playerIds as $playerId) {
-            PlayerStat::query()->firstOrCreate(
-                ['player_id' => $playerId],
-                [
-                    'id' => 'ps-test-'.$playerId,
-                    'full_name' => $playerId,
-                    'organization_id' => 'org-malabar-cricket',
-                    'sport_code' => 'cricket',
-                    'cricket' => [],
-                ],
-            );
-        }
+        return app(PlayerStatsService::class)->forPlayer(Player::findOrFail($playerId))['cricket'][$stat];
     }
 
     private function setBatters(string $striker, string $nonStriker): void

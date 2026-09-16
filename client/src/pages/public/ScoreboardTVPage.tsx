@@ -901,7 +901,7 @@ export const ScoreboardTVPage: React.FC = () => {
 
       <footer className="shrink-0 pt-3 border-t border-slate-800/80 flex items-center justify-end gap-4">
         <div className="flex items-center gap-2 tv-label text-slate-500 shrink-0">
-          <span>Powered by Sportivo Live Engine</span>
+          <span>Sportivo Live Score</span>
           {/* Honest about the connection, so whoever runs the screen can tell a
               dead gateway from a quiet over. */}
           {socketLive

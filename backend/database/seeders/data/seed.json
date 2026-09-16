@@ -1,8 +1,8 @@
 {
   "platform_settings": {
-    "platform_name": "Antigravity Sports SaaS",
+    "platform_name": "Sportivo",
     "country": "India",
-    "support_email": "support@sports-saas.com",
+    "support_email": "support@sportivo.app",
     "support_phone": "+91 98460 12345",
     "currency_symbol": "₹",
     "currency_code": "INR",
@@ -1849,137 +1849,6 @@
       "cricket_bowling_style": "Medium Fast",
       "past_achievements": "State U-23 player, 380 runs & 16 wickets in 2025 season",
       "created_at": "2026-07-25T02:47:55.948Z"
-    }
-  ],
-  "player_stats": [
-    {
-      "id": "ps-shameer",
-      "player_id": "player-mb-1",
-      "user_id": "user-player-shameer",
-      "full_name": "Shameer Babu",
-      "photo": "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=200&auto=format&fit=crop&q=80",
-      "jersey_number": 10,
-      "team_id": "team-malabar-blasters",
-      "team_name": "Malabar Blasters FC",
-      "organization_id": "org-green-valley",
-      "tournament_id": "tourney-fb-malappuram",
-      "sport_code": "football",
-      "football": {
-        "matches": 12,
-        "minutes_played": 740,
-        "goals": 14,
-        "assists": 6,
-        "clean_sheets": 0,
-        "yellow_cards": 1,
-        "red_cards": 0,
-        "penalties_scored": 3,
-        "shots_on_target": 38,
-        "player_of_match_count": 5
-      },
-      "recent_performances": [
-        {
-          "match_id": "m1",
-          "opponent_name": "Green Valley Strikers",
-          "date": "2026-08-19",
-          "summary": "1 Goal (21 min), 1 Assist",
-          "rating": 9.2
-        },
-        {
-          "match_id": "m2",
-          "opponent_name": "Nilgiri Lions FC",
-          "date": "2026-08-15",
-          "summary": "2 Goals, 5 Shots on Target",
-          "rating": 9.7
-        }
-      ],
-      "awards": [
-        {
-          "id": "aw1",
-          "title": "Player of the Tournament 2025",
-          "date": "2025-12-10",
-          "tournament_name": "Malappuram Sevens"
-        },
-        {
-          "id": "aw2",
-          "title": "Golden Boot Winner",
-          "date": "2026-08-19",
-          "tournament_name": "Malappuram 7s Cup"
-        }
-      ],
-      "updated_at": "2026-08-24T02:47:55.943Z"
-    },
-    {
-      "id": "ps-rahul",
-      "player_id": "player-crick-1",
-      "user_id": "user-player-rahul",
-      "full_name": "Rahul R. Menon",
-      "photo": "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=200&auto=format&fit=crop&q=80",
-      "jersey_number": 7,
-      "team_id": "team-crick-calicut",
-      "team_name": "Calicut Royal Challengers",
-      "organization_id": "org-malabar-cricket",
-      "tournament_id": "tourney-crick-calicut",
-      "sport_code": "cricket",
-      "cricket": {
-        "matches": 14,
-        "innings_batted": 13,
-        "runs_scored": 412,
-        "balls_faced": 262,
-        "highest_score": 86,
-        "highest_score_not_out": true,
-        "batting_average": 41.2,
-        "strike_rate": 157.25,
-        "centuries": 0,
-        "fifties": 4,
-        "fours": 42,
-        "sixes": 19,
-        "ducks": 0,
-        "not_outs": 3,
-        "overs_bowled": 38.4,
-        "maidens": 3,
-        "runs_conceded": 268,
-        "wickets_taken": 17,
-        "bowling_average": 15.76,
-        "economy_rate": 6.93,
-        "best_bowling_wickets": 4,
-        "best_bowling_runs": 16,
-        "three_wicket_hauls": 3,
-        "five_wicket_hauls": 0,
-        "catches": 8,
-        "stumpings": 0,
-        "run_outs": 2
-      },
-      "recent_performances": [
-        {
-          "match_id": "m3",
-          "opponent_name": "Coastal Kings",
-          "date": "2026-08-18",
-          "summary": "42* (26b) & 2/18 (4 ov)",
-          "rating": 9.4
-        },
-        {
-          "match_id": "m4",
-          "opponent_name": "Wayanad Warriors",
-          "date": "2026-08-12",
-          "summary": "86* (48b) & 3/22 (4 ov)",
-          "rating": 9.9
-        }
-      ],
-      "awards": [
-        {
-          "id": "aw3",
-          "title": "Orange Cap Leader",
-          "date": "2026-08-18",
-          "tournament_name": "Calicut T20 League"
-        },
-        {
-          "id": "aw4",
-          "title": "Man of the Match",
-          "date": "2026-08-12",
-          "tournament_name": "Calicut T20 League"
-        }
-      ],
-      "updated_at": "2026-08-24T02:47:55.943Z"
     }
   ]
 }

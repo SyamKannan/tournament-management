@@ -121,12 +121,13 @@ return [
     |
     | The SPA authenticates with a signed bearer token rather than a session
     | cookie. `secret` must be set to a long random value in every deployed
-    | environment; the fallback exists only so a fresh clone boots.
+    | environment; the fallback exists only so a fresh clone boots, and
+    | TokenService refuses to use it when APP_ENV=production.
     |
     */
 
     'jwt' => [
-        'secret' => env('JWT_SECRET', 'antigravity_sports_saas_super_secret_jwt_key_2026'),
+        'secret' => env('JWT_SECRET', 'local-development-only-jwt-secret-change-me'),
         'ttl' => (int) env('JWT_TTL_SECONDS', 60 * 60 * 24 * 7),
     ],
 

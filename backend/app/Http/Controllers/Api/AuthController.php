@@ -105,11 +105,15 @@ class AuthController extends Controller
             'district' => ['nullable', 'string', 'max:255'],
             'state' => ['nullable', 'string', 'max:255'],
             'country' => ['nullable', 'string', 'max:255'],
-            'password' => ['nullable', 'string', 'min:6'],
+            'password' => ['required', 'string', 'min:6'],
         ], [], [
             'organizationName' => 'organization name',
             'contactPerson' => 'contact person',
         ]);
+
+        if (User::query()->where('email', $data['email'])->exists()) {
+            return response()->json(['error' => 'An account with this email address already exists. Please sign in.'], 422);
+        }
 
         $settings = PlatformSetting::current();
 
@@ -145,7 +149,7 @@ class AuthController extends Controller
                 'id' => Ids::timestamped('user'),
                 'name' => $data['contactPerson'],
                 'email' => $data['email'],
-                'password_hash' => Hash::make($data['password'] ?? 'default123'),
+                'password_hash' => Hash::make($data['password']),
                 'phone' => $phone,
                 'role' => 'ORG_ADMIN',
                 'organization_id' => $organizationId,

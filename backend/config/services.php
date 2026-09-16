@@ -56,6 +56,17 @@ return [
     'anthropic' => [
         'api_key' => env('ANTHROPIC_API_KEY'),
         'model' => env('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001'),
+        // Chat assistant model when no GEMINI_API_KEY is set (see AssistantService).
+        'assistant_model' => env('ASSISTANT_MODEL', 'claude-opus-5'),
+    ],
+
+    // Scorey, the public chat assistant (see AssistantService). A free key from
+    // aistudio.google.com is enough; when set, Gemini is used ahead of the
+    // Anthropic key below. Free-tier prompts may be used by Google to improve
+    // its products.
+    'gemini' => [
+        'api_key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
     ],
 
     // Browsershot's Chrome. Required for poster rendering regardless of any

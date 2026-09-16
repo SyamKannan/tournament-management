@@ -59,7 +59,7 @@ class TenantIsolationTest extends TestCase
 
         $this->getJson('/api/tournaments/tourney-cricket-t20')
             ->assertForbidden()
-            ->assertJsonPath('error', 'Forbidden: Tenant isolation violation');
+            ->assertJsonPath('error', 'You do not have access to this organization.');
     }
 
     public function test_super_admin_reaches_every_organization(): void

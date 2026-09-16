@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
-import { SHOW_DEMO_ACCOUNTS } from '../../config';
+import { SHOW_ADMIN_LOGIN, SHOW_DEMO_ACCOUNTS } from '../../config';
 import { AuthShowcase } from '../../components/AuthShowcase';
 import { SPORTS_CAROUSELS } from '../../lib/sportsImagery';
 import {
@@ -19,7 +19,7 @@ export const LoginPage: React.FC = () => {
   const initialRoleParam = searchParams.get('role');
 
   const [activeTab, setActiveTab] = useState<'ORG_ADMIN' | 'PLAYER' | 'SUPER_ADMIN'>(
-    initialRoleParam === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : initialRoleParam === 'PLAYER' ? 'PLAYER' : 'ORG_ADMIN'
+    initialRoleParam === 'SUPER_ADMIN' && SHOW_ADMIN_LOGIN ? 'SUPER_ADMIN' : initialRoleParam === 'PLAYER' ? 'PLAYER' : 'ORG_ADMIN'
   );
 
   const [email, setEmail] = useState('');
@@ -46,6 +46,8 @@ export const LoginPage: React.FC = () => {
   const handleTabChange = (tab: 'ORG_ADMIN' | 'PLAYER' | 'SUPER_ADMIN') => {
     setActiveTab(tab);
     setError(null);
+    // Pre-filling seeded credentials is a demo convenience only.
+    if (!SHOW_DEMO_ACCOUNTS) return;
     if (tab === 'SUPER_ADMIN') {
       setEmail('syamdas@gmail.com');
       setPassword('12345678');
@@ -160,18 +162,20 @@ export const LoginPage: React.FC = () => {
             <span>Player Login</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => handleTabChange('SUPER_ADMIN')}
-            className={`flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === 'SUPER_ADMIN'
-                ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/20'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Super Admin</span>
-          </button>
+          {SHOW_ADMIN_LOGIN && (
+            <button
+              type="button"
+              onClick={() => handleTabChange('SUPER_ADMIN')}
+              className={`flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all ${
+                activeTab === 'SUPER_ADMIN'
+                  ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Super Admin</span>
+            </button>
+          )}
         </div>
 
         {/* Login Card */}

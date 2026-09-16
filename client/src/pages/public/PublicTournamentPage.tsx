@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { FEATURE_AUCTION_ENABLED } from '../../config';
 import { periodLabel, tossDecisionPhrase } from '../../lib/football';
+import { playerPhoto, stat } from '../../lib/playerStats';
 
 export const PublicTournamentPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -362,7 +363,7 @@ export const PublicTournamentPage: React.FC = () => {
                   {leaderboards.golden_boot && (
                     <div className="p-6 rounded-3xl bg-gradient-to-r from-amber-500/20 via-slate-900 to-amber-500/20 border border-amber-500/40 shadow-xl flex items-center gap-5">
                       <img
-                        src={leaderboards.golden_boot.photo}
+                        src={playerPhoto(leaderboards.golden_boot.photo, tournament.sport_code)}
                         alt={leaderboards.golden_boot.full_name}
                         className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-400 shadow-md shrink-0"
                       />
@@ -383,7 +384,7 @@ export const PublicTournamentPage: React.FC = () => {
                   {leaderboards.top_playmaker && (
                     <div className="p-6 rounded-3xl bg-gradient-to-r from-cyan-500/20 via-slate-900 to-cyan-500/20 border border-cyan-500/40 shadow-xl flex items-center gap-5">
                       <img
-                        src={leaderboards.top_playmaker.photo}
+                        src={playerPhoto(leaderboards.top_playmaker.photo, tournament.sport_code)}
                         alt={leaderboards.top_playmaker.full_name}
                         className="w-20 h-20 rounded-2xl object-cover border-2 border-cyan-400 shadow-md shrink-0"
                       />
@@ -425,7 +426,7 @@ export const PublicTournamentPage: React.FC = () => {
                             <td className="py-3 font-mono font-bold text-slate-400">{idx + 1}</td>
                             <td className="py-3">
                               <Link to={`/players/${s.player_id}`} className="font-bold text-white hover:text-emerald-400 flex items-center gap-2">
-                                <img src={s.photo} alt={s.full_name} className="w-6 h-6 rounded-md object-cover" />
+                                <img src={playerPhoto(s.photo, tournament.sport_code)} alt={s.full_name} className="w-6 h-6 rounded-md object-cover" />
                                 <span>{s.full_name}</span>
                               </Link>
                             </td>
@@ -448,7 +449,7 @@ export const PublicTournamentPage: React.FC = () => {
                   {leaderboards?.orange_cap && (
                     <div className="p-6 rounded-3xl bg-gradient-to-r from-amber-500/20 via-slate-900 to-amber-500/20 border border-amber-500/40 shadow-xl flex items-center gap-5">
                       <img
-                        src={leaderboards.orange_cap.photo}
+                        src={playerPhoto(leaderboards.orange_cap.photo, tournament.sport_code)}
                         alt={leaderboards.orange_cap.full_name}
                         className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-400 shadow-md shrink-0"
                       />
@@ -459,7 +460,7 @@ export const PublicTournamentPage: React.FC = () => {
                         <h4 className="text-xl font-black text-white font-heading mt-1">{leaderboards.orange_cap.full_name}</h4>
                         <div className="text-xs text-slate-400">{leaderboards.orange_cap.team_name}</div>
                         <div className="text-2xl font-black font-mono text-amber-400 mt-1.5">
-                          {leaderboards.orange_cap.runs} Runs <span className="text-xs font-normal text-slate-400">(SR: {leaderboards.orange_cap.strike_rate})</span>
+                          {leaderboards.orange_cap.runs} Runs <span className="text-xs font-normal text-slate-400">(SR: {stat(leaderboards.orange_cap.strike_rate)})</span>
                         </div>
                       </div>
                     </div>
@@ -469,7 +470,7 @@ export const PublicTournamentPage: React.FC = () => {
                   {leaderboards?.purple_cap && (
                     <div className="p-6 rounded-3xl bg-gradient-to-r from-purple-500/20 via-slate-900 to-purple-500/20 border border-purple-500/40 shadow-xl flex items-center gap-5">
                       <img
-                        src={leaderboards.purple_cap.photo}
+                        src={playerPhoto(leaderboards.purple_cap.photo, tournament.sport_code)}
                         alt={leaderboards.purple_cap.full_name}
                         className="w-20 h-20 rounded-2xl object-cover border-2 border-purple-400 shadow-md shrink-0"
                       />
@@ -480,7 +481,7 @@ export const PublicTournamentPage: React.FC = () => {
                         <h4 className="text-xl font-black text-white font-heading mt-1">{leaderboards.purple_cap.full_name}</h4>
                         <div className="text-xs text-slate-400">{leaderboards.purple_cap.team_name}</div>
                         <div className="text-2xl font-black font-mono text-purple-400 mt-1.5">
-                          {leaderboards.purple_cap.wickets} Wickets <span className="text-xs font-normal text-slate-400">(Econ: {leaderboards.purple_cap.economy})</span>
+                          {leaderboards.purple_cap.wickets} Wickets <span className="text-xs font-normal text-slate-400">(Econ: {stat(leaderboards.purple_cap.economy)})</span>
                         </div>
                       </div>
                     </div>

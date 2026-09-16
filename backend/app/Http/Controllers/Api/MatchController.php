@@ -33,6 +33,9 @@ use Illuminate\Support\Facades\DB;
  */
 class MatchController extends Controller
 {
+    /** Statuses of a match that is under way, breaks included. */
+    private const LIVE_STATUSES = ['in_progress', 'half_time', 'innings_break', 'drinks_break'];
+
     public function __construct(
         private readonly ScoringEngine $scoring,
         private readonly RealtimeBroadcaster $realtime,
@@ -64,6 +67,72 @@ class MatchController extends Controller
             'football_state' => $match->sport_code === 'football' ? $footballStates->get($match->id) : null,
             'cricket_state' => $match->sport_code === 'cricket' ? $cricketStates->get($match->id) : null,
         ])->values());
+    }
+
+    /**
+     * The home-page ticker: matches being played right now across every
+     * public tournament, then the next few coming up and the latest results so
+     * the strip is never empty. Only what a ticker shows — team names and
+     * logos, the score and the status — none of the team managers' contacts.
+     */
+    public function current(): JsonResponse
+    {
+        $base = fn () => GameMatch::query()
+            ->select('matches.*')
+            ->join('tournaments', 'tournaments.id', '=', 'matches.tournament_id')
+            ->where('tournaments.status', '!=', 'draft');
+
+        $live = $base()->whereIn('matches.status', self::LIVE_STATUSES)->orderBy('matches.scheduled_at')->limit(20)->get();
+        $upcoming = $base()->whereIn('matches.status', ['scheduled', 'toss', 'delayed'])->orderBy('matches.scheduled_at')->limit(6)->get();
+        $recent = $base()->where('matches.status', 'completed')->orderByDesc('matches.updated_at')->limit(6)->get();
+
+        $matches = $live->concat($upcoming)->concat($recent);
+
+        $teams = Team::query()
+            ->whereIn('id', $matches->pluck('team_a_id')->merge($matches->pluck('team_b_id'))->unique())
+            ->get(['id', 'name', 'short_name', 'logo'])
+            ->keyBy('id');
+        $tournaments = Tournament::query()->whereIn('id', $matches->pluck('tournament_id')->unique())->get(['id', 'name', 'slug'])->keyBy('id');
+        $footballStates = FootballMatchState::query()->whereIn('match_id', $matches->pluck('id'))->get()->keyBy('match_id');
+        $cricketStates = CricketMatchState::query()->whereIn('match_id', $matches->pluck('id'))->get()->keyBy('match_id');
+
+        $team = fn (string $id) => ($found = $teams->get($id))
+            ? ['id' => $found->id, 'name' => $found->name, 'short_name' => $found->short_name, 'logo' => $found->logo]
+            : ['id' => $id, 'name' => 'TBD', 'short_name' => 'TBD', 'logo' => null];
+
+        return response()->json($matches->map(function (GameMatch $match) use ($team, $tournaments, $footballStates, $cricketStates) {
+            $football = $footballStates->get($match->id);
+            $cricket = $cricketStates->get($match->id);
+            $battingFirst = $match->batting_first_team_id ?: $match->team_a_id;
+
+            return [
+                'id' => $match->id,
+                'sport_code' => $match->sport_code,
+                'status' => $match->status,
+                'is_live' => in_array($match->status, self::LIVE_STATUSES, true),
+                'round_name' => $match->round_name,
+                'scheduled_at' => $match->scheduled_at,
+                'result_summary' => $match->result_summary,
+                'tournament' => ($t = $tournaments->get($match->tournament_id)) ? ['id' => $t->id, 'name' => $t->name, 'slug' => $t->slug] : null,
+                'team_a' => $team($match->team_a_id),
+                'team_b' => $team($match->team_b_id),
+                // Football: goals and the clock. Cricket: each side's innings,
+                // keyed by team (the state row keys them by innings).
+                'football' => $match->sport_code === 'football' && $football ? [
+                    'team_a_score' => (int) $football->team_a_score,
+                    'team_b_score' => (int) $football->team_b_score,
+                    'current_half' => $football->current_half,
+                ] : null,
+                'cricket' => $match->sport_code === 'cricket' && $cricket ? [
+                    'current_innings' => (int) $cricket->current_innings,
+                    'target_runs' => $cricket->target_runs,
+                    'innings' => [
+                        ['team_id' => $battingFirst, 'runs' => (int) $cricket->team_a_runs, 'wickets' => (int) $cricket->team_a_wickets, 'overs' => (float) $cricket->team_a_overs],
+                        ['team_id' => $battingFirst === $match->team_a_id ? $match->team_b_id : $match->team_a_id, 'runs' => (int) $cricket->team_b_runs, 'wickets' => (int) $cricket->team_b_wickets, 'overs' => (float) $cricket->team_b_overs],
+                    ],
+                ] : null,
+            ];
+        })->values());
     }
 
     public function show(string $id): JsonResponse

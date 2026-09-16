@@ -87,6 +87,19 @@ class AuthTest extends TestCase
             ->assertJsonPath('user.organization_id', 'org-malabar-cricket');
     }
 
+    public function test_the_demo_role_header_is_ignored_when_the_switcher_is_disabled(): void
+    {
+        config(['app.demo_role_switcher' => false]);
+
+        $this->withHeaders($this->demoHeaders('SUPER_ADMIN'))
+            ->getJson('/api/auth/me')
+            ->assertUnauthorized();
+
+        $this->withHeaders($this->demoHeaders('SUPER_ADMIN'))
+            ->getJson('/api/admin/impersonate/targets')
+            ->assertUnauthorized();
+    }
+
     public function test_me_is_unauthorized_without_a_credential(): void
     {
         $this->getJson('/api/auth/me')->assertUnauthorized();
@@ -132,12 +145,29 @@ class AuthTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_organization_signup_requires_a_password_and_an_unused_email(): void
+    {
+        $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
+
+        $payload = [
+            'organizationName' => 'Passwordless Club',
+            'contactPerson' => 'No Password',
+            'email' => 'nopass@club.in',
+        ];
+
+        $this->postJson('/api/auth/register-org', $payload)->assertStatus(422);
+
+        $this->postJson('/api/auth/register-org', [...$payload, 'password' => 'secret-password'])->assertCreated();
+        $this->postJson('/api/auth/register-org', [...$payload, 'password' => 'another-password'])->assertStatus(422);
+    }
+
     public function test_slugs_stay_unique_across_organizations_with_the_same_name(): void
     {
         $payload = [
             'organizationName' => 'Kerala Sports Club',
             'contactPerson' => 'Person One',
             'email' => 'one@ksc.in',
+            'password' => 'secret-password',
         ];
 
         $first = $this->postJson('/api/auth/register-org', $payload)->assertCreated();
@@ -207,5 +237,24 @@ class AuthTest extends TestCase
     public function test_profile_update_is_unauthorized_without_a_credential(): void
     {
         $this->putJson('/api/auth/me', ['name' => 'Nobody'])->assertUnauthorized();
+    }
+
+    public function test_production_refuses_to_sign_tokens_with_the_public_fallback_secret(): void
+    {
+        $tokens = app(\App\Services\TokenService::class);
+        $user = User::query()->where('email', 'admin@greenvalley.com')->firstOrFail();
+
+        $this->app['env'] = 'production';
+        config(['auth.jwt.secret' => \App\Services\TokenService::DEV_FALLBACK_SECRET]);
+
+        try {
+            $tokens->issue($user);
+            $this->fail('Expected the fallback secret to be rejected in production.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('JWT_SECRET', $e->getMessage());
+        }
+
+        config(['auth.jwt.secret' => str_repeat('a', 40)]);
+        $this->assertNotEmpty($tokens->issue($user));
     }
 }

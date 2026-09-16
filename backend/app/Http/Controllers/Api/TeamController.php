@@ -347,6 +347,11 @@ class TeamController extends Controller
             'team' => $result['team'],
             'payment' => $result['payment'],
             'receipt' => $result['receipt'],
+            // Handed to the manager to pass on: each player's code for "Find My Stats".
+            'players' => Player::query()
+                ->where('team_id', $result['team']->id)
+                ->orderBy('jersey_number')
+                ->get(['id', 'full_name', 'jersey_number', 'player_code']),
             'message' => 'Team registered successfully! Download or print your official registration receipt.',
         ], 201);
     }

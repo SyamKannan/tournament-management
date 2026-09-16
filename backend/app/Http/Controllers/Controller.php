@@ -24,7 +24,7 @@ abstract class Controller
         }
 
         if ($user->role !== 'SUPER_ADMIN' && $organizationId !== $user->organization_id) {
-            return response()->json(['error' => 'Forbidden: Tenant isolation violation'], 403);
+            return response()->json(['error' => 'You do not have access to this organization.'], 403);
         }
 
         return null;

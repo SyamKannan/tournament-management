@@ -1,19 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import type { Plan } from '../types';
 import {
-  ShieldCheck, Tv, Sparkles, CheckCircle2, ArrowRight
+  CheckCircle2, ArrowRight, Search,
+  Zap, Tv, Smartphone, Trophy, Gavel, Wallet
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
-import { useToast } from '../components/ui/Toast';
-import { SHOW_DEMO_ACCOUNTS } from '../config';
-import { SPORTS_IMAGES, SPORTS_CAROUSELS } from '../lib/sportsImagery';
+import { SPORTS_CAROUSELS, FEATURE_IMAGES } from '../lib/sportsImagery';
 import { useImageCarousel } from '../lib/useImageCarousel';
 import { ImageCarouselBackdrop } from '../components/ImageCarouselBackdrop';
-import { PhoneInput } from '../components/PhoneInput';
+import { LiveMatchesMarquee } from '../components/LiveMatchesMarquee';
+import { SiteFooter } from '../components/SiteFooter';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -25,35 +23,67 @@ const staggerContainer = {
   show: { transition: { staggerChildren: 0.09 } },
 };
 
-const GALLERY_ITEMS = [
-  { image: SPORTS_IMAGES.cricketBallGrass, title: 'Cricket Match Day', tag: 'Cricket' },
-  { image: SPORTS_IMAGES.stadiumNight, title: 'Live Cricket Fixtures', tag: 'Live Scoring' },
-  { image: SPORTS_IMAGES.womensMatch, title: 'Ground Fee Collection', tag: 'Payments' },
-  { image: SPORTS_IMAGES.sprinklerStadium, title: '16:9 TV Broadcast', tag: 'Big Screen' },
+// Plan cards list only this many features so long plans don't stretch the pricing grid.
+const PLAN_FEATURE_PREVIEW = 6;
+
+const FEATURE_ITEMS = [
+  {
+    image: FEATURE_IMAGES.batsmanStrike,
+    position: 'center 45%',
+    icon: Zap,
+    tag: 'Live Scoring',
+    title: 'Ball-by-Ball Scoring',
+    description: 'Score every ball, goal and card as it happens. Tapped the wrong button? Undo it in one tap.',
+  },
+  {
+    image: FEATURE_IMAGES.liveBigScreen,
+    position: 'center 48%',
+    icon: Tv,
+    tag: 'Big Screen',
+    title: 'TV & Projector Scoreboard',
+    description: 'Put the live score up on any TV or projector so the whole ground sees it update in real time.',
+  },
+  {
+    image: FEATURE_IMAGES.phoneOnPitch,
+    position: 'center',
+    icon: Smartphone,
+    tag: 'Registration',
+    title: 'Teams Register by Phone',
+    description: 'Share one link. Teams sign up and add their squads from their phones, with no paperwork.',
+  },
+  {
+    image: FEATURE_IMAGES.trophyLift,
+    position: 'center 80%',
+    icon: Trophy,
+    tag: 'Standings',
+    title: 'Automatic Points Table',
+    description: 'Points, goal difference and net run rate update after every match. No spreadsheets needed.',
+  },
+  {
+    image: FEATURE_IMAGES.teamHuddle,
+    position: 'center 55%',
+    icon: Gavel,
+    tag: 'Auctions',
+    title: 'Live Player Auctions',
+    description: 'Run an IPL-style auction with live bids, team budgets and base prices on the big screen.',
+  },
+  {
+    image: FEATURE_IMAGES.tapToPay,
+    position: 'center',
+    icon: Wallet,
+    tag: 'Payments',
+    title: 'Ground Fees & Receipts',
+    description: 'Track cash and UPI entry fees, including part payments, and hand out receipts in seconds.',
+  },
 ];
 
 export const LandingPage: React.FC = () => {
-  const toast = useToast();
-  const { registerOrg } = useAuth();
-  const navigate = useNavigate();
   const heroSlide = useImageCarousel(SPORTS_CAROUSELS.hero.length, 7000);
-  const [showSignupModal, setShowSignupModal] = useState(false);
-  const [selectedPlanId, setSelectedPlanId] = useState('plan-standard');
   const [billingCycle, setBillingCycle] = useState<'all' | 'monthly' | 'yearly'>('all');
 
   // Dynamic Plans from Super Admin
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
-
-  // Signup form state
-  const [orgName, setOrgName] = useState('');
-  const [orgType, setOrgType] = useState('Sports Club');
-  const [contactName, setContactName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [district, setDistrict] = useState('Malappuram');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [signupSuccess, setSignupSuccess] = useState(false);
 
   useEffect(() => {
     const fetchPlans = async () => {
@@ -62,7 +92,6 @@ export const LandingPage: React.FC = () => {
         const res = await api.get('/plans');
         if (Array.isArray(res) && res.length > 0) {
           setPlans(res);
-          setSelectedPlanId(res[0]?.id || 'plan-standard');
         }
       } catch (err) {
         console.error('Failed to load plans', err);
@@ -73,33 +102,6 @@ export const LandingPage: React.FC = () => {
 
     fetchPlans();
   }, []);
-
-  const handleSignupSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      await registerOrg({
-        organizationName: orgName,
-        organizationType: orgType,
-        contactPerson: contactName,
-        email,
-        phone,
-        district,
-        planId: selectedPlanId,
-        paymentMethod: 'upi'
-      });
-
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-      setSignupSuccess(true);
-      setTimeout(() => {
-        navigate('/organization/dashboard');
-      }, 1500);
-    } catch (err: any) {
-      toast.error(err.message || 'Signup failed');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const featureLabels: Record<string, string> = {
     live_scoring: 'Live Scoring with Instant Undo',
@@ -116,7 +118,7 @@ export const LandingPage: React.FC = () => {
     advanced_analytics: 'Advanced Analytics & Insights',
     custom_branding: 'Custom Organization Branding',
     coin_toss: 'Pre-Match Coin Toss',
-    ai_tournament_poster: 'AI-Generated Tournament Posters'
+    ai_tournament_poster: 'Match & Tournament Posters'
   };
 
   const filteredPlans = plans.filter(p => {
@@ -147,11 +149,6 @@ export const LandingPage: React.FC = () => {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgb(2_6_23)_100%)]" />
         </div>
 
-        {/* Floating decorative sport chips — kept to the margins, clear of the headline */}
-        <div className="absolute top-16 left-[5%] text-3xl opacity-40 animate-float-slow select-none hidden lg:block" aria-hidden="true">⚽</div>
-        <div className="absolute top-[24rem] right-[5%] text-3xl opacity-40 animate-float-slower select-none hidden lg:block" aria-hidden="true">🏏</div>
-        <div className="absolute bottom-10 left-[8%] text-2xl opacity-30 animate-float-slow select-none hidden lg:block" aria-hidden="true">🏆</div>
-
         <motion.div
           variants={staggerContainer}
           initial="hidden"
@@ -160,126 +157,72 @@ export const LandingPage: React.FC = () => {
         >
           {/* Top Pills */}
           <motion.div variants={fadeUp} transition={{ duration: 0.5 }} className="inline-flex max-w-full items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-6 sm:mb-8 backdrop-blur">
-            <Sparkles className="w-3.5 h-3.5 shrink-0 text-amber-400 animate-spin" style={{ animationDuration: '4s' }} />
+            <Trophy className="w-3.5 h-3.5 shrink-0 text-amber-400" aria-hidden="true" />
             <span className="whitespace-nowrap">Made for village & club tournaments</span>
-            <span className="hidden sm:block w-1 h-1 rounded-full bg-emerald-400" />
-            <span className="hidden sm:inline text-slate-400 font-normal">Football & Cricket</span>
+            {/* <span className="hidden sm:block w-1 h-1 rounded-full bg-emerald-400" /> */}
+            {/* <span className="hidden sm:inline text-slate-400 font-normal">Football & Cricket</span> */}
           </motion.div>
 
-          <motion.h1 variants={fadeUp} transition={{ duration: 0.55 }} className="text-[2.5rem] sm:text-6xl lg:text-7xl font-black font-heading tracking-tight text-white max-w-4xl mx-auto leading-[1.05]">
-            Run the tournament.{' '}
-            <span className="bg-gradient-to-r from-emerald-400 via-cyan-300 to-violet-400 bg-clip-text text-transparent">Skip the chaos.</span>
+          <motion.h1 variants={fadeUp} transition={{ duration: 0.55 }} className="text-[1.75rem] min-[400px]:text-4xl sm:text-5xl lg:text-7xl font-black font-heading tracking-tight text-white max-w-5xl mx-auto leading-[1.1]">
+            <span className="block whitespace-nowrap">Your Tournament,</span>
+            <span className="block whitespace-nowrap bg-gradient-to-r from-emerald-400 via-cyan-300 to-violet-400 bg-clip-text text-transparent">Scored Live.</span>
           </motion.h1>
 
           <motion.p variants={fadeUp} transition={{ duration: 0.55 }} className="mt-5 sm:mt-6 text-[15px] sm:text-xl text-slate-400 max-w-3xl mx-auto leading-relaxed">
-            Teams register from their phones, scores update live ball-by-ball with one-tap undo, and the
-            points table sorts itself out. Put the same feed up on a projector or TV and the whole ground
-            watches it update in real time.
+            Register teams, score every ball and goal from your phone, and show the score on a TV at the
+            ground. The points table updates itself after each match.
           </motion.p>
 
-          {/* CTA Buttons */}
-          <motion.div variants={fadeUp} transition={{ duration: 0.55 }} className="mt-8 sm:mt-10 grid grid-cols-2 sm:flex sm:flex-wrap items-stretch sm:items-center justify-center gap-3 sm:gap-4 max-w-md sm:max-w-none mx-auto">
+          {/* CTA Buttons — sign-in and player signup already live in the navbar */}
+          <motion.div variants={fadeUp} transition={{ duration: 0.55 }} className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 max-w-sm sm:max-w-none mx-auto">
             <Link
               to="/register-club"
-              className="col-span-2 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/25 sm:hover:scale-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/25 sm:hover:scale-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
             >
-              <span>Register Sports Club</span>
+              <span>Register Your Club</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
-            <Link
-              to="/register-player"
-              className="px-4 sm:px-7 py-3.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-500/50 text-white font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 sm:hover:scale-105 active:scale-[0.98]"
+            <a
+              href="#features"
+              className="px-7 py-3.5 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 sm:hover:scale-105 active:scale-[0.98]"
             >
-              <span className="text-cyan-400">⚡</span>
-              <span>Join as Player</span>
-            </Link>
-            <Link
-              to="/login"
-              className="px-4 sm:px-7 py-3.5 rounded-2xl bg-slate-900/90 text-white hover:bg-slate-800 font-bold text-sm border border-slate-700/80 flex items-center justify-center gap-2 sm:hover:scale-105 active:scale-[0.98] transition-all shadow-md"
-            >
-              <ShieldCheck className="w-4 h-4 text-cyan-400" />
-              <span>Sign In<span className="hidden sm:inline"> to Dashboard</span></span>
-            </Link>
-
-            <Link
-              to="/scoreboard/match/match-fb-live-1"
-              target="_blank"
-              className="col-span-2 px-6 py-3.5 rounded-2xl bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 font-bold text-sm border border-emerald-500/30 flex items-center justify-center gap-2 sm:hover:scale-105 active:scale-[0.98] transition-all"
-            >
-              <Tv className="w-4 h-4 text-emerald-400" />
-              <span>16:9 Live TV</span>
-            </Link>
+              See How It Works
+            </a>
           </motion.div>
 
-          {/* Dedicated Portals Section */}
-          <motion.div variants={fadeUp} transition={{ duration: 0.55 }} className="mt-12 sm:mt-14 max-w-5xl mx-auto p-4 sm:p-5 rounded-3xl bg-slate-900/80 border border-slate-800/80 shadow-2xl backdrop-blur-xl">
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-4 px-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>Already Registered?</span>
-              </span>
-              <span className="text-xs text-slate-400">Jump straight to your login</span>
-            </div>
+          <motion.p variants={fadeUp} transition={{ duration: 0.55 }} className="mt-5 text-sm text-slate-400">
+            Played in a tournament?{' '}
+            <Link to="/players" className="inline-flex items-center gap-1 font-semibold text-cyan-300 hover:text-cyan-200">
+              <Search className="w-3.5 h-3.5" aria-hidden="true" />
+              Find your stats
+            </Link>
+          </motion.p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Club Login */}
-              <Link
-                to="/login?role=ORG_ADMIN"
-                className="p-4 rounded-2xl bg-slate-950 border border-slate-800 hover:border-cyan-500/60 hover:bg-cyan-500/5 text-left transition-all group"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-cyan-400">Clubs & Academies</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all" />
-                </div>
-                <div className="text-sm font-bold text-white">Club Dashboard</div>
-                <p className="text-[11px] text-slate-400 mt-1">{SHOW_DEMO_ACCOUNTS ? 'admin@greenvalley.com • 12345678' : 'Run tournaments, teams and payments'}</p>
-              </Link>
-
-              {/* Player Login */}
-              <Link
-                to="/login?role=PLAYER"
-                className="p-4 rounded-2xl bg-slate-950 border border-slate-800 hover:border-amber-500/60 hover:bg-amber-500/5 text-left transition-all group"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-amber-400">Players & Athletes</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-1 transition-all" />
-                </div>
-                <div className="text-sm font-bold text-white">Player Career Portal</div>
-                <p className="text-[11px] text-slate-400 mt-1">{SHOW_DEMO_ACCOUNTS ? 'shameer.player@gmail.com • 12345678' : 'Track your stats and career profile'}</p>
-              </Link>
-
-              {/* Super Admin Login */}
-              <Link
-                to="/login?role=SUPER_ADMIN"
-                className="p-4 rounded-2xl bg-slate-950 border border-slate-800 hover:border-emerald-500/60 hover:bg-emerald-500/5 text-left transition-all group"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-emerald-400">Platform Owner</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
-                </div>
-                <div className="text-sm font-bold text-white">Super Admin Portal</div>
-                <p className="text-[11px] text-slate-400 mt-1">{SHOW_DEMO_ACCOUNTS ? 'syamdas@gmail.com • 12345678' : 'Manage plans, tenants and billing'}</p>
-              </Link>
-            </div>
+          {/* Current matches, scrolling — tap one for its score */}
+          <motion.div variants={fadeUp} transition={{ duration: 0.55 }}>
+            <LiveMatchesMarquee />
           </motion.div>
         </motion.div>
       </section>
 
-      {/* Sports in Action Gallery */}
-      <section className="relative z-10 py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-800/60">
+      {/* Platform Features */}
+      <section id="features" className="relative z-10 scroll-mt-20 py-20 sm:py-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-800/60">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.5 }}
-          className="text-center max-w-2xl mx-auto mb-10"
+          className="text-center max-w-2xl mx-auto mb-12"
         >
           <span className="text-xs font-bold uppercase tracking-widest text-cyan-400 block mb-2">
-            One Login, Two Sports
+            Features
           </span>
           <h2 className="text-3xl sm:text-4xl font-black font-heading text-white">
-            Football on Saturday. Cricket on Sunday.
+            What You Can Do
           </h2>
+          <p className="mt-4 text-[15px] sm:text-lg text-slate-400 leading-relaxed">
+            Football and cricket tournaments, from team registration to the final.
+          </p>
         </motion.div>
 
         <motion.div
@@ -287,33 +230,39 @@ export const LandingPage: React.FC = () => {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, margin: '-80px' }}
-          className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
         >
-          {GALLERY_ITEMS.map(item => (
+          {FEATURE_ITEMS.map(item => (
             <motion.div
               key={item.title}
               variants={fadeUp}
               transition={{ duration: 0.45 }}
-              className="group relative aspect-[3/4] rounded-3xl overflow-hidden border border-slate-800 shadow-xl"
+              className="group flex flex-col rounded-3xl overflow-hidden border border-slate-800 bg-slate-900/60 shadow-xl hover:border-emerald-500/40 transition-colors"
             >
-              <div
-                className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
-                style={{ backgroundImage: `url(${item.image})` }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 p-4">
-                <span className="inline-block px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold uppercase tracking-wider mb-2">
+              <div className="relative aspect-[16/10] overflow-hidden">
+                <div
+                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
+                  style={{ backgroundImage: `url(${item.image})`, backgroundPosition: item.position }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/30 to-transparent" />
+                <span className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-slate-950/70 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold uppercase tracking-wider backdrop-blur">
                   {item.tag}
                 </span>
-                <div className="text-sm font-bold text-white leading-tight">{item.title}</div>
+              </div>
+              <div className="flex-1 p-5 -mt-8 relative">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mb-3 backdrop-blur">
+                  <item.icon className="w-5 h-5 text-emerald-400" />
+                </div>
+                <h3 className="text-lg font-bold text-white leading-tight">{item.title}</h3>
+                <p className="mt-2 text-sm text-slate-400 leading-relaxed">{item.description}</p>
               </div>
             </motion.div>
           ))}
         </motion.div>
       </section>
 
-      {/* DYNAMIC CLUB PLANS SECTION */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-800/60">
+      {/* Pricing */}
+      <section id="pricing" className="relative z-10 scroll-mt-20 py-20 sm:py-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-800/60">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -325,11 +274,10 @@ export const LandingPage: React.FC = () => {
             Pricing
           </span>
           <h2 className="text-3xl sm:text-4xl font-black font-heading text-white">
-            Plans for Clubs, Academies & One-Off Tournaments
+            Plans &amp; Prices
           </h2>
-          <p className="text-sm text-slate-400 mt-3">
-            Running a season-long league is different from organizing a weekend knockout — pick whichever
-            fits. Live scoring and an auto-updating points table come on every plan.
+          <p className="text-[15px] sm:text-lg text-slate-400 mt-4 leading-relaxed">
+            Pay per tournament or monthly. You only choose a plan when you host your first tournament.
           </p>
 
           {/* Billing Interval Filter */}
@@ -361,12 +309,15 @@ export const LandingPage: React.FC = () => {
             initial="hidden"
             whileInView="show"
             viewport={{ once: true, margin: '-80px' }}
-            className={`grid gap-6 ${
-            filteredPlans.length === 1 ? 'max-w-md mx-auto' :
-            filteredPlans.length === 2 ? 'md:grid-cols-2 max-w-3xl mx-auto' :
-            filteredPlans.length === 3 ? 'md:grid-cols-3' : 'md:grid-cols-2 lg:grid-cols-4'
-          }`}>
+            className="flex flex-wrap justify-center gap-6"
+          >
             {filteredPlans.map(plan => {
+              // Centered wrap: an odd plan count leaves a centered last row, not a lone card on the left.
+              const planWidth = filteredPlans.length === 1
+                ? 'md:max-w-md'
+                : filteredPlans.length === 4
+                ? 'md:w-[calc(50%-12px)] xl:w-[calc(25%-18px)]'
+                : 'md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)]';
               const isPopular = plan.id.includes('standard') || plan.name.toLowerCase().includes('pro');
               const isOneTime = plan.billing_type === 'one_time';
               const isFree = plan.price === 0;
@@ -376,7 +327,7 @@ export const LandingPage: React.FC = () => {
                   key={plan.id}
                   variants={fadeUp}
                   transition={{ duration: 0.45 }}
-                  className={`rounded-3xl p-6 flex flex-col justify-between transition-all relative ${
+                  className={`w-full max-w-md md:max-w-none rounded-3xl p-6 flex flex-col justify-between transition-all relative ${planWidth} ${
                     isPopular
                       ? 'glass-panel border-2 border-emerald-500/80 shadow-2xl shadow-emerald-500/10'
                       : isOneTime
@@ -439,7 +390,7 @@ export const LandingPage: React.FC = () => {
                         Included Features:
                       </span>
                       <ul className="space-y-2 text-xs text-slate-300">
-                        {plan.features.map(f => (
+                        {plan.features.slice(0, PLAN_FEATURE_PREVIEW).map(f => (
                           <li key={f} className="flex items-center gap-2">
                             <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${
                               isPopular ? 'text-emerald-400' : isOneTime ? 'text-amber-400' : 'text-cyan-400'
@@ -448,12 +399,17 @@ export const LandingPage: React.FC = () => {
                           </li>
                         ))}
                       </ul>
+                      {plan.features.length > PLAN_FEATURE_PREVIEW && (
+                        <p className="mt-2.5 pl-[22px] text-[11px] font-semibold text-slate-500">
+                          + {plan.features.length - PLAN_FEATURE_PREVIEW} more features
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => { setSelectedPlanId(plan.id); setShowSignupModal(true); }}
-                    className={`mt-8 w-full py-2.5 rounded-xl font-black text-xs transition-all ${
+                  <Link
+                    to="/register-club"
+                    className={`mt-8 w-full py-2.5 rounded-xl font-black text-xs text-center transition-all ${
                       isPopular
                         ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-lg shadow-emerald-500/20'
                         : isOneTime
@@ -461,8 +417,8 @@ export const LandingPage: React.FC = () => {
                         : 'bg-slate-800 hover:bg-slate-700 text-white'
                     }`}
                   >
-                    {isFree ? 'Get Started Free' : `Select ${plan.name}`}
-                  </button>
+                    {isFree ? 'Get Started Free' : `Start with ${plan.name}`}
+                  </Link>
                 </motion.div>
               );
             })}
@@ -470,145 +426,7 @@ export const LandingPage: React.FC = () => {
         )}
       </section>
 
-      {/* Signup Modal */}
-      {showSignupModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-          <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl p-6 overflow-hidden">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
-              <div>
-                <h3 className="text-base font-bold text-white font-heading">Set Up Your Club</h3>
-                <p className="text-xs text-slate-400">Takes about two minutes</p>
-              </div>
-              <button
-                onClick={() => setShowSignupModal(false)}
-                className="text-slate-400 hover:text-white text-lg font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            {signupSuccess ? (
-              <div className="p-8 text-center space-y-3">
-                <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto text-xl font-bold">
-                  ✓
-                </div>
-                <h4 className="text-lg font-bold text-white">You're in!</h4>
-                <p className="text-xs text-slate-400">Taking you to your dashboard...</p>
-              </div>
-            ) : (
-              <form onSubmit={handleSignupSubmit} className="space-y-3.5 text-xs">
-                {/* Plan Selector Dropdown */}
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1">Selected Plan</label>
-                  <select
-                    value={selectedPlanId}
-                    onChange={(e) => setSelectedPlanId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none focus:border-emerald-500"
-                  >
-                    {plans.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} — ₹{p.price.toLocaleString()} ({p.billing_type === 'one_time' ? 'One-time Event' : p.billing_interval || 'monthly'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Organization / Club Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Malabar United Sports Club"
-                    value={orgName}
-                    onChange={(e) => setOrgName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Organization Type</label>
-                    <select
-                      value={orgType}
-                      onChange={(e) => setOrgType(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white outline-none"
-                    >
-                      <option value="Sports Club">Sports Club</option>
-                      <option value="Sports Academy">Sports Academy</option>
-                      <option value="Village Panchayat">Village Panchayat</option>
-                      <option value="School / College">School / College</option>
-                      <option value="Private Organizer">Private Organizer</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">District</label>
-                    <select
-                      value={district}
-                      onChange={(e) => setDistrict(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white outline-none"
-                    >
-                      <option value="Malappuram">Malappuram</option>
-                      <option value="Kozhikode">Kozhikode</option>
-                      <option value="Ernakulam">Ernakulam</option>
-                      <option value="Thrissur">Thrissur</option>
-                      <option value="Thiruvananthapuram">Thiruvananthapuram</option>
-                      <option value="Kannur">Kannur</option>
-                      <option value="Palakkad">Palakkad</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Contact Person *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Manager Name"
-                      value={contactName}
-                      onChange={(e) => setContactName(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Phone / WhatsApp *</label>
-                    <PhoneInput
-                      required
-                      placeholder="98470 00000"
-                      value={phone}
-                      onChange={setPhone}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Admin Email Address *</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="admin@yourclub.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2"
-                >
-                  {isSubmitting ? 'Setting up...' : 'Create Club & Open Dashboard'}
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+      <SiteFooter />
     </div>
   );
 };

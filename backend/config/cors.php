@@ -10,7 +10,8 @@ return [
     | The SPA is served from a separate origin (Vite in development, a static
     | host in production), so the API answers preflight requests directly.
     | `x-demo-role` and `x-demo-org-id` carry the role switcher used for guided
-    | walkthroughs and must be allowed alongside the usual auth header.
+    | walkthroughs; they are only allowed where the switcher is enabled
+    | (see `app.demo_role_switcher`).
     |
     | Narrow `allowed_origins` to your real front-end origins before deploying.
     |
@@ -24,7 +25,12 @@ return [
 
     'allowed_origins_patterns' => [],
 
-    'allowed_headers' => ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-demo-role', 'x-demo-org-id'],
+    'allowed_headers' => array_merge(
+        ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+        (bool) env('DEMO_ROLE_SWITCHER', in_array(env('APP_ENV', 'production'), ['local', 'testing'], true))
+            ? ['x-demo-role', 'x-demo-org-id']
+            : []
+    ),
 
     'exposed_headers' => [],
 

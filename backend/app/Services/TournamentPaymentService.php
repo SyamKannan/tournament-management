@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
  * Tournament ground-fee collection: what a team owes, what it has paid, and the
  * receipt issued for each instalment.
  *
- * Separate from BillingService, which handles the organizer's own SaaS
+ * Separate from BillingService, which handles the organizer's own platform
  * subscription. This is money teams pay organizers to enter a tournament.
  */
 class TournamentPaymentService

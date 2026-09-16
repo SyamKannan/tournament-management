@@ -141,9 +141,7 @@ export const OrgTournamentsPage: React.FC = () => {
       const updated = { ...t, poster: res.poster };
       setTournaments(prev => prev.map(x => (x.id === t.id ? { ...x, poster: res.poster } : x)));
       setPosterTournament(updated);
-      toast.success(res.used_ai
-        ? 'Poster generated with AI artwork!'
-        : 'Poster generated (template only — add OPENAI_API_KEY on the server for AI artwork).');
+      toast.success('Poster ready.');
     } catch (err: any) {
       toast.error(err.message || 'Failed to generate poster.');
     } finally {

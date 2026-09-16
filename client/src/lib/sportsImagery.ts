@@ -13,6 +13,16 @@ export const SPORTS_IMAGES = {
   cricketBallGrass: unsplash('1531415074968-036ba1b575da', 1200),
 } as const;
 
+// Landing-page feature cards — one photo per feature, picked to show that feature.
+export const FEATURE_IMAGES = {
+  batsmanStrike: unsplash('1593341646782-e0b495cff86d', 1200),
+  liveBigScreen: unsplash('1759156207559-20fd3e21f3fb', 1200),
+  phoneOnPitch: unsplash('1641298100833-c831579f99e2', 1200),
+  trophyLift: unsplash('1677852199915-a180bdf8965e', 1200),
+  teamHuddle: unsplash('1752681304960-bd4e018a04bb', 1200),
+  tapToPay: unsplash('1599050751795-6cdaafbc2319', 1200),
+} as const;
+
 // Rotating image sets — each mixes football and cricket so no single showcase
 // panel reads as locked to one sport. Order controls carousel sequence.
 export const SPORTS_CAROUSELS = {

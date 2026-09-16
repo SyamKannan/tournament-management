@@ -30,6 +30,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Demo Role Switcher
+    |--------------------------------------------------------------------------
+    |
+    | Whether the `x-demo-role` / `x-demo-org-id` headers are honoured. They
+    | sign the caller in as any role with no password, so they are only on for
+    | local and testing environments unless DEMO_ROLE_SWITCHER says otherwise.
+    | Never enable this on a public deployment.
+    |
+    */
+
+    'demo_role_switcher' => (bool) env(
+        'DEMO_ROLE_SWITCHER',
+        in_array(env('APP_ENV', 'production'), ['local', 'testing'], true)
+    ),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Debug Mode
     |--------------------------------------------------------------------------
     |

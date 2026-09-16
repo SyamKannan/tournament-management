@@ -87,6 +87,25 @@ export interface PlatformSettings {
   /** Methods offered when organizers buy or renew a plan. */
   subscription_payment_methods: OnlinePaymentMethod[];
   payment_gateways: Record<PaymentFlow, PaymentGatewayConfig>;
+  footer: FooterContent;
+}
+
+export type SocialNetwork = 'facebook' | 'instagram' | 'youtube' | 'x' | 'whatsapp';
+
+/** Landing-page footer, edited by the super admin in Platform Settings. */
+export interface FooterContent {
+  tagline: string;
+  links: { label: string; url: string }[];
+  social: Record<SocialNetwork, string>;
+  copyright: string;
+  show_contact: boolean;
+}
+
+/** GET /footer — FooterContent plus the public support contact (null when hidden). */
+export interface PublicFooter extends FooterContent {
+  platform_name: string;
+  support_email: string | null;
+  support_phone: string | null;
 }
 
 export interface Organization {
@@ -337,6 +356,8 @@ export type CricketBattingStyle = 'Right Hand' | 'Left Hand';
 
 export interface Player {
   id: string;
+  /** "Find My Stats" code (e.g. SP-7K4Q2), shared by all of one person's squad entries */
+  player_code?: string;
   team_id: string;
   tournament_id: string;
   organization_id: string;
@@ -923,76 +944,166 @@ export interface Auction {
 // COMPREHENSIVE PLAYER CAREER & TOURNAMENT STATISTICS
 // ============================================================================
 
+// Every number is derived from the scoring logs on the server. Ratios with
+// nothing to divide by (an average with no dismissals, an economy with no
+// balls bowled) are null, not zero.
+
 export interface CricketPlayerStats {
   matches: number;
   innings_batted: number;
   runs_scored: number;
   balls_faced: number;
-  highest_score: number;
+  highest_score: number | null;
   highest_score_not_out: boolean;
-  batting_average: number;
-  strike_rate: number;
+  batting_average: number | null;
+  strike_rate: number | null;
   centuries: number;
   fifties: number;
   fours: number;
   sixes: number;
   ducks: number;
   not_outs: number;
+  innings_bowled: number;
+  balls_bowled: number;
+  /** overs.balls notation: 16.2 is sixteen overs and two balls */
   overs_bowled: number;
   maidens: number;
   runs_conceded: number;
   wickets_taken: number;
-  bowling_average: number;
-  economy_rate: number;
-  best_bowling_wickets: number;
-  best_bowling_runs: number;
+  bowling_average: number | null;
+  economy_rate: number | null;
+  bowling_strike_rate: number | null;
+  best_bowling_wickets: number | null;
+  best_bowling_runs: number | null;
+  /** three or four wickets in a match */
   three_wicket_hauls: number;
   five_wicket_hauls: number;
   catches: number;
   stumpings: number;
   run_outs: number;
+  player_of_match_count: number;
 }
 
 export interface FootballPlayerStats {
   matches: number;
-  minutes_played: number;
   goals: number;
+  penalties_scored: number;
+  penalties_missed: number;
+  own_goals: number;
   assists: number;
+  goals_per_match: number | null;
   clean_sheets: number;
   yellow_cards: number;
   red_cards: number;
-  penalties_scored: number;
-  shots_on_target: number;
   player_of_match_count: number;
+}
+
+export interface PlayerAward {
+  id: string;
+  title: string;
+  match_id: string;
+  opponent_name: string | null;
+  date: string;
+  tournament_id: string;
+  tournament_name: string;
+}
+
+/** One match from a player's point of view. */
+export interface PlayerMatchPerformance {
+  match_id: string;
+  match_number: number;
+  round_name: string;
+  date: string;
+  status: string;
+  tournament_id: string;
+  tournament_name: string;
+  sport_code: SportCode;
+  team_id: string;
+  team_name: string | null;
+  opponent_team_id: string;
+  opponent_name: string;
+  result: 'won' | 'lost' | 'drawn' | 'tied' | null;
+  result_summary: string | null;
+  player_of_match: boolean;
+  /** scorebook shorthand, e.g. "42* (26) & 1/14 (2.0 ov)" or "2 goals (1 pen)" */
+  summary: string;
+  cricket?: {
+    batting: { runs: number; balls: number; fours: number; sixes: number; not_out: boolean; strike_rate: number | null } | null;
+    bowling: { overs: number; balls: number; maidens: number; runs: number; wickets: number; economy: number | null } | null;
+    fielding: { catches: number; stumpings: number; run_outs: number };
+  };
+  football?: {
+    goals: number;
+    penalty_goals: number;
+    penalties_missed: number;
+    own_goals: number;
+    assists: number;
+    yellow_cards: number;
+    red_cards: number;
+    clean_sheet: boolean;
+  };
 }
 
 export interface PlayerStats {
   id: string;
   player_id: string;
-  user_id?: string;
   full_name: string;
-  photo?: string;
+  player_code?: string | null;
+  photo?: string | null;
   jersey_number?: number;
-  team_id?: string;
-  team_name?: string;
+  team_id?: string | null;
+  team_name?: string | null;
   organization_id: string;
-  tournament_id?: string; // null for career stats, or specific tournament
+  tournament_id?: string;
   sport_code: SportCode;
-  cricket?: CricketPlayerStats;
-  football?: FootballPlayerStats;
-  recent_performances?: {
-    match_id: string;
-    opponent_name: string;
-    date: string;
-    summary: string;
-    rating?: number;
-  }[];
-  awards?: {
-    id: string;
-    title: string;
-    date: string;
-    tournament_name: string;
-  }[];
+  cricket?: CricketPlayerStats | null;
+  football?: FootballPlayerStats | null;
+  /** the last five matches, newest first */
+  recent_performances?: PlayerMatchPerformance[];
+  awards?: PlayerAward[];
   updated_at: string;
+}
+
+export interface PageMeta {
+  page: number;
+  per_page: number;
+  total: number;
+  last_page: number;
+}
+
+export interface PlayerCareer {
+  linked_to_account: boolean;
+  tournaments_count: number;
+  cricket: CricketPlayerStats | null;
+  football: FootballPlayerStats | null;
+  tournaments: {
+    tournament: { id: string; name: string; slug: string; sport_code: SportCode; status: string; start_date: string };
+    player_id: string;
+    team_id: string;
+    team_name: string | null;
+    stats: CricketPlayerStats | FootballPlayerStats;
+  }[];
+  awards: PlayerAward[];
+}
+
+export interface TournamentPlayerStatsRow {
+  player_id: string;
+  full_name: string;
+  photo: string | null;
+  jersey_number: number;
+  team_id: string;
+  team_name: string | null;
+  role: string | null;
+  is_captain: boolean;
+  stats: CricketPlayerStats | FootballPlayerStats;
+}
+
+export interface TournamentPlayerStatsResponse {
+  tournament: { id: string; name: string; slug: string; sport_code: SportCode };
+  sport: SportCode;
+  sort: string;
+  sort_options: string[];
+  data: TournamentPlayerStatsRow[];
+  meta: PageMeta;
 }
 

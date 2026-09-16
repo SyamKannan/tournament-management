@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import type { PlatformSettings, PaymentMethod, PaymentFlow, PaymentProvider } from '../../types';
+import type { PlatformSettings, PaymentMethod, PaymentFlow, PaymentProvider, FooterContent, SocialNetwork } from '../../types';
 import { useToast } from '../../components/ui/Toast';
 import { Skeleton, SkeletonStats } from '../../components/ui/Feedback';
-import { Save, Receipt, Users, FlaskConical, KeyRound, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Save, Receipt, Users, FlaskConical, KeyRound, CheckCircle2, AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import { PhoneInput } from '../../components/PhoneInput';
 import { COUNTRIES } from '../../lib/countries';
 
@@ -29,7 +29,17 @@ const PROVIDERS: { id: PaymentProvider; label: string; sub: string; icon: typeof
   { id: 'razorpay', label: 'Razorpay', sub: 'UPI, cards, netbanking', icon: KeyRound },
 ];
 
-const CURRENCIES: { code: string; symbol: string; label: string }[] = [
+const MAX_FOOTER_LINKS = 8;
+
+const SOCIAL_FIELDS: { id: SocialNetwork; label: string; placeholder: string }[] = [
+  { id: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/yourpage' },
+  { id: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/yourpage' },
+  { id: 'youtube', label: 'YouTube', placeholder: 'https://youtube.com/@yourchannel' },
+  { id: 'x', label: 'X (Twitter)', placeholder: 'https://x.com/yourhandle' },
+  { id: 'whatsapp', label: 'WhatsApp', placeholder: 'https://wa.me/919847000000' },
+];
+
+const CURRENCIES:{ code: string; symbol: string; label: string }[] = [
   { code: 'INR', symbol: '₹', label: 'Indian Rupee' },
   { code: 'USD', symbol: '$', label: 'US Dollar' },
   { code: 'GBP', symbol: '£', label: 'British Pound' },
@@ -88,6 +98,16 @@ export const AdminPlatformSettingsPage: React.FC = () => {
       ...settings,
       payment_gateways: { ...settings.payment_gateways, [flow]: { ...settings.payment_gateways[flow], ...patch } },
     });
+  };
+
+  const updateFooter = (patch: Partial<FooterContent>) => {
+    if (!settings) return;
+    setSettings({ ...settings, footer: { ...settings.footer, ...patch } });
+  };
+
+  const updateFooterLink = (index: number, patch: Partial<FooterContent['links'][number]>) => {
+    if (!settings) return;
+    updateFooter({ links: settings.footer.links.map((link, i) => (i === index ? { ...link, ...patch } : link)) });
   };
 
   const handleCurrencyChange = (code: string) => {
@@ -230,6 +250,116 @@ export const AdminPlatformSettingsPage: React.FC = () => {
                 onChange={(e) => setSettings({ ...settings, grace_period_days: Number(e.target.value) })}
                 className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
               />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 rounded-3xl glass-card border border-slate-800 space-y-5 text-xs">
+          <div>
+            <h3 className="text-sm font-bold text-white font-heading">Landing Page Footer</h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Shown at the bottom of the public home page. Contact details come from Support Email and Support Phone above.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-300 font-semibold mb-1">Tagline</label>
+              <input
+                type="text"
+                maxLength={160}
+                value={settings.footer.tagline}
+                onChange={(e) => updateFooter({ tagline: e.target.value })}
+                className="w-full px-3.5 py-2 rounded-xl glass-input"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-300 font-semibold mb-1">Copyright Line</label>
+              <input
+                type="text"
+                maxLength={160}
+                value={settings.footer.copyright}
+                placeholder={`© ${new Date().getFullYear()} ${settings.platform_name}. All rights reserved.`}
+                onChange={(e) => updateFooter({ copyright: e.target.value })}
+                className="w-full px-3.5 py-2 rounded-xl glass-input"
+              />
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 text-slate-300 cursor-pointer p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 w-fit">
+            <input
+              type="checkbox"
+              checked={settings.footer.show_contact}
+              onChange={(e) => updateFooter({ show_contact: e.target.checked })}
+              className="rounded text-emerald-500"
+            />
+            <span>Show support email and phone in the footer</span>
+          </label>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-slate-300 font-semibold">Quick Links</span>
+              <button
+                type="button"
+                onClick={() => updateFooter({ links: [...settings.footer.links, { label: '', url: '' }] })}
+                disabled={settings.footer.links.length >= MAX_FOOTER_LINKS}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:border-slate-600 disabled:opacity-40"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add link
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-500 mb-2">Use a page path like /players, or a full https:// address. Up to {MAX_FOOTER_LINKS} links.</p>
+            <div className="space-y-2">
+              {settings.footer.links.map((link, i) => (
+                <div key={i} className="grid grid-cols-[1fr_1.4fr_auto] gap-2">
+                  <input
+                    type="text"
+                    required
+                    maxLength={40}
+                    placeholder="Label"
+                    value={link.label}
+                    onChange={(e) => updateFooterLink(i, { label: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl glass-input"
+                  />
+                  <input
+                    type="text"
+                    required
+                    pattern="^(/(?!/)|https?://).*"
+                    title="Start with / or https://"
+                    placeholder="/players or https://…"
+                    value={link.url}
+                    onChange={(e) => updateFooterLink(i, { url: e.target.value.trim() })}
+                    className="w-full px-3 py-2 rounded-xl glass-input font-mono"
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Remove ${link.label || 'link'}`}
+                    onClick={() => updateFooter({ links: settings.footer.links.filter((_, j) => j !== i) })}
+                    className="px-2.5 rounded-xl border border-slate-800 text-slate-500 hover:text-rose-400 hover:border-rose-500/40"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <span className="block text-slate-300 font-semibold mb-1">Social Profiles</span>
+            <p className="text-[10px] text-slate-500 mb-2">Leave blank to hide. Full https:// links only.</p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {SOCIAL_FIELDS.map(({ id, label, placeholder }) => (
+                <div key={id}>
+                  <label className="block text-slate-400 mb-1">{label}</label>
+                  <input
+                    type="url"
+                    placeholder={placeholder}
+                    value={settings.footer.social[id]}
+                    onChange={(e) => updateFooter({ social: { ...settings.footer.social, [id]: e.target.value.trim() } })}
+                    className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
+                  />
+                </div>
+              ))}
             </div>
           </div>
         </div>

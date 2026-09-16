@@ -243,7 +243,7 @@ export const AuctionTVPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 text-slate-500 shrink-0">
-          <span>Powered by Sportivo Auction Arena</span>
+          <span>Sportivo Live Auction</span>
           <span>•</span>
           <span className="text-amber-400 font-bold">Live Sync</span>
         </div>
