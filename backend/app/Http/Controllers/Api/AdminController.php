@@ -495,6 +495,13 @@ class AdminController extends Controller
             return response()->json(['error' => 'Target user or club admin not found'], 404);
         }
 
+        // Impersonation exists to see an organizer's own view. Stepping into
+        // another platform admin's account gains nothing and would leave their
+        // name on everything done next.
+        if ($targetUser->role === 'SUPER_ADMIN') {
+            return response()->json(['error' => 'Platform admins cannot be impersonated.'], 403);
+        }
+
         $token = $this->tokens->issue($targetUser);
         $organization = $targetUser->organization_id ? Organization::find($targetUser->organization_id) : null;
 

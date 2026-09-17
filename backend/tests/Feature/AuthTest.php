@@ -239,6 +239,35 @@ class AuthTest extends TestCase
         $this->putJson('/api/auth/me', ['name' => 'Nobody'])->assertUnauthorized();
     }
 
+    public function test_a_suspended_organization_cannot_sign_in_or_keep_working(): void
+    {
+        \App\Models\Organization::query()->whereKey('org-green-valley')->update(['status' => 'suspended']);
+
+        $this->postJson('/api/auth/login', ['email' => 'admin@greenvalley.com', 'password' => '12345678'])
+            ->assertStatus(403)
+            ->assertJsonPath('error', 'This organization is suspended. Please contact platform support.');
+
+        // A token issued before the suspension stops working too.
+        $this->actingAsUser('admin@greenvalley.com');
+        $this->getJson('/api/tournaments')
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'ORGANIZATION_SUSPENDED');
+
+        // The tournament's public pages are unaffected — they belong to the
+        // teams and supporters, not to the organizer's account.
+        $this->getJson('/api/tournaments/public/'.\App\Models\Tournament::find('tourney-football-sevens')->slug)->assertOk();
+    }
+
+    public function test_signup_refuses_an_email_already_used_in_another_case(): void
+    {
+        $this->postJson('/api/auth/register-player', [
+            'name' => 'Case Test',
+            'email' => 'ADMIN@greenvalley.com',
+            'password' => '12345678',
+            'phone' => '+91 90000 12345',
+        ])->assertStatus(422);
+    }
+
     public function test_production_refuses_to_sign_tokens_with_the_public_fallback_secret(): void
     {
         $tokens = app(\App\Services\TokenService::class);

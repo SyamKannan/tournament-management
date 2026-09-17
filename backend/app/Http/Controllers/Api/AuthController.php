@@ -38,6 +38,17 @@ class AuthController extends Controller
             return response()->json(['error' => 'Invalid email or password'], 401);
         }
 
+        // Said at the door rather than on the first action they try.
+        if ($user->role !== 'SUPER_ADMIN' && $user->organization_id) {
+            $status = Organization::query()->whereKey($user->organization_id)->value('status');
+
+            if (in_array($status, ['suspended', 'cancelled'], true)) {
+                return response()->json([
+                    'error' => 'This organization is suspended. Please contact platform support.',
+                ], 403);
+            }
+        }
+
         return response()->json($this->identityPayload($user));
     }
 
@@ -111,7 +122,10 @@ class AuthController extends Controller
             'contactPerson' => 'contact person',
         ]);
 
-        if (User::query()->where('email', $data['email'])->exists()) {
+        // Sign-in matches on a lowercased email, so the check here has to as
+        // well — otherwise "A@x.com" and "a@x.com" become two accounts and only
+        // one of them can ever sign in.
+        if ($this->emailTaken($data['email'])) {
             return response()->json(['error' => 'An account with this email address already exists. Please sign in.'], 422);
         }
 
@@ -200,7 +214,7 @@ class AuthController extends Controller
             'avatar' => ['nullable', 'string'],
         ]);
 
-        if (User::query()->where('email', $data['email'])->exists()) {
+        if ($this->emailTaken($data['email'])) {
             return response()->json(['error' => 'An account with this email address already exists. Please sign in.'], 422);
         }
 
@@ -336,6 +350,11 @@ class AuthController extends Controller
             'user' => $user->toAuthPayload(),
             'organization' => $user->organization_id ? Organization::find($user->organization_id) : null,
         ];
+    }
+
+    private function emailTaken(string $email): bool
+    {
+        return User::query()->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])->exists();
     }
 
     private function passwordMatches(User $user, string $password): bool

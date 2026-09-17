@@ -41,9 +41,12 @@ class LineupService
             ->get()
             ->groupBy('team_id');
 
+        // A team sheet is read by stadium screens and the public hub, and a
+        // phone number is no part of one — drop them before they can travel.
         $players = Player::query()
             ->whereIn('team_id', [$match->team_a_id, $match->team_b_id])
             ->get()
+            ->each(fn (Player $player) => $player->makeHidden(['mobile', 'dob']))
             ->groupBy('team_id');
 
         $rows = [];

@@ -105,11 +105,18 @@ Route::prefix('organizations')->group(function () {
 
     // `tenant:id` — the organization being addressed is the `{id}` segment itself.
     Route::middleware(['auth.required', 'tenant:id'])->group(function () {
+        // Read by everyone who works here: the scorer console and the team
+        // manager's pages both show the organization's name and crest.
         Route::get('{id}', [OrganizationController::class, 'show']);
-        Route::put('{id}', [OrganizationController::class, 'update']);
-        Route::get('{id}/usage', [OrganizationController::class, 'usage']);
-        Route::post('{id}/subscribe/order', [OrganizationController::class, 'subscribeOrder']);
-        Route::post('{id}/subscribe', [OrganizationController::class, 'subscribe']);
+
+        // The account itself — its profile, its plan, its money — belongs to
+        // the organizer. Sharing an organization is not running it.
+        Route::middleware('role:ORG_ADMIN,SUPER_ADMIN')->group(function () {
+            Route::put('{id}', [OrganizationController::class, 'update']);
+            Route::get('{id}/usage', [OrganizationController::class, 'usage']);
+            Route::post('{id}/subscribe/order', [OrganizationController::class, 'subscribeOrder']);
+            Route::post('{id}/subscribe', [OrganizationController::class, 'subscribe']);
+        });
     });
 });
 
@@ -119,15 +126,20 @@ Route::prefix('tournaments')->group(function () {
     Route::get('public/{slug}', [TournamentController::class, 'publicHub']);
 
     Route::middleware('auth.required')->group(function () {
+        // The scorer console and the poster page both list and open tournaments.
         Route::get('/', [TournamentController::class, 'index']);
-        Route::post('/', [TournamentController::class, 'store'])->middleware('tenant');
         Route::get('{id}', [TournamentController::class, 'show']);
-        Route::put('{id}', [TournamentController::class, 'update']);
-        Route::delete('{id}', [TournamentController::class, 'destroy']);
-        Route::post('{id}/cancel', [TournamentController::class, 'cancel'])->middleware('role:ORG_ADMIN,SUPER_ADMIN');
-        Route::put('{id}/auction', [TournamentController::class, 'configureAuction']);
-        Route::post('{id}/registration-link', [TournamentController::class, 'registrationLink']);
-        Route::post('{id}/poster', [TournamentController::class, 'generatePoster']);
+
+        // Setting one up, changing it or calling it off is the organizer's.
+        Route::middleware('role:ORG_ADMIN,SUPER_ADMIN')->group(function () {
+            Route::post('/', [TournamentController::class, 'store'])->middleware('tenant');
+            Route::put('{id}', [TournamentController::class, 'update']);
+            Route::delete('{id}', [TournamentController::class, 'destroy']);
+            Route::post('{id}/cancel', [TournamentController::class, 'cancel']);
+            Route::put('{id}/auction', [TournamentController::class, 'configureAuction']);
+            Route::post('{id}/registration-link', [TournamentController::class, 'registrationLink']);
+            Route::post('{id}/poster', [TournamentController::class, 'generatePoster']);
+        });
     });
 });
 
@@ -138,12 +150,15 @@ Route::prefix('teams')->group(function () {
     Route::post('public/registration/{token}/payment-order', [TeamController::class, 'paymentOrder'])->middleware('throttle:10,1');
     Route::post('public/registration/{token}', [TeamController::class, 'register'])->middleware('throttle:10,1');
 
-    Route::get('tournament/{tournamentId}', [TeamController::class, 'forTournament'])->middleware('auth.required');
+    // Carries every team's manager contacts and fees, so it stays with the
+    // people running the tournament rather than everyone in the organization.
+    Route::get('tournament/{tournamentId}', [TeamController::class, 'forTournament'])
+        ->middleware(['auth.required', 'role:ORG_ADMIN,SCORER,SUPER_ADMIN']);
 
     Route::get('{id}', [TeamController::class, 'show']);
     Route::get('{id}/receipt', [TeamController::class, 'receipt']);
 
-    Route::middleware('auth.required')->group(function () {
+    Route::middleware(['auth.required', 'role:ORG_ADMIN,SUPER_ADMIN'])->group(function () {
         Route::put('{id}/status', [TeamController::class, 'updateStatus']);
         Route::post('{id}/record-payment', [TeamController::class, 'recordPayment']);
         Route::post('{id}/players', [TeamController::class, 'addPlayer']);
@@ -158,7 +173,8 @@ Route::prefix('matches')->group(function () {
     Route::get('current', [MatchController::class, 'current'])->middleware('throttle:60,1');
     Route::get('scoreboard/match/{id}', [MatchController::class, 'scoreboard']);
 
-    Route::post('auto-generate-fixtures', [MatchController::class, 'generateFixtures'])->middleware('auth.required');
+    Route::post('auto-generate-fixtures', [MatchController::class, 'generateFixtures'])
+        ->middleware(['auth.required', 'role:ORG_ADMIN,SUPER_ADMIN']);
 
     Route::get('{id}', [MatchController::class, 'show']);
     Route::get('{id}/toss', [TossController::class, 'show']);
@@ -229,7 +245,7 @@ Route::prefix('auctions')->group(function () {
         Route::get('{id}/my-team', [AuctionController::class, 'myTeam']);
     });
 
-    Route::post('/', [AuctionController::class, 'store'])->middleware('auth.required');
+    Route::post('/', [AuctionController::class, 'store'])->middleware(['auth.required', 'role:ORG_ADMIN,SUPER_ADMIN']);
     Route::put('players/{playerId}/status', [AuctionController::class, 'updatePlayerStatus'])->middleware('auth.required');
 
     Route::get('{id}', [AuctionController::class, 'show']);
@@ -257,27 +273,33 @@ Route::prefix('auctions')->group(function () {
 Route::prefix('sponsors')->group(function () {
     Route::get('announcements', [SponsorController::class, 'listAnnouncements']);
 
-    Route::middleware('auth.required')->group(function () {
+    // Sponsor deals and ad inventory belong to the organizer; the scorer sees
+    // and times what is queued for the screen they are driving.
+    Route::middleware(['auth.required', 'role:ORG_ADMIN,SCORER,SUPER_ADMIN'])->group(function () {
         // Ads and announcements each belong to one match. Putting them on the
         // big screen is `POST /matches/{id}/scoreboard/stage`, not anything here.
         Route::get('ads', [SponsorController::class, 'listAds']);
-        Route::post('ads', [SponsorController::class, 'storeAd'])->middleware('tenant');
-        Route::post('ads/{id}/copy', [SponsorController::class, 'copyAd']);
-        Route::delete('ads/{id}', [SponsorController::class, 'destroyAd']);
 
-        Route::post('announcements', [SponsorController::class, 'storeAnnouncement'])->middleware('tenant');
-        Route::delete('announcements/{id}', [SponsorController::class, 'destroyAnnouncement']);
+        Route::middleware('role:ORG_ADMIN,SUPER_ADMIN')->group(function () {
+            Route::post('ads', [SponsorController::class, 'storeAd'])->middleware('tenant');
+            Route::post('ads/{id}/copy', [SponsorController::class, 'copyAd']);
+            Route::delete('ads/{id}', [SponsorController::class, 'destroyAd']);
+
+            Route::post('announcements', [SponsorController::class, 'storeAnnouncement'])->middleware('tenant');
+            Route::delete('announcements/{id}', [SponsorController::class, 'destroyAnnouncement']);
+        });
 
         // Adjusting on-screen time happens from the scorer console, so the
         // same people who drive the big screen may do it.
-        Route::middleware('role:ORG_ADMIN,SCORER,SUPER_ADMIN')->group(function () {
-            Route::put('ads/{id}', [SponsorController::class, 'updateAd']);
-            Route::put('announcements/{id}', [SponsorController::class, 'updateAnnouncement']);
-        });
+        Route::put('ads/{id}', [SponsorController::class, 'updateAd']);
+        Route::put('announcements/{id}', [SponsorController::class, 'updateAnnouncement']);
 
         Route::get('/', [SponsorController::class, 'index']);
-        Route::post('/', [SponsorController::class, 'store'])->middleware('tenant');
-        Route::delete('{id}', [SponsorController::class, 'destroy']);
+
+        Route::middleware('role:ORG_ADMIN,SUPER_ADMIN')->group(function () {
+            Route::post('/', [SponsorController::class, 'store'])->middleware('tenant');
+            Route::delete('{id}', [SponsorController::class, 'destroy']);
+        });
     });
 });
 
@@ -312,7 +334,9 @@ Route::post('assistant/chat', [AssistantController::class, 'chat'])->middleware(
 
 /* ------------------------------------------------------------------- Reports */
 
-Route::prefix('reports')->middleware('auth.required')->group(function () {
+// Ground-fee collection and squad rosters, with manager contacts — the
+// organizer's books, not shared with everyone in the organization.
+Route::prefix('reports')->middleware(['auth.required', 'role:ORG_ADMIN,SUPER_ADMIN'])->group(function () {
     Route::get('financials/{tournamentId}', [ReportController::class, 'financials']);
     Route::get('teams-roster/{tournamentId}', [ReportController::class, 'teamsRoster']);
 });
