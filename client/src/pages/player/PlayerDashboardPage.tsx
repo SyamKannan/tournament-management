@@ -106,7 +106,7 @@ export const PlayerDashboardPage: React.FC = () => {
 
               <div className="pt-1 space-y-1">
                 <PlayerCodeBadge code={player.player_code} />
-                <p className="text-[11px] text-slate-500">Use this code on Find My Stats to see your stats without logging in.</p>
+                <p className="text-[11px] text-slate-500">Use this code on Player Stats to see your stats without logging in.</p>
               </div>
             </div>
           </div>

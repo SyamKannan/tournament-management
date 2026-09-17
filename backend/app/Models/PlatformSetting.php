@@ -31,7 +31,7 @@ class PlatformSetting extends Model
     public const FOOTER_DEFAULTS = [
         'tagline' => 'Run the game. We handle the rest.',
         'links' => [
-            ['label' => 'Find My Stats', 'url' => '/players'],
+            ['label' => 'Player Stats', 'url' => '/players'],
             ['label' => 'Register Your Club', 'url' => '/register-club'],
             ['label' => 'Join as Player', 'url' => '/register-player'],
             ['label' => 'Sign In', 'url' => '/login'],

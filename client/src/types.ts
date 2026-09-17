@@ -356,7 +356,7 @@ export type CricketBattingStyle = 'Right Hand' | 'Left Hand';
 
 export interface Player {
   id: string;
-  /** "Find My Stats" code (e.g. SP-7K4Q2), shared by all of one person's squad entries */
+  /** "Player Stats" code (e.g. SP-7K4Q2), shared by all of one person's squad entries */
   player_code?: string;
   team_id: string;
   tournament_id: string;

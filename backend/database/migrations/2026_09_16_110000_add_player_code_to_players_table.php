@@ -6,7 +6,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * The Player Code (`SP-7K4Q2`) a player types into "Find My Stats" to reach
+ * The Player Code (`SP-7K4Q2`) a player types into "Player Stats" to reach
  * their own record without logging in. Not unique: every squad entry of the
  * same person shares one code (see PlayerIdentity). Existing players are given
  * theirs here.

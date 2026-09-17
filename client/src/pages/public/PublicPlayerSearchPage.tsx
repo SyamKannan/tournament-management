@@ -28,7 +28,7 @@ const PER_PAGE = 20;
 const PLAYER_CODE = /^sp[\s-]*[a-z0-9]{5}$/i;
 
 /**
- * "Find My Stats": a player types their Player Code to go straight to their
+ * "Player Stats": a player types their Player Code to go straight to their
  * profile, or searches their name — no account, no login.
  */
 export const PublicPlayerSearchPage: React.FC = () => {
