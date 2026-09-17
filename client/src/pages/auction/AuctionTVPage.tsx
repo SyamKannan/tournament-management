@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Auction, AuctionPlayer, Tournament, TeamAuctionPurse } from '../../types';
-import { websocketUrl } from '../../config';
+import { useRoomSocket } from '../../lib/useRoomSocket';
 import { 
   Gavel, Maximize2, Minimize2, MapPin, Flame
 } from 'lucide-react';
@@ -38,41 +38,22 @@ export const AuctionTVPage: React.FC = () => {
 
   useEffect(() => {
     fetchAuction();
-
-    // WebSocket connection for real-time TV broadcast sync
-    const wsUrl = websocketUrl();
-    let ws: WebSocket | null = null;
-
-    try {
-      ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        ws?.send(JSON.stringify({ type: 'SUBSCRIBE', room: `auction:${id || 'auction-football-1'}` }));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'PLAYER_ON_HAMMER' || msg.type === 'BID_PLACED' || msg.type === 'PLAYER_UNSOLD') {
-            fetchAuction();
-          } else if (msg.type === 'PLAYER_SOLD') {
-            fetchAuction();
-            setSoldCelebration({
-              active: true,
-              player: msg.payload?.player,
-              teamName: msg.payload?.team?.name || 'Winning Team',
-              price: msg.payload?.sold_price || 0
-            });
-            setTimeout(() => setSoldCelebration(prev => ({ ...prev, active: false })), 7000);
-          }
-        } catch (e) {}
-      };
-    } catch (err) {}
-
-    return () => {
-      if (ws) ws.close();
-    };
   }, [id]);
+
+  // A stadium screen runs unattended, so it has to recover from a dropped
+  // connection by itself — hence the reconnect and the 10s poll.
+  useRoomSocket(`auction:${id || 'auction-football-1'}`, msg => {
+    if (msg.type === 'PLAYER_SOLD') {
+      setSoldCelebration({
+        active: true,
+        player: msg.payload?.player,
+        teamName: msg.payload?.team?.name || 'Winning Team',
+        price: msg.payload?.sold_price || 0
+      });
+      setTimeout(() => setSoldCelebration(prev => ({ ...prev, active: false })), 7000);
+    }
+    fetchAuction();
+  }, fetchAuction, 10000);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {

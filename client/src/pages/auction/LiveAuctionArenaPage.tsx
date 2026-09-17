@@ -4,7 +4,7 @@ import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
-import { websocketUrl } from '../../config';
+import { useRoomSocket } from '../../lib/useRoomSocket';
 import type { 
   Auction, AuctionPlayer, AuctionBid, TeamAuctionPurse, 
   Tournament, Organization 
@@ -55,7 +55,8 @@ export const LiveAuctionArenaPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Failed to load auction room', err);
-      setError(err?.message || 'Failed to load auction data');
+      // A failed background refresh keeps the room on screen.
+      if (!data) setError(err?.message || 'Failed to load auction data');
     } finally {
       setLoading(false);
     }
@@ -63,88 +64,54 @@ export const LiveAuctionArenaPage: React.FC = () => {
 
   useEffect(() => {
     fetchAuctionState();
-
-    // WebSocket connection for real-time live bidding
-    const wsUrl = websocketUrl();
-    let ws: WebSocket | null = null;
-
-    try {
-      ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        ws?.send(JSON.stringify({ type: 'SUBSCRIBE', room: `auction:${id || 'auction-football-1'}` }));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'PLAYER_ON_HAMMER' || msg.type === 'BID_PLACED' || msg.type === 'PLAYER_UNSOLD' || msg.type === 'ACCELERATED_ROUND_STARTED') {
-            fetchAuctionState();
-            if (msg.type === 'BID_PLACED') {
-              setBidWarFlash(true);
-              setTimeout(() => setBidWarFlash(false), 1200);
-            }
-          } else if (msg.type === 'PLAYER_SOLD') {
-            fetchAuctionState();
-            setSoldCelebration({
-              active: true,
-              player: msg.payload?.player,
-              teamName: msg.payload?.team?.name || 'Winning Team',
-              price: msg.payload?.sold_price || 0
-            });
-            setTimeout(() => setSoldCelebration(prev => ({ ...prev, active: false })), 6000);
-          }
-        } catch (e) {}
-      };
-    } catch (err) {}
-
-    return () => {
-      if (ws) ws.close();
-    };
   }, [id]);
 
-  // Place Bid
-  const handlePlaceBid = async (amount: number) => {
+  useRoomSocket(`auction:${id || 'auction-football-1'}`, msg => {
+    if (msg.type === 'BID_PLACED') {
+      setBidWarFlash(true);
+      setTimeout(() => setBidWarFlash(false), 1200);
+    } else if (msg.type === 'PLAYER_SOLD') {
+      setSoldCelebration({
+        active: true,
+        player: msg.payload?.player,
+        teamName: msg.payload?.team?.name || 'Winning Team',
+        price: msg.payload?.sold_price || 0
+      });
+      setTimeout(() => setSoldCelebration(prev => ({ ...prev, active: false })), 6000);
+    }
+    fetchAuctionState();
+  }, fetchAuctionState);
+
+  // Refresh straight after our own action too — the gateway may be down.
+  const runAction = async (request: () => Promise<unknown>, fallbackError: string) => {
+    try {
+      await request();
+    } catch (err: any) {
+      toast.error(err.message || fallbackError);
+    } finally {
+      fetchAuctionState();
+    }
+  };
+
+  const handlePlaceBid = (amount: number) => {
     if (!selectedBiddingTeamId) {
       toast.warning('Please select a team to bid for');
       return;
     }
-    try {
-      await api.post(`/auctions/${data?.auction.id}/place-bid`, {
-        team_id: selectedBiddingTeamId,
-        amount
-      });
-    } catch (err: any) {
-      toast.error(err.message || 'Bid failed');
-    }
+    return runAction(
+      () => api.post(`/auctions/${data?.auction.id}/place-bid`, { team_id: selectedBiddingTeamId, amount }),
+      'Bid failed'
+    );
   };
 
-  // Auctioneer Call Player
-  const handleCallPlayer = async (playerId: string) => {
-    try {
-      await api.post(`/auctions/${data?.auction.id}/call-player`, { player_id: playerId });
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to call player');
-    }
-  };
+  const handleCallPlayer = (playerId: string) =>
+    runAction(() => api.post(`/auctions/${data?.auction.id}/call-player`, { player_id: playerId }), 'Failed to call player');
 
-  // Auctioneer Sell Player
-  const handleSellPlayer = async () => {
-    try {
-      await api.post(`/auctions/${data?.auction.id}/sell-player`, {});
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to finalize sale');
-    }
-  };
+  const handleSellPlayer = () =>
+    runAction(() => api.post(`/auctions/${data?.auction.id}/sell-player`, {}), 'Failed to finalize sale');
 
-  // Auctioneer Unsold Player
-  const handleUnsoldPlayer = async () => {
-    try {
-      await api.post(`/auctions/${data?.auction.id}/unsold-player`, {});
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to mark unsold');
-    }
-  };
+  const handleUnsoldPlayer = () =>
+    runAction(() => api.post(`/auctions/${data?.auction.id}/unsold-player`, {}), 'Failed to mark unsold');
 
   // Accelerated Round
   const handleAcceleratedRound = async () => {
@@ -159,6 +126,8 @@ export const LiveAuctionArenaPage: React.FC = () => {
       toast.success('Accelerated re-auction round started!');
     } catch (err: any) {
       toast.error(err.message || 'Failed to start accelerated round');
+    } finally {
+      fetchAuctionState();
     }
   };
 

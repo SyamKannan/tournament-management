@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
-import { websocketUrl } from '../../config';
+import { useRoomSocket } from '../../lib/useRoomSocket';
 import { useToast } from '../../components/ui/Toast';
 import { LoadingState, ErrorState, EmptyState } from '../../components/ui/Feedback';
 import {
@@ -73,39 +73,11 @@ export const TeamAuctionPage: React.FC = () => {
   useEffect(() => { load(); }, [load]);
 
   // Live updates: the room pushes every hammer call, bid and sale.
-  useEffect(() => {
-    if (!id) return;
-
-    let socket: WebSocket | null = null;
-    let retry: ReturnType<typeof setTimeout> | null = null;
-
-    const connect = () => {
-      try {
-        socket = new WebSocket(websocketUrl());
-        socket.onopen = () => socket?.send(JSON.stringify({ type: 'SUBSCRIBE', room: `auction:${id}` }));
-        socket.onmessage = event => {
-          const message = JSON.parse(event.data);
-          if (['PLAYER_ON_HAMMER', 'BID_PLACED', 'PLAYER_SOLD', 'PLAYER_UNSOLD', 'ACCELERATED_ROUND_STARTED', 'AUCTION_STATUS_CHANGED'].includes(message.type)) {
-            load();
-          }
-        };
-        // Reconnect quietly; the page still works on the polling fallback below.
-        socket.onclose = () => { retry = setTimeout(connect, 4000); };
-      } catch {
-        retry = setTimeout(connect, 4000);
-      }
-    };
-
-    connect();
-    // Safety net in case the gateway is unavailable.
-    const poll = setInterval(load, 15000);
-
-    return () => {
-      if (retry) clearTimeout(retry);
-      clearInterval(poll);
-      socket?.close();
-    };
-  }, [id, load]);
+  useRoomSocket(id ? `auction:${id}` : null, message => {
+    if (['PLAYER_ON_HAMMER', 'BID_PLACED', 'PLAYER_SOLD', 'PLAYER_UNSOLD', 'ACCELERATED_ROUND_STARTED', 'AUCTION_STATUS_CHANGED'].includes(message.type)) {
+      load();
+    }
+  }, load);
 
   const placeBid = async () => {
     if (!data || bidding) return;

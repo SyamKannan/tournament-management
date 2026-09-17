@@ -52,6 +52,8 @@ export const PublicTeamRegisterPage: React.FC = () => {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [_organization, setOrganization] = useState<Organization | null>(null);
   const [paymentOptions, setPaymentOptions] = useState<any>(null);
+  // Entries closed or the field already full — said up front, not on submit.
+  const [closedReason, setClosedReason] = useState<string | null>(null);
 
   // Wizard Step (1 to 5)
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -96,6 +98,10 @@ export const PublicTeamRegisterPage: React.FC = () => {
         setTournament(res.tournament);
         setOrganization(res.organization);
         setPaymentOptions(res.payment_options);
+        setClosedReason(
+          res.closed_reason
+            || (res.is_full ? `This tournament is full — all ${res.tournament.max_teams} places have been taken.` : null)
+        );
 
         const availableMethods: PaymentMethod[] = res.tournament.payment_config?.enabled_methods?.length
           ? res.tournament.payment_config.enabled_methods
@@ -284,6 +290,25 @@ export const PublicTeamRegisterPage: React.FC = () => {
         <Link to="/" className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold">
           Go to Platform Home
         </Link>
+      </div>
+    );
+  }
+
+  if (closedReason) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-center">
+        <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mb-4 text-xl">🔒</div>
+        <h2 className="text-xl font-bold text-white mb-2">Entries are closed</h2>
+        <p className="text-xs text-slate-400 mb-1">{tournament.name}</p>
+        <p className="text-xs text-slate-400 mb-6 max-w-sm">{closedReason} Contact the organizer if you think this is a mistake.</p>
+        <div className="flex items-center gap-2">
+          <Link to={`/tournaments/${tournament.slug}`} className="px-4 py-2 rounded-xl bg-slate-800 text-white text-xs font-bold">
+            View the tournament
+          </Link>
+          <Link to="/" className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold">
+            Platform home
+          </Link>
+        </div>
       </div>
     );
   }
@@ -855,7 +880,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
                   <div>
                     <div className="font-bold text-white">Player Codes</div>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Share each code with the player. They can enter it on Find My Stats to see their own stats, with no login.
+                      Share each code with the player. They can enter it on Player Stats to see their own stats, with no login.
                     </p>
                   </div>
                   <div className="divide-y divide-slate-800/70">

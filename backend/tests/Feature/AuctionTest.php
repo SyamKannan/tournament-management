@@ -107,18 +107,18 @@ class AuctionTest extends TestCase
         $this->postJson('/api/auctions/'.self::AUCTION_ID.'/call-player', ['player_id' => $player->id])->assertOk();
         $this->postJson('/api/auctions/'.self::AUCTION_ID.'/place-bid', [
             'team_id' => $team->id,
-            'amount' => 7500,
+            'amount' => 12500,
         ])->assertOk();
 
         $response = $this->postJson('/api/auctions/'.self::AUCTION_ID.'/sell-player')->assertOk();
 
         $this->assertSame('sold', $response->json('player.status'));
-        $this->assertSame(7500.0, (float) $response->json('player.sold_price'));
+        $this->assertSame(12500.0, (float) $response->json('player.sold_price'));
         $this->assertSame($team->id, $response->json('player.sold_to_team_id'));
 
         $purse = collect($response->json('team_purses'))->firstWhere('team_id', $team->id);
-        $this->assertSame($spentBefore + 7500.0, (float) $purse['spent_amount']);
-        $this->assertSame((float) $auction->team_purse - $spentBefore - 7500.0, (float) $purse['remaining_purse']);
+        $this->assertSame($spentBefore + 12500.0, (float) $purse['spent_amount']);
+        $this->assertSame((float) $auction->team_purse - $spentBefore - 12500.0, (float) $purse['remaining_purse']);
 
         $this->assertSame($squadBefore + 1, Player::query()->where('team_id', $team->id)->count());
     }
@@ -170,6 +170,100 @@ class AuctionTest extends TestCase
 
         $this->postJson('/api/auctions/'.self::AUCTION_ID.'/status', ['status' => 'cancelled'])
             ->assertForbidden();
+    }
+
+    public function test_the_public_room_hides_player_contact_details(): void
+    {
+        $players = $this->getJson('/api/auctions/'.self::AUCTION_ID)->assertOk()->json('players');
+        $this->assertArrayNotHasKey('mobile', $players[0]);
+
+        $this->actingAsUser('admin@greenvalley.com');
+        $players = $this->getJson('/api/auctions/'.self::AUCTION_ID)->assertOk()->json('players');
+        $this->assertArrayHasKey('mobile', $players[0]);
+    }
+
+    public function test_an_unknown_auction_is_not_found_rather_than_another_one(): void
+    {
+        $this->getJson('/api/auctions/no-such-auction')->assertNotFound();
+        $this->getJson('/api/auctions/tournament/no-such-tournament')->assertNotFound();
+    }
+
+    public function test_only_the_organizer_manages_the_pool(): void
+    {
+        $player = AuctionPlayer::query()->where('auction_id', self::AUCTION_ID)->where('status', 'approved')->firstOrFail();
+
+        $this->actingAsUser('manager@malabarblasters.com');
+        $this->postJson('/api/auctions/'.self::AUCTION_ID."/players/{$player->id}/approve")->assertForbidden();
+        $this->postJson('/api/auctions/'.self::AUCTION_ID."/players/{$player->id}/reject")->assertForbidden();
+        $this->deleteJson('/api/auctions/'.self::AUCTION_ID."/players/{$player->id}")->assertForbidden();
+        $this->putJson("/api/auctions/players/{$player->id}/status", ['status' => 'approved'])->assertForbidden();
+
+        $this->actingAsUser('admin@greenvalley.com');
+        $this->postJson('/api/auctions/'.self::AUCTION_ID."/players/{$player->id}/approve")->assertOk();
+    }
+
+    public function test_the_same_mobile_cannot_register_twice(): void
+    {
+        $auction = Auction::find(self::AUCTION_ID);
+        $entry = ['full_name' => 'Nishanth P', 'mobile' => '+91 90000 33333', 'age' => 24];
+
+        $this->postJson("/api/auctions/public/registration/{$auction->token}", $entry)->assertCreated();
+        $this->postJson("/api/auctions/public/registration/{$auction->token}", [...$entry, 'mobile' => '9000033333'])
+            ->assertStatus(409);
+    }
+
+    public function test_an_opening_bid_below_base_price_is_refused(): void
+    {
+        $this->actingAsUser('admin@greenvalley.com');
+        $auction = Auction::find(self::AUCTION_ID);
+        $player = $this->approvedPoolPlayer();
+        $team = $this->auctionTeam($auction);
+
+        $this->postJson('/api/auctions/'.self::AUCTION_ID.'/call-player', ['player_id' => $player->id])->assertOk();
+
+        $this->postJson('/api/auctions/'.self::AUCTION_ID.'/place-bid', [
+            'team_id' => $team->id,
+            'amount' => $player->base_price - 1,
+        ])->assertStatus(400);
+    }
+
+    public function test_a_player_cannot_be_sold_twice(): void
+    {
+        $this->actingAsUser('admin@greenvalley.com');
+        $auction = Auction::find(self::AUCTION_ID);
+        $player = $this->approvedPoolPlayer();
+        $team = $this->auctionTeam($auction);
+
+        $this->postJson('/api/auctions/'.self::AUCTION_ID.'/call-player', ['player_id' => $player->id])->assertOk();
+        $this->postJson('/api/auctions/'.self::AUCTION_ID.'/place-bid', ['team_id' => $team->id, 'amount' => $player->base_price])->assertOk();
+        $this->postJson('/api/auctions/'.self::AUCTION_ID.'/sell-player')->assertOk();
+
+        $squad = Player::query()->where('team_id', $team->id)->count();
+
+        $this->postJson('/api/auctions/'.self::AUCTION_ID.'/sell-player')->assertStatus(400);
+        $this->postJson('/api/auctions/'.self::AUCTION_ID.'/unsold-player')->assertStatus(400);
+        $this->postJson('/api/auctions/'.self::AUCTION_ID.'/call-player', ['player_id' => $player->id])->assertStatus(400);
+
+        $this->assertSame($squad, Player::query()->where('team_id', $team->id)->count());
+        $this->assertSame('sold', $player->fresh()->status);
+    }
+
+    public function test_someone_outside_the_room_cannot_bid_for_a_team(): void
+    {
+        $auction = Auction::find(self::AUCTION_ID);
+        $team = $this->auctionTeam($auction);
+
+        $this->actingAsUser('admin@greenvalley.com');
+        $player = $this->approvedPoolPlayer();
+        $this->postJson('/api/auctions/'.self::AUCTION_ID.'/call-player', ['player_id' => $player->id])->assertOk();
+
+        foreach (['shameer.player@gmail.com', 'scorer@greenvalley.com', 'admin@malabar.com'] as $email) {
+            $this->actingAsUser($email);
+            $this->postJson('/api/auctions/'.self::AUCTION_ID.'/place-bid', [
+                'team_id' => $team->id,
+                'amount' => $player->base_price,
+            ])->assertForbidden();
+        }
     }
 
     private function approvedPoolPlayer(): AuctionPlayer

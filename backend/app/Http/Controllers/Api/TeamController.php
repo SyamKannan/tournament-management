@@ -17,6 +17,7 @@ use App\Support\Audit;
 use App\Support\Ids;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -61,7 +62,45 @@ class TeamController extends Controller
             'payment_options' => $this->payments->paymentOptions($tournament),
             'current_teams_count' => $currentTeams,
             'is_full' => $currentTeams >= $tournament->max_teams,
+            // So the page can say why it is closed instead of failing on submit.
+            'is_closed' => $this->registrationClosedReason($tournament, $link) !== null,
+            'closed_reason' => $this->registrationClosedReason($tournament, $link),
         ]);
+    }
+
+    /**
+     * Why entries are closed, or null while they are open. The closing date was
+     * being collected and shown but never enforced, so teams could enter days
+     * after the deadline — and after the draw had been made.
+     */
+    private function registrationClosedReason(Tournament $tournament, ?RegistrationLink $link): ?string
+    {
+        if (in_array($tournament->status, ['cancelled', 'completed'], true)) {
+            return $tournament->status === 'cancelled'
+                ? 'This tournament has been cancelled.'
+                : 'This tournament has already finished.';
+        }
+
+        $deadline = $link?->deadline ?: $tournament->registration_closing;
+
+        if ($deadline) {
+            try {
+                // A date with no time means entries close at the end of that day.
+                $closesAt = Carbon::parse($deadline);
+
+                if ($closesAt->equalTo($closesAt->copy()->startOfDay())) {
+                    $closesAt = $closesAt->endOfDay();
+                }
+
+                if ($closesAt->isPast()) {
+                    return 'Registration closed on '.$closesAt->format('j M Y').'.';
+                }
+            } catch (\Exception) {
+                // An unparseable date is treated as no deadline at all.
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -81,6 +120,10 @@ class TeamController extends Controller
 
         if (! $tournament) {
             return response()->json(['error' => 'Tournament not found'], 404);
+        }
+
+        if ($closed = $this->registrationClosedReason($tournament, $link)) {
+            return response()->json(['error' => $closed], 400);
         }
 
         $data = $request->validate([
@@ -134,6 +177,10 @@ class TeamController extends Controller
 
         if (! $tournament) {
             return response()->json(['error' => 'Tournament not found'], 404);
+        }
+
+        if ($closed = $this->registrationClosedReason($tournament, $link)) {
+            return response()->json(['error' => $closed], 400);
         }
 
         $currentTeams = Team::query()
@@ -254,8 +301,13 @@ class TeamController extends Controller
                 return response()->json(['error' => 'Payment verification is required to complete registration.'], 400);
             }
 
-            if (! $this->gateway->verify('registration', $data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'])) {
+            if (! $this->gateway->verify('registration', $data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'], $amountToPay)) {
                 return response()->json(['error' => 'Payment verification failed. Please try again.'], 400);
+            }
+
+            // One payment settles one registration.
+            if (RegistrationPayment::query()->where('transaction_id', $data['razorpay_payment_id'])->exists()) {
+                return response()->json(['error' => 'This payment has already been used for a registration.'], 409);
             }
 
             $verifiedTransactionId = $data['razorpay_payment_id'];
@@ -347,7 +399,7 @@ class TeamController extends Controller
             'team' => $result['team'],
             'payment' => $result['payment'],
             'receipt' => $result['receipt'],
-            // Handed to the manager to pass on: each player's code for "Find My Stats".
+            // Handed to the manager to pass on: each player's code for "Player Stats".
             'players' => Player::query()
                 ->where('team_id', $result['team']->id)
                 ->orderBy('jersey_number')
@@ -398,7 +450,7 @@ class TeamController extends Controller
         }));
     }
 
-    public function show(string $id): JsonResponse
+    public function show(Request $request, string $id): JsonResponse
     {
         $team = Team::find($id);
 
@@ -406,9 +458,24 @@ class TeamController extends Controller
             return response()->json(['error' => 'Team not found'], 404);
         }
 
+        $players = Player::query()->where('team_id', $team->id)->get();
+        $insider = $this->isOrganizationStaff($request, $team->organization_id)
+            || ($request->user() && $team->manager_user_id === $request->user()->id);
+
+        if (! $insider) {
+            // The public gets the squad sheet, not phone numbers or the money.
+            return response()->json([
+                'team' => $this->withoutTeamContacts($team),
+                'players' => $this->withoutPlayerContacts($players),
+                'payment' => null,
+                'receipt' => null,
+                'tournament' => Tournament::find($team->tournament_id),
+            ]);
+        }
+
         return response()->json([
             'team' => $team,
-            'players' => Player::query()->where('team_id', $team->id)->get(),
+            'players' => $players,
             'payment' => RegistrationPayment::query()->where('team_id', $team->id)->first(),
             'receipt' => RegistrationReceipt::query()->where('team_id', $team->id)->first(),
             'tournament' => Tournament::find($team->tournament_id),

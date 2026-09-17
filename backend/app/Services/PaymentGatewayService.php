@@ -133,8 +133,15 @@ class PaymentGatewayService
         return [...$common, 'order_id' => $orderId, 'amount' => $amountMinor, 'currency' => $currency ?: 'INR'];
     }
 
-    /** Verify a checkout result for the given flow. */
-    public function verify(string $flow, ?string $orderId, ?string $paymentId, ?string $signature): bool
+    /**
+     * Verify a checkout result for the given flow.
+     *
+     * `$expectedAmount` (in rupees) is checked against what the order was
+     * opened for, so a result from a part-payment order can't be presented as
+     * settling the full fee. On the demo gateway the order is then spent, so
+     * the same signed result can't be replayed onto a second registration.
+     */
+    public function verify(string $flow, ?string $orderId, ?string $paymentId, ?string $signature, ?float $expectedAmount = null): bool
     {
         if (! $orderId || ! $paymentId || ! $signature) {
             return false;
@@ -146,8 +153,23 @@ class PaymentGatewayService
             return $this->razorpay->verifyPaymentSignature($orderId, $paymentId, $signature, $config['key_secret']);
         }
 
-        return ! app()->isProduction()
-            && hash_equals($this->demoSignature($flow, $orderId, $paymentId), $signature);
+        if (app()->isProduction() || ! hash_equals($this->demoSignature($flow, $orderId, $paymentId), $signature)) {
+            return false;
+        }
+
+        $order = Cache::get($this->demoCacheKey($orderId));
+
+        if (! $order || $order['flow'] !== $flow) {
+            return false;
+        }
+
+        if ($expectedAmount !== null && $order['amount'] !== (int) round($expectedAmount * 100)) {
+            return false;
+        }
+
+        Cache::forget($this->demoCacheKey($orderId));
+
+        return true;
     }
 
     /**

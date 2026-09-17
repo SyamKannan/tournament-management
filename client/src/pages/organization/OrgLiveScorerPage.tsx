@@ -9,7 +9,7 @@ import {
   FOOTBALL_EVENT_ICONS, FOOTBALL_EVENT_LABELS, PERIOD_LABELS, formatClock, onPitchIds, periodLabel, useFootballClock,
 } from '../../lib/football';
 import { SubstitutionDialog } from '../../components/SubstitutionDialog';
-import { websocketUrl } from '../../config';
+import { useRoomSocket } from '../../lib/useRoomSocket';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { TossPanel } from '../../components/TossPanel';
@@ -163,34 +163,16 @@ export const OrgLiveScorerPage: React.FC = () => {
   // Two officials often work one match from separate devices, and the toss and
   // the big screen are driven from here as well. Listening on the match room
   // keeps this console honest about what the others have already recorded.
-  const matchIdRef = useRef(matchId);
-  useEffect(() => { matchIdRef.current = matchId; }, [matchId]);
-
-  useEffect(() => {
-    let ws: WebSocket | null = null;
-
-    try {
-      ws = new WebSocket(websocketUrl());
-
-      ws.onopen = () => {
-        ws?.send(JSON.stringify({ type: 'SUBSCRIBE', room: `match:${matchIdRef.current}` }));
-      };
-
-      ws.onmessage = event => {
-        try {
-          const msg = JSON.parse(event.data);
-          if ([
-            'SCORE_UPDATED', 'MATCH_STATUS_CHANGED', 'LINEUP_UPDATED', 'SCOREBOARD_STAGE_CHANGED',
-            'TOSS_CALLED', 'TOSS_DECIDED', 'TOSS_RECORDED', 'TOSS_RESET',
-          ].includes(msg.type)) {
-            fetchMatch();
-          }
-        } catch (e) {}
-      };
-    } catch (err) {}
-
-    return () => { ws?.close(); };
-  }, [matchId]);
+  // No polling here: a refetch mid-over would fight the scorer's own inputs,
+  // so we only catch up when the socket reconnects.
+  useRoomSocket(`match:${matchId || 'match-fb-live-1'}`, msg => {
+    if ([
+      'SCORE_UPDATED', 'MATCH_STATUS_CHANGED', 'LINEUP_UPDATED', 'SCOREBOARD_STAGE_CHANGED',
+      'TOSS_CALLED', 'TOSS_DECIDED', 'TOSS_RECORDED', 'TOSS_RESET',
+    ].includes(msg.type)) {
+      fetchMatch();
+    }
+  }, () => fetchMatch(), 0);
 
   /* =========================================================================
    * FOOTBALL ACTIONS

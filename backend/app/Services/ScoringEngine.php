@@ -605,6 +605,16 @@ class ScoringEngine
             $innings = $params['innings'];
             $extras = $params['extras'] ?: 'none';
 
+            // The innings being scored is the one the match is in. Trusting the
+            // number sent up let a stale console add runs to a finished innings.
+            if ($innings !== (int) $state->current_innings) {
+                throw new \RuntimeException($innings === 1
+                    ? 'The second innings is under way — the first innings is closed.'
+                    : 'The first innings is still in progress. Switch innings first.');
+            }
+
+            $this->assertInningsHasBallsLeft($match, $state, $innings);
+
             foreach (['strikerId' => 'current_striker_id', 'nonStrikerId' => 'current_non_striker_id', 'bowlerId' => 'current_bowler_id'] as $input => $column) {
                 if (! empty($params[$input])) {
                     $state->{$column} = $params[$input];
@@ -612,7 +622,8 @@ class ScoringEngine
             }
 
             $isLegalBall = ! in_array($extras, ['wide', 'no_ball'], true);
-            $extrasRuns = $params['extrasRuns'] ?? ($extras !== 'none' ? 1 : 0);
+            // No extra was signalled, so nothing can be added as one.
+            $extrasRuns = $extras === 'none' ? 0 : ($params['extrasRuns'] ?? 1);
             $totalDeliveryRuns = $params['runsScored'] + $extrasRuns;
 
             // Wides and no-balls carry a one-run penalty; anything on top of it
@@ -700,6 +711,38 @@ class ScoringEngine
 
             return ['state' => $this->cricketState($params['matchId']), 'delivery' => $delivery];
         });
+    }
+
+    /**
+     * An innings is over when its overs are bowled or its last wicket falls.
+     * Without this the console could keep adding balls to a closed innings —
+     * a 21st over in a T20, or an eleventh wicket.
+     *
+     * @throws \RuntimeException when the innings has already finished
+     */
+    private function assertInningsHasBallsLeft(GameMatch $match, CricketMatchState $state, int $innings): void
+    {
+        $legalBalls = CricketDelivery::query()
+            ->where('match_id', $match->id)
+            ->where('innings', $innings)
+            ->whereNotIn('extras', ['wide', 'no_ball'])
+            ->count();
+
+        if ($legalBalls >= $state->total_overs * 6) {
+            throw new \RuntimeException(sprintf(
+                'All %d overs of this innings have been bowled.%s',
+                $state->total_overs,
+                $innings === 1 ? ' Switch innings to start the chase.' : ''
+            ));
+        }
+
+        $wickets = (int) ($innings === 1 ? $state->team_a_wickets : $state->team_b_wickets);
+
+        if ($wickets >= $this->wicketsToBowlOut($match, $state->batting_team_id)) {
+            throw new \RuntimeException($innings === 1
+                ? 'The batting side is all out. Switch innings to start the chase.'
+                : 'The chasing side is all out — the match is over.');
+        }
     }
 
     /**

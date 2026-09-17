@@ -48,13 +48,17 @@ class MatchController extends Controller
 
     /* ------------------------------------------------------------ Fixtures */
 
-    public function forTournament(string $tournamentId): JsonResponse
+    public function forTournament(Request $request, string $tournamentId): JsonResponse
     {
         $matches = GameMatch::query()->where('tournament_id', $tournamentId)->get();
 
         $teams = Team::query()
             ->whereIn('id', $matches->pluck('team_a_id')->merge($matches->pluck('team_b_id')))
             ->get()->keyBy('id');
+
+        if (! $this->isOrganizationStaff($request, Tournament::query()->whereKey($tournamentId)->value('organization_id'))) {
+            $this->withoutTeamContacts($teams);
+        }
         $venues = Venue::query()->whereIn('id', $matches->pluck('venue_id')->filter())->get()->keyBy('id');
         $footballStates = FootballMatchState::query()->whereIn('match_id', $matches->pluck('id'))->get()->keyBy('match_id');
         $cricketStates = CricketMatchState::query()->whereIn('match_id', $matches->pluck('id'))->get()->keyBy('match_id');
@@ -135,7 +139,7 @@ class MatchController extends Controller
         })->values());
     }
 
-    public function show(string $id): JsonResponse
+    public function show(Request $request, string $id): JsonResponse
     {
         $match = GameMatch::find($id);
 
@@ -143,7 +147,7 @@ class MatchController extends Controller
             return response()->json(['error' => 'Match not found'], 404);
         }
 
-        return response()->json($this->matchDetail($match));
+        return response()->json($this->matchDetail($match, $request));
     }
 
     /**
@@ -309,9 +313,37 @@ class MatchController extends Controller
             'man_of_the_match_player_id' => ['sometimes', 'nullable', 'string'],
         ]);
 
-        $wasCompleted = $match->status === 'completed';
+        // A result typed in by hand still has to name one of the two sides.
+        if (! empty($data['winner_team_id']) && ! in_array($data['winner_team_id'], [$match->team_a_id, $match->team_b_id], true)) {
+            return response()->json(['error' => 'The winner must be one of the two teams in this match.'], 422);
+        }
+
+        if (! empty($data['man_of_the_match_player_id'])) {
+            $inMatch = Player::query()
+                ->whereKey($data['man_of_the_match_player_id'])
+                ->whereIn('team_id', [$match->team_a_id, $match->team_b_id])
+                ->exists();
+
+            if (! $inMatch) {
+                return response()->json(['error' => 'Player of the match must be a player from one of the two teams.'], 422);
+            }
+        }
+
+        if (! empty($data['venue_id']) && ! Venue::query()->whereKey($data['venue_id'])->where('organization_id', $match->organization_id)->exists()) {
+            return response()->json(['error' => 'That venue belongs to another organization.'], 422);
+        }
+
+        $previousStatus = $match->status;
+        $previousWinner = $match->winner_team_id;
+        $wasCompleted = $previousStatus === 'completed';
 
         $match->fill($data)->save();
+
+        // The table counts wins, draws and no-results, so a status or winner
+        // edited here has to be folded back into it.
+        if ($match->status !== $previousStatus || $match->winner_team_id !== $previousWinner) {
+            $this->recalculateStandings($match);
+        }
 
         $this->broadcast($match->id, 'MATCH_STATUS_CHANGED', ['match' => $match]);
 
@@ -674,7 +706,7 @@ class MatchController extends Controller
      * live state. An ad or announcement the organizer has put on screen rides
      * in `scoreboard.item`, so nothing else about sponsors is sent.
      */
-    public function scoreboard(string $id): JsonResponse
+    public function scoreboard(Request $request, string $id): JsonResponse
     {
         $match = GameMatch::find($id);
 
@@ -682,15 +714,24 @@ class MatchController extends Controller
             return response()->json(['error' => 'Match not found'], 404);
         }
 
-        return response()->json($this->matchDetail($match));
+        return response()->json($this->matchDetail($match, $request));
     }
 
     /* ------------------------------------------------------------- Helpers */
 
-    private function matchDetail(GameMatch $match): array
+    private function matchDetail(GameMatch $match, Request $request): array
     {
         $teamA = Team::find($match->team_a_id);
         $teamB = Team::find($match->team_b_id);
+        $playersA = Player::query()->where('team_id', $match->team_a_id)->get();
+        $playersB = Player::query()->where('team_id', $match->team_b_id)->get();
+
+        if (! $this->isOrganizationStaff($request, $match->organization_id)) {
+            $this->withoutTeamContacts($teamA);
+            $this->withoutTeamContacts($teamB);
+            $this->withoutPlayerContacts($playersA);
+            $this->withoutPlayerContacts($playersB);
+        }
         $cricketState = $match->sport_code === 'cricket' ? $this->scoring->cricketState($match->id) : null;
         $footballState = $match->sport_code === 'football' ? $this->scoring->footballState($match->id) : null;
 
@@ -699,11 +740,11 @@ class MatchController extends Controller
             'tournament' => Tournament::find($match->tournament_id),
             'team_a' => [
                 ...($teamA?->toArray() ?? []),
-                'players' => Player::query()->where('team_id', $match->team_a_id)->get(),
+                'players' => $playersA,
             ],
             'team_b' => [
                 ...($teamB?->toArray() ?? []),
-                'players' => Player::query()->where('team_id', $match->team_b_id)->get(),
+                'players' => $playersB,
             ],
             'venue' => $match->venue_id ? Venue::find($match->venue_id) : null,
             'football_state' => $footballState,

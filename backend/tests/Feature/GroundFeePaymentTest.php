@@ -319,6 +319,71 @@ class GroundFeePaymentTest extends TestCase
             ->assertStatus(402);
     }
 
+    public function test_registration_closes_after_the_deadline(): void
+    {
+        $tournament = Tournament::find('tourney-football-sevens');
+        $link = $tournament->registrationLink;
+        $link->update(['deadline' => now()->subDay()->format('Y-m-d')]);
+
+        $this->getJson("/api/teams/public/registration/{$link->token}")
+            ->assertOk()
+            ->assertJsonPath('is_closed', true);
+
+        $this->postJson("/api/teams/public/registration/{$link->token}/payment-order", ['payment_option' => 'full'])
+            ->assertStatus(400);
+
+        $this->postJson("/api/teams/public/registration/{$link->token}", [
+            'team_name' => 'Late FC',
+            'manager_name' => 'Manager',
+            'manager_phone' => '+91 90000 44444',
+            'players' => collect(range(1, 8))->map(fn (int $n) => ['full_name' => "P{$n}", 'jersey_number' => $n])->all(),
+            'payment_method' => 'pay_at_ground',
+        ])->assertStatus(400)
+            ->assertJsonPath('error', fn (string $error) => str_contains($error, 'Registration closed on'));
+    }
+
+    public function test_a_part_payment_cannot_be_presented_as_the_full_fee(): void
+    {
+        $token = Tournament::find('tourney-football-sevens')->registrationLink->token;
+        $paid = $this->payWithDemoCard($token, 'partial');
+
+        $this->postJson("/api/teams/public/registration/{$token}", [
+            'team_name' => 'Half Paid FC',
+            'manager_name' => 'Manager',
+            'manager_phone' => '+91 90000 55555',
+            'players' => collect(range(1, 8))->map(fn (int $n) => ['full_name' => "P{$n}", 'jersey_number' => $n])->all(),
+            'payment_method' => 'card',
+            'payment_option' => 'full',
+            ...$paid,
+        ])->assertStatus(400)
+            ->assertJsonPath('error', 'Payment verification failed. Please try again.');
+    }
+
+    public function test_one_payment_cannot_register_two_teams(): void
+    {
+        $token = Tournament::find('tourney-football-sevens')->registrationLink->token;
+        $paid = $this->payWithDemoCard($token, 'full');
+        $entry = [
+            'manager_name' => 'Manager',
+            'players' => collect(range(1, 8))->map(fn (int $n) => ['full_name' => "P{$n}", 'jersey_number' => $n])->all(),
+            'payment_method' => 'card',
+            'payment_option' => 'full',
+            ...$paid,
+        ];
+
+        $this->postJson("/api/teams/public/registration/{$token}", [
+            ...$entry,
+            'team_name' => 'First FC',
+            'manager_phone' => '+91 90000 66666',
+        ])->assertCreated();
+
+        $this->postJson("/api/teams/public/registration/{$token}", [
+            ...$entry,
+            'team_name' => 'Second FC',
+            'manager_phone' => '+91 90000 77777',
+        ])->assertStatus(400);
+    }
+
     /** Runs the demo checkout the SPA shows and returns the signed result to submit. */
     private function payWithDemoCard(string $token, string $option): array
     {

@@ -27,33 +27,47 @@ class PosterController extends Controller
     public function generate(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'match_id' => ['required', 'string'],
             'poster_type' => ['required', 'string', 'in:'.implode(',', Poster::TYPES)],
+            // Points table and announcement posters are tournament-wide, so a
+            // tournament with no fixtures yet can still make them.
+            'match_id' => ['nullable', 'string', 'required_without:tournament_id'],
+            'tournament_id' => ['nullable', 'string'],
         ]);
 
-        $match = GameMatch::find($data['match_id']);
+        $needsMatch = ! in_array($data['poster_type'], ['points_table', 'tournament_announcement'], true);
 
-        if (! $match) {
+        if ($needsMatch && empty($data['match_id'])) {
+            return response()->json(['error' => 'Pick a match for this poster type.'], 422);
+        }
+
+        $match = empty($data['match_id']) ? null : GameMatch::find($data['match_id']);
+
+        if (! empty($data['match_id']) && ! $match) {
             return response()->json(['error' => 'Match not found'], 404);
         }
 
-        if ($denied = $this->denyForeignTenant($request, $match->organization_id)) {
+        $tournament = Tournament::find($match?->tournament_id ?? $data['tournament_id']);
+
+        if (! $tournament) {
+            return response()->json(['error' => 'Tournament not found'], 404);
+        }
+
+        if ($denied = $this->denyForeignTenant($request, $tournament->organization_id)) {
             return $denied;
         }
 
-        if (! $this->billing->hasFeature($match->organization_id, 'ai_tournament_poster')) {
+        if (! $this->billing->hasFeature($tournament->organization_id, 'ai_tournament_poster')) {
             return response()->json([
                 'error' => 'Poster creation is not available on your current plan. Upgrade your plan to use it.',
             ], 403);
         }
 
-        $needsMatch = $data['poster_type'] !== 'points_table' && $data['poster_type'] !== 'tournament_announcement';
-
         GeneratePoster::dispatch(
-            $match->tournament_id,
+            $tournament->id,
             $needsMatch ? $match->id : null,
             $data['poster_type'],
             $request->user()->id,
+            $request->headers->get('origin'),
         );
 
         return response()->json([

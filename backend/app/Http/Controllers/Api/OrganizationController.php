@@ -184,7 +184,9 @@ class OrganizationController extends Controller
                 return response()->json(['error' => 'Payment verification is required to activate this plan.'], 400);
             }
 
-            if (! $this->gateway->verify('subscription', $data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'])) {
+            // Checked against the plan's price, so a cheap plan's checkout
+            // can't be used to switch on an expensive one.
+            if (! $this->gateway->verify('subscription', $data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'], (float) $plan->price)) {
                 return response()->json(['error' => 'Payment verification failed. Please try again.'], 400);
             }
 

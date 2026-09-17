@@ -10,8 +10,18 @@ class AuctionPaymentReportTest extends TestCase
 {
     private const AUCTION_ID = 'auction-football-1';
 
+    public function test_payment_report_is_for_the_organizer_only(): void
+    {
+        $this->getJson('/api/auctions/'.self::AUCTION_ID.'/payment-report')->assertUnauthorized();
+
+        $this->actingAsUser('manager@malabarblasters.com');
+        $this->getJson('/api/auctions/'.self::AUCTION_ID.'/payment-report')->assertForbidden();
+    }
+
     public function test_payment_report_returns_summary_and_disbursement_breakdown(): void
     {
+        $this->actingAsUser('admin@greenvalley.com');
+
         $response = $this->getJson('/api/auctions/'.self::AUCTION_ID.'/payment-report')->assertOk();
 
         $this->assertSame(self::AUCTION_ID, $response->json('auction.id'));

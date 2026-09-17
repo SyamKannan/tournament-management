@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { websocketUrl } from '../../config';
+import { useRoomSocket } from '../../lib/useRoomSocket';
 import { TournamentPicker } from '../../components/ui/TournamentPicker';
 import { Skeleton, SkeletonCard, EmptyState } from '../../components/ui/Feedback';
 import { useToast } from '../../components/ui/Toast';
@@ -35,6 +35,8 @@ export const OrgPostersPage: React.FC = () => {
   const [posters, setPosters] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const generatingSince = useRef<number | null>(null);
+  const postersBeforeGenerate = useRef<Set<string>>(new Set());
 
   const selectedTypeMeta = POSTER_TYPES.find(t => t.value === posterType)!;
 
@@ -63,42 +65,72 @@ export const OrgPostersPage: React.FC = () => {
   useEffect(() => {
     if (!selectedTournamentId) return;
     fetchMatchesAndPosters(selectedTournamentId);
-
-    // Live updates: GeneratePoster runs on a queue worker, so the finished
-    // poster arrives here, not in the original POST response.
-    let ws: WebSocket | null = null;
-    try {
-      ws = new WebSocket(websocketUrl());
-      ws.onopen = () => ws?.send(JSON.stringify({ type: 'SUBSCRIBE', room: `tournament:${selectedTournamentId}` }));
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'POSTER_CREATED') {
-            setPosters(prev => [msg.payload.poster, ...prev]);
-            setGenerating(false);
-            toast.success('Poster ready!');
-          }
-        } catch { /* ignore malformed frames */ }
-      };
-    } catch (err) {
-      console.error('Realtime connection failed', err);
-    }
-
-    return () => ws?.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTournamentId]);
 
+  const addPoster = (poster: any) => {
+    setPosters(prev => (prev.some(p => p.id === poster.id) ? prev : [poster, ...prev]));
+  };
+
+  // GeneratePoster runs on a queue worker, so the finished poster arrives over
+  // the tournament room rather than in the POST response.
+  useRoomSocket(selectedTournamentId ? `tournament:${selectedTournamentId}` : null, msg => {
+    if (msg.type === 'POSTER_CREATED' && msg.payload?.poster) {
+      addPoster(msg.payload.poster);
+      if (generatingSince.current) {
+        generatingSince.current = null;
+        setGenerating(false);
+        toast.success('Poster ready!');
+      }
+    }
+  }, undefined, 0);
+
+  // Without the gateway (or if the job dies) nothing is pushed, so check the
+  // list ourselves while a poster is being made, and give up after two minutes.
+  useEffect(() => {
+    if (!generating || !selectedTournamentId) return;
+    const timer = setInterval(async () => {
+      const startedAt = generatingSince.current;
+      if (!startedAt) return;
+      try {
+        const latest: any[] = await api.get(`/posters?tournament_id=${selectedTournamentId}`);
+        const fresh = latest.find(p => !postersBeforeGenerate.current.has(p.id));
+        if (fresh) {
+          addPoster(fresh);
+          generatingSince.current = null;
+          setGenerating(false);
+          toast.success('Poster ready!');
+          return;
+        }
+      } catch { /* try again next tick */ }
+      if (Date.now() - startedAt > 120000) {
+        generatingSince.current = null;
+        setGenerating(false);
+        toast.error('The poster is taking too long. Check that the queue worker is running, then try again.');
+      }
+    }, 5000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generating, selectedTournamentId]);
+
   const handleGenerate = async () => {
-    if (!selectedMatchId) {
+    if (selectedTypeMeta.needsMatch && !selectedMatchId) {
       toast.error('Pick a match first.');
       return;
     }
 
+    generatingSince.current = Date.now();
+    postersBeforeGenerate.current = new Set(posters.map(p => p.id));
     setGenerating(true);
     try {
-      await api.post('/posters/generate', { match_id: selectedMatchId, poster_type: posterType });
+      await api.post('/posters/generate', {
+        poster_type: posterType,
+        tournament_id: selectedTournamentId,
+        ...(selectedTypeMeta.needsMatch ? { match_id: selectedMatchId } : {}),
+      });
       toast.success('Generating poster… it will appear below shortly.');
     } catch (err: any) {
+      generatingSince.current = null;
       setGenerating(false);
       toast.error(err.message || 'Failed to start poster generation.');
     }
@@ -165,10 +197,9 @@ export const OrgPostersPage: React.FC = () => {
             </select>
           </div>
 
+          {selectedTypeMeta.needsMatch && (
           <div>
-            <label className="block text-slate-300 font-semibold mb-1 text-xs">
-              Match {!selectedTypeMeta.needsMatch && '(picks which tournament — not shown on this poster)'}
-            </label>
+            <label className="block text-slate-300 font-semibold mb-1 text-xs">Match</label>
             <select
               value={selectedMatchId}
               onChange={(e) => setSelectedMatchId(e.target.value)}
@@ -182,11 +213,12 @@ export const OrgPostersPage: React.FC = () => {
               ))}
             </select>
           </div>
+          )}
         </div>
 
         <button
           onClick={handleGenerate}
-          disabled={generating || !selectedMatchId}
+          disabled={generating || !selectedTournamentId || (selectedTypeMeta.needsMatch && !selectedMatchId)}
           className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500
                      disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs shadow-md shadow-amber-600/20
                      flex items-center justify-center gap-2"

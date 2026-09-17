@@ -56,7 +56,9 @@ class TournamentController extends Controller
         return response()->json([
             'tournament' => $tournament,
             'organization' => Organization::find($tournament->organization_id),
-            'teams' => Team::query()->where('tournament_id', $tournament->id)->where('status', 'approved')->get(),
+            'teams' => $this->withoutTeamContacts(
+                Team::query()->where('tournament_id', $tournament->id)->where('status', 'approved')->get()
+            ),
             'matches' => $this->withMatchContext($matches),
             'standings' => Standing::query()->where('tournament_id', $tournament->id)->get(),
             'sponsors' => Sponsor::query()->where('organization_id', $tournament->organization_id)->get(),
@@ -610,10 +612,16 @@ class TournamentController extends Controller
             return $denied;
         }
 
+        $data = $request->validate([
+            'template' => ['nullable', 'string', 'in:auto,'.implode(',', PosterService::TEMPLATES)],
+        ]);
         $useAi = $request->boolean('use_ai', true);
 
+        // Headless Chrome plus a high-quality image model can take well over the default 30s.
+        set_time_limit(240);
+
         $organization = Organization::find($tournament->organization_id);
-        $result = $this->posters->generate($tournament, $organization, $useAi);
+        $result = $this->posters->generate($tournament, $organization, $useAi, $request->headers->get('origin'), $data['template'] ?? null);
 
         $tournament->poster = $result['url'];
         $tournament->save();
@@ -639,6 +647,7 @@ class TournamentController extends Controller
             'tournament' => $tournament,
             'poster' => $result['url'],
             'used_ai' => $result['used_ai'],
+            'template' => $result['template'],
         ]);
     }
 
@@ -702,8 +711,8 @@ class TournamentController extends Controller
 
         return $matches->map(fn (GameMatch $match) => [
             ...$match->toArray(),
-            'team_a' => $teams->get($match->team_a_id),
-            'team_b' => $teams->get($match->team_b_id),
+            'team_a' => $this->withoutTeamContacts($teams->get($match->team_a_id)),
+            'team_b' => $this->withoutTeamContacts($teams->get($match->team_b_id)),
             'venue' => $match->venue_id ? $venues->get($match->venue_id) : null,
             'football_state' => $match->sport_code === 'football' ? $footballStates->get($match->id) : null,
             'cricket_state' => $match->sport_code === 'cricket' ? $cricketStates->get($match->id) : null,

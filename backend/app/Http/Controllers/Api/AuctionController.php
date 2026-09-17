@@ -32,15 +32,15 @@ class AuctionController extends Controller
 
     /* ------------------------------------------------------------- Reading */
 
-    public function forTournament(string $tournamentId): JsonResponse
+    public function forTournament(Request $request, string $tournamentId): JsonResponse
     {
-        $auction = Auction::query()->where('tournament_id', $tournamentId)->first() ?? Auction::query()->first();
+        $auction = Auction::query()->where('tournament_id', $tournamentId)->first();
 
         if (! $auction) {
             return response()->json(['error' => 'No auction found for this tournament'], 404);
         }
 
-        $players = AuctionPlayer::query()->where('auction_id', $auction->id)->get();
+        $players = $this->visiblePlayers($request, $auction);
 
         return response()->json([
             'auction' => $auction,
@@ -57,22 +57,20 @@ class AuctionController extends Controller
      * Live auction room state: who is on the hammer, what every team can still
      * spend, and the running bid history.
      */
-    public function show(string $id): JsonResponse
+    public function show(Request $request, string $id): JsonResponse
     {
-        $auction = Auction::find($id) ?? Auction::query()->first();
+        $auction = Auction::find($id);
 
         if (! $auction) {
             return response()->json(['error' => 'Auction not found'], 404);
         }
 
-        $players = AuctionPlayer::query()->where('auction_id', $auction->id)->get();
+        $players = $this->visiblePlayers($request, $auction);
 
         return response()->json([
             'auction' => $auction,
-            'tournament' => Tournament::find($auction->tournament_id)
-                ?? Tournament::query()->where('organization_id', $auction->organization_id)->first()
-                ?? Tournament::query()->first(),
-            'organization' => Organization::find($auction->organization_id) ?? Organization::query()->first(),
+            'tournament' => Tournament::find($auction->tournament_id),
+            'organization' => Organization::find($auction->organization_id),
             'current_player' => $auction->current_player_id
                 ? $players->firstWhere('id', $auction->current_player_id)
                 : null,
@@ -86,15 +84,15 @@ class AuctionController extends Controller
      * Final report: who went for what, which teams spent what, and the headline
      * numbers.
      */
-    public function summary(string $id): JsonResponse
+    public function summary(Request $request, string $id): JsonResponse
     {
-        $auction = Auction::find($id) ?? Auction::query()->first();
+        $auction = Auction::find($id);
 
         if (! $auction) {
             return response()->json(['error' => 'Auction not found'], 404);
         }
 
-        $players = AuctionPlayer::query()->where('auction_id', $auction->id)->get();
+        $players = $this->visiblePlayers($request, $auction);
         $sold = $players->where('status', 'sold')->sortByDesc('sold_price')->values();
         $totalSpent = (float) $sold->sum('sold_price');
         $paidPlayers = $sold->where('payment_status', 'paid');
@@ -103,8 +101,8 @@ class AuctionController extends Controller
 
         return response()->json([
             'auction' => $auction,
-            'tournament' => Tournament::find($auction->tournament_id) ?? Tournament::query()->first(),
-            'organization' => Organization::find($auction->organization_id) ?? Organization::query()->first(),
+            'tournament' => Tournament::find($auction->tournament_id),
+            'organization' => Organization::find($auction->organization_id),
             'stats' => [
                 'total_players' => $players->count(),
                 'sold_count' => $sold->count(),
@@ -265,6 +263,12 @@ class AuctionController extends Controller
             return response()->json(['error' => 'Auction registration link not found'], 404);
         }
 
+        // Late entries during a live auction still land for approval; only a
+        // closed, finished or cancelled auction turns people away.
+        if (in_array($auction->status, ['registration_closed', 'completed', 'cancelled'], true)) {
+            return response()->json(['error' => 'Registration for this auction is closed.'], 400);
+        }
+
         $data = $request->validate([
             'full_name' => ['required', 'string', 'max:255'],
             'mobile' => ['required', 'string', 'max:64'],
@@ -286,6 +290,19 @@ class AuctionController extends Controller
             'mobile.required' => 'Player name, mobile number, and age are required',
             'age.required' => 'Player name, mobile number, and age are required',
         ]);
+
+        // Same person, same pool: compare the last ten digits so "+91 98…" and
+        // "98…" count as one number.
+        $lastTen = fn ($mobile) => substr(preg_replace('/\D/', '', (string) $mobile), -10);
+        $alreadyRegistered = AuctionPlayer::query()
+            ->where('auction_id', $auction->id)
+            ->where('status', '!=', 'rejected')
+            ->pluck('mobile')
+            ->contains(fn ($mobile) => $lastTen($mobile) === $lastTen($data['mobile']));
+
+        if ($alreadyRegistered) {
+            return response()->json(['error' => 'This mobile number is already registered for this auction.'], 409);
+        }
 
         $sportCode = $data['sport_code'] ?? 'football';
         $category = $data['category'] ?? 'Category B';
@@ -379,12 +396,24 @@ class AuctionController extends Controller
             return response()->json(['error' => 'Player not found in auction pool'], 404);
         }
 
-        if ($denied = $this->denyForeignTenant($request, $player->organization_id)) {
+        $auction = Auction::find($player->auction_id);
+
+        if (! $auction) {
+            return response()->json(['error' => 'Auction not found'], 404);
+        }
+
+        if ($denied = $this->denyNonAuctioneer($request, $auction)) {
             return $denied;
         }
 
+        // Sold and on-the-hammer are reached only through the live room, which
+        // also writes the squad and bid state that go with them.
+        if ($request->has('status') && in_array($player->status, ['sold', 'in_hammer'], true)) {
+            return response()->json(['error' => 'A player who is sold or on the hammer cannot be changed here.'], 400);
+        }
+
         $data = $request->validate([
-            'status' => ['sometimes', 'string', 'in:registered,approved,in_hammer,sold,unsold,rejected'],
+            'status' => ['sometimes', 'string', 'in:registered,approved,unsold,rejected'],
             'category' => ['sometimes', 'string', 'in:Icon,Category A,Category B,Category C,Emerging'],
             'base_price' => ['sometimes', 'numeric', 'min:0'],
         ]);
@@ -394,17 +423,17 @@ class AuctionController extends Controller
         return response()->json($player);
     }
 
-    public function approvePlayer(string $id, string $playerId): JsonResponse
+    public function approvePlayer(Request $request, string $id, string $playerId): JsonResponse
     {
-        return $this->setPoolStatus($id, $playerId, 'approved', 'PLAYER_APPROVED', 'Player approved for auction pool');
+        return $this->setPoolStatus($request, $id, $playerId, 'approved', 'PLAYER_APPROVED', 'Player approved for auction pool');
     }
 
-    public function rejectPlayer(string $id, string $playerId): JsonResponse
+    public function rejectPlayer(Request $request, string $id, string $playerId): JsonResponse
     {
-        return $this->setPoolStatus($id, $playerId, 'rejected', 'PLAYER_REJECTED', 'Player registration rejected');
+        return $this->setPoolStatus($request, $id, $playerId, 'rejected', 'PLAYER_REJECTED', 'Player registration rejected');
     }
 
-    public function removePlayer(string $id, string $playerId): JsonResponse
+    public function removePlayer(Request $request, string $id, string $playerId): JsonResponse
     {
         $auction = Auction::find($id);
 
@@ -412,10 +441,18 @@ class AuctionController extends Controller
             return response()->json(['error' => 'Auction not found'], 404);
         }
 
+        if ($denied = $this->denyNonAuctioneer($request, $auction)) {
+            return $denied;
+        }
+
         $player = AuctionPlayer::query()->whereKey($playerId)->where('auction_id', $auction->id)->first();
 
         if (! $player) {
             return response()->json(['error' => 'Player not found'], 404);
+        }
+
+        if (in_array($player->status, ['sold', 'in_hammer'], true)) {
+            return response()->json(['error' => 'A player who is sold or on the hammer cannot be removed.'], 400);
         }
 
         $player->delete();
@@ -451,7 +488,22 @@ class AuctionController extends Controller
             return response()->json(['error' => 'Player not found in this auction pool'], 404);
         }
 
+        if (! in_array($player->status, ['registered', 'approved', 'unsold'], true)) {
+            return response()->json(['error' => "This player cannot be called — their status is {$player->status}."], 400);
+        }
+
+        if ($auction->hammer_state === 'bidding' && $auction->current_bid_team_id && $auction->current_player_id !== $player->id) {
+            return response()->json(['error' => 'The player on the hammer has live bids. Sell them or mark them unsold first.'], 400);
+        }
+
         DB::transaction(function () use ($auction, $player) {
+            // A player left on the hammer without bids goes back to the pool.
+            AuctionPlayer::query()
+                ->where('auction_id', $auction->id)
+                ->where('status', 'in_hammer')
+                ->whereKeyNot($player->id)
+                ->update(['status' => 'approved']);
+
             AuctionBid::query()->where('auction_id', $auction->id)->delete();
 
             $auction->fill([
@@ -515,7 +567,12 @@ class AuctionController extends Controller
             ], 403);
         }
 
-        $team = $ownTeam ?? Team::find($data['team_id']);
+        // Anyone else placing a bid is the organizer entering it from the floor.
+        if (! $ownTeam && ($denied = $this->denyNonAuctioneer($request, $auction))) {
+            return $denied;
+        }
+
+        $team = $ownTeam ?? (isset($data['team_id']) ? Team::find($data['team_id']) : null);
 
         if (! $team) {
             return response()->json(['error' => 'Team not found'], 404);
@@ -533,13 +590,19 @@ class AuctionController extends Controller
 
         $bidAmount = (float) $data['amount'];
         $hasStandingBid = (bool) $auction->current_bid_team_id;
-        $minimumRequired = ($auction->current_bid_amount ?: $player->base_price)
-            + ($hasStandingBid ? $auction->min_bid_increment : 0);
+        $minimumRequired = $hasStandingBid
+            ? (float) $auction->current_bid_amount + (float) $auction->min_bid_increment
+            : (float) $player->base_price;
 
-        if ($hasStandingBid && $bidAmount < $minimumRequired) {
+        if ($bidAmount < $minimumRequired) {
             return response()->json([
-                'error' => 'Minimum bid must be at least ₹'.number_format($minimumRequired),
+                'error' => ($hasStandingBid ? 'Minimum bid must be at least ₹' : 'Opening bid must be at least the base price of ₹')
+                    .number_format($minimumRequired),
             ], 400);
+        }
+
+        if ($auction->current_bid_team_id === $team->id) {
+            return response()->json(['error' => "{$team->name} already holds the top bid."], 400);
         }
 
         $purse = collect($this->auctions->teamPurses($auction))->firstWhere('team_id', $team->id);
@@ -565,6 +628,18 @@ class AuctionController extends Controller
         }
 
         $bid = DB::transaction(function () use ($auction, $player, $team, $bidAmount) {
+            // Two teams bidding in the same instant: re-read under a lock so the
+            // later bid is judged against the one that just landed.
+            $locked = Auction::query()->whereKey($auction->id)->lockForUpdate()->first();
+
+            if ($locked->current_player_id !== $player->id
+                || $locked->hammer_state !== 'bidding'
+                || $locked->current_bid_team_id === $team->id
+                || ($locked->current_bid_team_id
+                    && $bidAmount < (float) $locked->current_bid_amount + (float) $locked->min_bid_increment)) {
+                return null;
+            }
+
             $bid = AuctionBid::create([
                 'id' => Ids::unique('bid'),
                 'auction_id' => $auction->id,
@@ -587,6 +662,10 @@ class AuctionController extends Controller
 
             return $bid;
         });
+
+        if (! $bid) {
+            return response()->json(['error' => 'Another bid landed first. Check the new price and bid again.'], 409);
+        }
 
         $auction->refresh();
 
@@ -624,6 +703,10 @@ class AuctionController extends Controller
 
         if (! $player) {
             return response()->json(['error' => 'Player not found'], 404);
+        }
+
+        if ($auction->hammer_state !== 'bidding' || $player->status !== 'in_hammer') {
+            return response()->json(['error' => 'This player has already been sold or marked unsold. Call the next player.'], 400);
         }
 
         if (! $auction->current_bid_team_id) {
@@ -709,6 +792,10 @@ class AuctionController extends Controller
 
         if (! $player) {
             return response()->json(['error' => 'Player not found'], 404);
+        }
+
+        if ($auction->hammer_state !== 'bidding' || $player->status !== 'in_hammer') {
+            return response()->json(['error' => 'This player has already been sold or marked unsold. Call the next player.'], 400);
         }
 
         $player->status = 'unsold';
@@ -827,16 +914,21 @@ class AuctionController extends Controller
      * finishes, the final hammer price forms the player's real-money entitlement.
      * This endpoint produces the full disbursement roster and settlement status.
      */
-    public function paymentReport(string $id): JsonResponse
+    public function paymentReport(Request $request, string $id): JsonResponse
     {
-        $auction = Auction::find($id) ?? Auction::query()->first();
+        $auction = Auction::find($id);
 
         if (! $auction) {
             return response()->json(['error' => 'Auction not found'], 404);
         }
 
-        $tournament = Tournament::find($auction->tournament_id) ?? Tournament::query()->first();
-        $organization = Organization::find($auction->organization_id) ?? Organization::query()->first();
+        // Phone numbers and money owed — for the organizer only.
+        if ($denied = $this->denyNonAuctioneer($request, $auction)) {
+            return $denied;
+        }
+
+        $tournament = Tournament::find($auction->tournament_id);
+        $organization = Organization::find($auction->organization_id);
         $players = AuctionPlayer::query()->where('auction_id', $auction->id)->get();
         $soldPlayers = $players->where('status', 'sold')->sortByDesc('sold_price')->values();
 
@@ -1019,9 +1111,28 @@ class AuctionController extends Controller
      * Auctioneer controls belong to whoever runs the tournament. Team managers
      * take part in the auction; they do not conduct it.
      */
+    /**
+     * The auction pool, with contact details only for the organizer running it —
+     * the arena, TV screen and public hub read these endpoints anonymously.
+     */
+    private function visiblePlayers(Request $request, Auction $auction): \Illuminate\Support\Collection
+    {
+        $players = AuctionPlayer::query()->where('auction_id', $auction->id)->get();
+
+        if ($request->user() && ! $this->denyNonAuctioneer($request, $auction)) {
+            return $players;
+        }
+
+        return $players->each(fn (AuctionPlayer $player) => $player->makeHidden(['mobile', 'email']));
+    }
+
     private function denyNonAuctioneer(Request $request, Auction $auction): ?JsonResponse
     {
         $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['error' => 'Authentication required'], 401);
+        }
 
         if ($user->role === 'SUPER_ADMIN') {
             return null;
@@ -1036,7 +1147,7 @@ class AuctionController extends Controller
         return null;
     }
 
-    private function setPoolStatus(string $auctionId, string $playerId, string $status, string $event, string $message): JsonResponse
+    private function setPoolStatus(Request $request, string $auctionId, string $playerId, string $status, string $event, string $message): JsonResponse
     {
         $auction = Auction::find($auctionId);
 
@@ -1044,10 +1155,18 @@ class AuctionController extends Controller
             return response()->json(['error' => 'Auction not found'], 404);
         }
 
+        if ($denied = $this->denyNonAuctioneer($request, $auction)) {
+            return $denied;
+        }
+
         $player = AuctionPlayer::query()->whereKey($playerId)->where('auction_id', $auction->id)->first();
 
         if (! $player) {
             return response()->json(['error' => 'Player not found in this auction'], 404);
+        }
+
+        if (in_array($player->status, ['sold', 'in_hammer'], true)) {
+            return response()->json(['error' => 'A player who is sold or on the hammer cannot be changed.'], 400);
         }
 
         $player->status = $status;

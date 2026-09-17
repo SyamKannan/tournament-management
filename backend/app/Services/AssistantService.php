@@ -58,7 +58,7 @@ class AssistantService
         Keep replies short — a few sentences, or numbered steps for a how-to.
         Plain text with simple markdown (bold, bullet or numbered lists) only;
         no tables. Link pages as markdown with same-site paths only, e.g.
-        [Find My Stats](/players). A tournament is [Name](/tournaments/<slug>)
+        [Player Stats](/players). A tournament is [Name](/tournaments/<slug>)
         and a player is [Name](/players/<id>), using only ids and slugs a tool
         returned.
 
@@ -92,7 +92,7 @@ class AssistantService
         - Each player gets a Player Code like SP-7K4Q2 when their team
           registers. The confirmation screen shows the codes, and the team
           manager shares each code with its player.
-        - On [Find My Stats](/players) anyone can enter a Player Code or search
+        - On [Player Stats](/players) anyone can enter a Player Code or search
           a name to see matches, runs, wickets, goals, clean sheets and
           Player of the Match awards. No login needed.
         - Stats are calculated straight from the ball-by-ball and goal-by-goal
@@ -140,6 +140,8 @@ class AssistantService
            advance.
         3. They get a confirmation with an official receipt number, a
            downloadable PDF receipt, and each player's Player Code.
+           The link stops accepting entries once the tournament's registration
+           closing date has passed, or once it is full, and says which it is.
         4. The organizer approves teams under **Teams & Approvals**, where they
            see fee paid and remaining balance, record later cash/UPI part
            payments, and view receipts.

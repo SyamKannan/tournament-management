@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { User, Organization, UserRole } from '../types';
-import { api } from '../services/api';
+import { api, SESSION_ENDED_EVENT } from '../services/api';
+import { useToast } from '../components/ui/Toast';
 import { websocketUrl } from '../config';
 
 interface AuthContextType {
@@ -24,6 +25,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const toast = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('sports_saas_token'));
@@ -182,6 +184,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     fetchCurrentUser();
   }, [fetchCurrentUser]);
+
+  // A credential that stopped being good mid-session: sign out once and say so,
+  // rather than letting every screen fail on its own.
+  useEffect(() => {
+    const onSessionEnded = (event: Event) => {
+      if (!localStorage.getItem('sports_saas_token')) return;
+      logout();
+      toast.warning((event as CustomEvent).detail?.reason || 'Please sign in again.');
+    };
+
+    window.addEventListener(SESSION_ENDED_EVENT, onSessionEnded);
+
+    return () => window.removeEventListener(SESSION_ENDED_EVENT, onSessionEnded);
+  }, [toast]);
 
   // Gateway connection status. Announcements are no longer broadcast
   // platform-wide; each one reaches only its own match's big screen.

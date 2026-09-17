@@ -513,6 +513,66 @@ class CricketScoringTest extends TestCase
         return app(PlayerStatsService::class)->forPlayer(Player::findOrFail($playerId))['cricket'][$stat];
     }
 
+    public function test_a_ball_cannot_be_recorded_for_an_innings_the_match_is_not_in(): void
+    {
+        $this->expectExceptionMessage('Switch innings first');
+
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID,
+            'innings' => 2,
+            'runsScored' => 1,
+            'extras' => 'none',
+            'isWicket' => false,
+        ]);
+    }
+
+    public function test_no_further_ball_is_accepted_once_the_overs_are_bowled(): void
+    {
+        $state = $this->scoring->cricketState(self::MATCH_ID);
+        $state->total_overs = 1;
+        $state->save();
+
+        // Bowl out the single over from wherever the fixture left the innings.
+        $bowled = CricketDelivery::query()
+            ->where('match_id', self::MATCH_ID)
+            ->where('innings', 1)
+            ->whereNotIn('extras', ['wide', 'no_ball'])
+            ->count();
+
+        for ($ball = $bowled; $ball < 6; $ball++) {
+            $this->bowlDot();
+        }
+
+        $this->expectExceptionMessage('All 1 overs of this innings have been bowled.');
+        $this->bowlDot();
+    }
+
+    public function test_no_further_ball_is_accepted_once_the_side_is_all_out(): void
+    {
+        $state = $this->scoring->cricketState(self::MATCH_ID);
+        $state->team_a_wickets = 10;
+        $state->save();
+
+        $this->expectExceptionMessage('all out');
+        $this->bowlDot();
+    }
+
+    public function test_runs_are_not_added_as_extras_when_no_extra_was_signalled(): void
+    {
+        $before = $this->scoring->cricketState(self::MATCH_ID)->team_a_runs;
+
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID,
+            'innings' => 1,
+            'runsScored' => 1,
+            'extras' => 'none',
+            'extrasRuns' => 5,
+            'isWicket' => false,
+        ]);
+
+        $this->assertSame($before + 1, $this->scoring->cricketState(self::MATCH_ID)->team_a_runs);
+    }
+
     private function setBatters(string $striker, string $nonStriker): void
     {
         $state = $this->scoring->cricketState(self::MATCH_ID);
