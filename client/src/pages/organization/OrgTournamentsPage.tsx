@@ -5,7 +5,7 @@ import { api, ApiError } from '../../services/api';
 import {
   Plus, Share2, Copy, Check,
   X, Gavel, MapPin, Compass, Image as ImageIcon, Camera, Pencil,
-  Sparkles, Download, Loader2, Ban
+  Sparkles, Download, Loader2, Ban, QrCode
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '../../components/ui/Toast';
@@ -14,9 +14,19 @@ import { Skeleton, SkeletonCard } from '../../components/ui/Feedback';
 import { MapLocationPicker, type VenueLocation } from '../../components/MapLocationPicker';
 import { ImageUploadModal } from '../../components/ImageUploadModal';
 import { PlanPickerModal } from '../../components/PlanPickerModal';
+import { RegistrationQrModal } from '../../components/RegistrationQrModal';
 import { FEATURE_AUCTION_ENABLED } from '../../config';
 import type { PaymentMethod } from '../../types';
 import { ALL_PAYMENT_METHODS, PAYMENT_METHOD_META } from '../../lib/paymentMethods';
+
+type PosterTemplate = 'auto' | 'arena' | 'split' | 'classic';
+
+const POSTER_TEMPLATES: { id: PosterTemplate; label: string }[] = [
+  { id: 'auto', label: 'Surprise me' },
+  { id: 'arena', label: 'Arena' },
+  { id: 'split', label: 'Bold Split' },
+  { id: 'classic', label: 'Gold Classic' },
+];
 
 export const OrgTournamentsPage: React.FC = () => {
   const toast = useToast();
@@ -49,6 +59,8 @@ export const OrgTournamentsPage: React.FC = () => {
 
   // Poster Generation State
   const [posterTournament, setPosterTournament] = useState<any | null>(null);
+  const [qrTournament, setQrTournament] = useState<any | null>(null);
+  const [posterTemplate, setPosterTemplate] = useState<PosterTemplate>('auto');
   const [generatingPosterId, setGeneratingPosterId] = useState<string | null>(null);
 
   // Form State for Creating Tournament
@@ -137,11 +149,11 @@ export const OrgTournamentsPage: React.FC = () => {
   const handleGeneratePoster = async (t: any) => {
     setGeneratingPosterId(t.id);
     try {
-      const res = await api.post(`/tournaments/${t.id}/poster`, { use_ai: true });
+      const res = await api.post(`/tournaments/${t.id}/poster`, { use_ai: true, template: posterTemplate });
       const updated = { ...t, poster: res.poster };
       setTournaments(prev => prev.map(x => (x.id === t.id ? { ...x, poster: res.poster } : x)));
       setPosterTournament(updated);
-      toast.success('Poster ready.');
+      toast.success(res.used_ai ? 'Poster ready with AI artwork.' : 'Poster ready.');
     } catch (err: any) {
       toast.error(err.message || 'Failed to generate poster.');
     } finally {
@@ -420,6 +432,13 @@ export const OrgTournamentsPage: React.FC = () => {
                     >
                       <Share2 className="w-3.5 h-3.5" />
                       <span>WhatsApp</span>
+                    </button>
+                    <button
+                      onClick={() => setQrTournament(t)}
+                      className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white flex items-center gap-1 transition-colors"
+                    >
+                      <QrCode className="w-3.5 h-3.5" />
+                      <span>QR</span>
                     </button>
                   </div>
                 </div>
@@ -944,6 +963,15 @@ export const OrgTournamentsPage: React.FC = () => {
         }}
       />
 
+      {qrTournament && (
+        <RegistrationQrModal
+          tournamentName={qrTournament.name}
+          url={`${window.location.origin}/register/team/${qrTournament.registration_link_token || 'sevens-cup-2026-reg'}`}
+          fileSlug={qrTournament.slug}
+          onClose={() => setQrTournament(null)}
+        />
+      )}
+
       {/* Generated Poster Preview Modal */}
       {posterTournament && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
@@ -963,10 +991,30 @@ export const OrgTournamentsPage: React.FC = () => {
                 <img src={posterTournament.poster} alt={`${posterTournament.name} poster`} className="w-full h-auto block" />
               </div>
 
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Design</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {POSTER_TEMPLATES.map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setPosterTemplate(opt.id)}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                        posterTemplate === opt.id
+                          ? 'bg-fuchsia-500/20 border-fuchsia-400 text-fuchsia-200'
+                          : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex flex-wrap gap-2">
                 <a
                   href={posterTournament.poster}
-                  download={`${posterTournament.slug || 'tournament'}-poster.svg`}
+                  download={`${posterTournament.slug || 'tournament'}-poster.${String(posterTournament.poster).split('?')[0].split('.').pop() || 'png'}`}
                   className="flex-1 min-w-[140px] px-4 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-bold text-xs flex items-center justify-center gap-1.5"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -983,7 +1031,7 @@ export const OrgTournamentsPage: React.FC = () => {
                   ) : (
                     <Sparkles className="w-3.5 h-3.5" />
                   )}
-                  <span>Regenerate</span>
+                  <span>{generatingPosterId === posterTournament.id ? 'Designing…' : 'Regenerate'}</span>
                 </button>
               </div>
             </div>

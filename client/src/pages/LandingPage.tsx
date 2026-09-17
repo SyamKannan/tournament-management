@@ -5,7 +5,7 @@ import { api } from '../services/api';
 import type { Plan } from '../types';
 import {
   CheckCircle2, ArrowRight, Search,
-  Zap, Tv, Smartphone, Trophy, Gavel, Wallet
+  Zap, Tv, Smartphone, Trophy, Gavel, Wallet, X
 } from 'lucide-react';
 import { SPORTS_CAROUSELS, FEATURE_IMAGES } from '../lib/sportsImagery';
 import { useImageCarousel } from '../lib/useImageCarousel';
@@ -84,6 +84,7 @@ export const LandingPage: React.FC = () => {
   // Dynamic Plans from Super Admin
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
+  const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchPlans = async () => {
@@ -400,12 +401,46 @@ export const LandingPage: React.FC = () => {
                         ))}
                       </ul>
                       {plan.features.length > PLAN_FEATURE_PREVIEW && (
-                        <p className="mt-2.5 pl-[22px] text-[11px] font-semibold text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedPlanId(plan.id)}
+                          className={`mt-2.5 pl-[22px] text-[11px] font-semibold transition-colors ${
+                            isPopular ? 'text-emerald-400 hover:text-emerald-300' : isOneTime ? 'text-amber-400 hover:text-amber-300' : 'text-cyan-400 hover:text-cyan-300'
+                          }`}
+                        >
                           + {plan.features.length - PLAN_FEATURE_PREVIEW} more features
-                        </p>
+                        </button>
                       )}
                     </div>
                   </div>
+
+                  {expandedPlanId === plan.id && (
+                    <div className="absolute inset-0 z-10 rounded-3xl bg-slate-950/95 backdrop-blur-sm p-6 flex flex-col">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          {plan.name} · All {plan.features.length} Features
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedPlanId(null)}
+                          aria-label="Close feature list"
+                          className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <ul className="flex-1 overflow-y-auto space-y-2 pr-1 text-xs text-slate-300">
+                        {plan.features.map(f => (
+                          <li key={f} className="flex items-center gap-2">
+                            <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${
+                              isPopular ? 'text-emerald-400' : isOneTime ? 'text-amber-400' : 'text-cyan-400'
+                            }`} />
+                            <span className="leading-tight">{featureLabels[f] || f.replace(/_/g, ' ')}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   <Link
                     to="/register-club"

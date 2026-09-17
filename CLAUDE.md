@@ -80,7 +80,7 @@ storage.
 wickets, goals, matches, clean sheets, player-of-the-match awards) from the scoring logs,
 `match_lineups` and `matches` on each read, a tournament at a time. So undo and
 cancellation need no stats bookkeeping — don't add counters back to `ScoringEngine`. The
-public read-only API is `GET /api/players/search?q=` (the no-login "Find My Stats" page at
+public read-only API is `GET /api/players/search?q=` (the no-login "Player Stats" page at
 `/players`), `GET /api/players/{id}/profile|matches|career` and
 `/api/players/tournament/{idOrSlug}/stats|leaderboard` (throttled, no mobile/dob/age,
 draft tournaments 404). Careers join squad entries through the user account (id or phone).
@@ -136,6 +136,7 @@ routes/api.php               the entire route table, single file
 | `WEBSOCKET_PORT` | `4000` | public gateway |
 | `WEBSOCKET_BRIDGE_PORT` | `4100` | loopback only, never expose |
 | `CORS_ALLOWED_ORIGINS` | `*` | narrow before deploying |
+| `FRONTEND_URL` | request `Origin`, then `APP_URL` | client origin for the registration QR on posters |
 
 Demo login for any seeded account: password `12345678` (see root README for the account
 list). `POST /api/dev/reset-seed` wipes and reseeds the DB and must 404 in production

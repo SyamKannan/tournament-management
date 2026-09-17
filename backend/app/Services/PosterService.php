@@ -4,82 +4,252 @@ namespace App\Services;
 
 use App\Models\Organization;
 use App\Models\Tournament;
+use App\Services\Poster\PosterRenderer;
 use App\Support\Ids;
+use App\Support\RegistrationQr;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
- * Composes a shareable tournament poster as a self-contained SVG: the
- * logo/name/dates/venue layout always renders from plain PHP (no external
- * API, no PHP image extension needed — the box this runs on may not have
- * GD/Imagick, see CLAUDE.md's deployability notes), and optionally gets a
- * custom AI-generated background behind it via AiArtworkService. That call
- * is best-effort — no key configured, a timeout, or any other failure just
- * falls back to the plain gradient template instead of breaking generation,
- * the same posture RealtimeBroadcaster takes toward the websocket bridge.
+ * Tournament posters: a designed Blade template (resources/views/posters/
+ * tournament/) filled with the tournament's real details and registration QR,
+ * rendered to PNG by headless Chrome. When an image model is configured it
+ * paints cinematic key art behind the layout (AiArtworkService); without one,
+ * each template draws its own stadium/trophy artwork in CSS/SVG.
+ *
+ * The AI call is best-effort, and so is Chrome here: if the render fails the
+ * poster falls back to the self-contained SVG layout below, so the organizer
+ * always gets something to share.
  */
 class PosterService
 {
+    public const TEMPLATES = ['arena', 'split', 'classic'];
+
     private const WIDTH = 1080;
 
     private const HEIGHT = 1350;
 
-    /** Sport-keyed palettes: [gradient start, gradient end, accent]. */
+    /** Sport-keyed palettes for the SVG fallback: [gradient start, gradient end, accent]. */
     private const PALETTES = [
         'football' => ['#047857', '#0f172a', '#facc15'],
         'cricket' => ['#0e7490', '#1e1b4b', '#fb923c'],
     ];
 
-    public function __construct(private readonly AiArtworkService $artwork) {}
+    /** Per template, per sport: deep background, primary, accent, secondary accent. */
+    private const TEMPLATE_PALETTES = [
+        'arena' => [
+            'football' => ['deep' => '#020d07', 'primary' => '#0a7a3f', 'accent' => '#c8ff2e', 'accent2' => '#ffffff'],
+            'cricket' => ['deep' => '#050a24', 'primary' => '#1d3bb8', 'accent' => '#ffc21a', 'accent2' => '#ff4d3d'],
+        ],
+        'split' => [
+            'football' => ['deep' => '#0b0b0f', 'primary' => '#ff5a1f', 'accent' => '#ffd400', 'accent2' => '#ffffff'],
+            'cricket' => ['deep' => '#0c1233', 'primary' => '#e11d48', 'accent' => '#ffd166', 'accent2' => '#ffffff'],
+        ],
+        'classic' => [
+            'football' => ['deep' => '#07080a', 'primary' => '#14301f', 'accent' => '#e9c46a', 'accent2' => '#fff4d6'],
+            'cricket' => ['deep' => '#07080a', 'primary' => '#2a1a0c', 'accent' => '#e9c46a', 'accent2' => '#fff4d6'],
+        ],
+    ];
+
+    public function __construct(
+        private readonly AiArtworkService $artwork,
+        private readonly PosterRenderer $renderer,
+    ) {}
 
     /**
-     * @return array{url: string, used_ai: bool}
+     * @return array{url: string, used_ai: bool, template: string}
      */
-    public function generate(Tournament $tournament, ?Organization $organization, bool $useAi = true): array
-    {
-        $background = ($useAi && $this->artwork->isConfigured())
-            ? $this->artwork->generateBackground($this->buildArtPrompt($tournament))
-            : null;
-
-        $svg = $this->buildSvg($tournament, $organization, $background);
-
+    public function generate(
+        Tournament $tournament,
+        ?Organization $organization,
+        bool $useAi = true,
+        ?string $origin = null,
+        ?string $template = null,
+    ): array {
+        $poster = $this->tournamentHtml($tournament, $organization, $useAi, $origin, $template);
+        $filename = $tournament->id.'_'.Ids::token(6);
         $targetDir = public_path('uploads/posters');
-        if (! File::isDirectory($targetDir)) {
-            File::makeDirectory($targetDir, 0755, true, true);
+
+        try {
+            $this->renderer->renderToFile($poster['html'], "{$targetDir}/{$filename}.png");
+
+            return [
+                'url' => url("uploads/posters/{$filename}.png"),
+                'used_ai' => $poster['used_ai'],
+                'template' => $poster['template'],
+            ];
+        } catch (\Throwable $e) {
+            Log::warning('Poster render failed, falling back to SVG', ['message' => $e->getMessage()]);
         }
 
-        $filename = $tournament->id.'_'.Ids::token(6).'.svg';
-        File::put("{$targetDir}/{$filename}", $svg);
+        File::ensureDirectoryExists($targetDir, 0755);
+        File::put("{$targetDir}/{$filename}.svg", $this->buildSvg($tournament, $organization, $poster['background'], $poster['qr']));
 
         return [
-            'url' => url("uploads/posters/{$filename}"),
-            'used_ai' => $background !== null,
+            'url' => url("uploads/posters/{$filename}.svg"),
+            'used_ai' => $poster['used_ai'],
+            'template' => 'svg',
         ];
     }
 
     /**
-     * Deliberately steers the model away from rendering any text/logos of
-     * its own — those are drawn precisely afterwards as SVG overlay — and
-     * away from real people, since a generic prompt with "football/cricket
-     * players" tends to produce faces that read as a specific real person.
+     * @return array{html: string, template: string, used_ai: bool, background: ?string, qr: ?string}
      */
-    private function buildArtPrompt(Tournament $tournament): string
-    {
-        $sport = $tournament->sport_code === 'football' ? 'football (soccer)' : 'cricket';
-        $venue = trim(implode(', ', array_filter([$tournament->location, $tournament->district]))) ?: 'a village sports ground';
+    public function tournamentHtml(
+        Tournament $tournament,
+        ?Organization $organization,
+        bool $useAi = true,
+        ?string $origin = null,
+        ?string $template = null,
+    ): array {
+        $template = in_array($template, self::TEMPLATES, true) ? $template : self::TEMPLATES[random_int(0, count(self::TEMPLATES) - 1)];
+        $sport = $tournament->sport_code === 'cricket' ? 'cricket' : 'football';
 
-        return sprintf(
-            'A dramatic, professional sports tournament poster background for a %s tournament at %s. '
-            .'Dynamic action energy, stadium floodlights at dusk, motion blur, vibrant color grade. '
-            .'Wide poster background artwork only: absolutely no text, no words, no letters, no numbers, '
-            .'no logos, no scoreboards, and no recognizable faces or real people — silhouettes or abstract '
-            .'action shapes only. Portrait orientation, full bleed.',
-            $sport,
-            $venue,
-        );
+        $background = ($useAi && $this->artwork->isConfigured())
+            ? $this->artwork->generateBackground($this->buildArtPrompt($tournament, $template))
+            : null;
+
+        $registrationUrl = RegistrationQr::url($tournament, $origin);
+        $qr = $registrationUrl ? RegistrationQr::dataUri($registrationUrl) : null;
+
+        $html = view("posters.tournament.{$template}", [
+            'sport' => $sport,
+            'palette' => self::TEMPLATE_PALETTES[$template][$sport],
+            'name' => $tournament->name,
+            'tagline' => $this->tagline($sport),
+            'orgName' => $organization?->name ?: 'Independent Organizer',
+            'orgLogo' => $this->inlineImage($organization?->logo) ?: '',
+            'tournamentLogo' => $this->inlineImage($tournament->logo) ?: '',
+            'dateRange' => $this->formatDateRange($tournament->start_date, $tournament->end_date),
+            'venue' => trim(implode(', ', array_filter([$tournament->location, $tournament->district]))),
+            'format' => ucwords(str_replace('_', ' + ', $tournament->format ?: 'league')),
+            'maxTeams' => $tournament->max_teams,
+            'prize' => $tournament->prize_money > 0 ? '₹'.$this->indianMoney($tournament->prize_money) : null,
+            'runnerUp' => $tournament->runner_up_prize > 0 ? '₹'.$this->indianMoney($tournament->runner_up_prize) : null,
+            'entryFee' => $tournament->ground_fee > 0 ? '₹'.$this->indianMoney($tournament->ground_fee) : 'Free',
+            'contact' => trim((string) ($tournament->whatsapp ?: $tournament->phone)),
+            'contactPerson' => trim((string) $tournament->contact_person),
+            'closing' => $this->formatDay($tournament->registration_closing),
+            'registrationUrl' => $registrationUrl,
+            'registrationQr' => $qr,
+            'backgroundImage' => $background,
+            'fonts' => [
+                'anton' => $this->renderer->fontBase64('Anton-Regular.ttf'),
+                'bebas' => $this->renderer->fontBase64('BebasNeue-Regular.ttf'),
+                'oswald' => $this->renderer->fontBase64('Oswald-Variable.ttf'),
+                'inter' => $this->renderer->fontBase64('Inter-Variable.ttf'),
+            ],
+        ])->render();
+
+        return [
+            'html' => $html,
+            'template' => $template,
+            'used_ai' => $background !== null,
+            'background' => $background,
+            'qr' => $qr,
+        ];
     }
 
-    private function buildSvg(Tournament $tournament, ?Organization $organization, ?string $backgroundImage): string
+    /**
+     * Art direction per template, so the key art leaves room where that
+     * layout puts its text. Steers away from rendering text/logos (drawn
+     * precisely by the template) and from recognizable faces, since a generic
+     * "cricket player" prompt tends to produce someone who reads as a real star.
+     */
+    private function buildArtPrompt(Tournament $tournament, string $template): string
+    {
+        $subject = $tournament->sport_code === 'cricket'
+            ? 'a cricket batter in full kit mid cover-drive, the red ball exploding off the bat with sparks and dust'
+            : 'a football striker mid volley, the ball bursting forward with spray and turf flying';
+
+        $composition = match ($template) {
+            'split' => 'Subject placed in the right half of the frame, tightly cropped, with the left half dark and uncluttered.',
+            'classic' => 'A gleaming gold championship trophy on a pedestal in the centre, dark moody background with gold bokeh, a player silhouette softly behind it.',
+            default => 'Subject in the upper-middle of the frame, stadium floodlights and a packed night stadium behind, bottom third fading to dark and uncluttered.',
+        };
+
+        return 'Premium sports tournament poster key art, cinematic photograph, '.$subject.'. '
+            .$composition.' '
+            .'Dramatic rim lighting, volumetric light rays, haze, flying particles, high contrast, rich colour grade, '
+            .'shallow depth of field, ultra detailed, portrait 4:5. '
+            .'The player is seen from behind or in silhouette, face not visible, generic unbranded kit. '
+            .'Absolutely no text, no letters, no numbers, no logos, no watermarks, no scoreboards.';
+    }
+
+    /**
+     * Logos are inlined as data URIs so a slow or dead image host can't leave
+     * a blank circle in the screenshot; null (template shows the initial)
+     * when the image can't be read.
+     */
+    private function inlineImage(?string $src): ?string
+    {
+        $src = trim((string) $src);
+
+        if ($src === '' || str_starts_with($src, 'data:image/')) {
+            return $src ?: null;
+        }
+
+        try {
+            if (preg_match('#^https?://#i', $src)) {
+                $response = Http::timeout(8)->get($src);
+                if (! $response->successful()) {
+                    return null;
+                }
+                $body = $response->body();
+                $mime = $response->header('Content-Type');
+            } else {
+                $path = public_path(ltrim((string) parse_url($src, PHP_URL_PATH), '/'));
+                $body = File::isFile($path) ? File::get($path) : null;
+                $mime = $body ? File::mimeType($path) : null;
+            }
+        } catch (\Throwable) {
+            // Unreachable from PHP (e.g. no CA bundle) — let Chrome try the URL; the template hides it on error.
+            return preg_match('#^https?://#i', $src) ? $src : null;
+        }
+
+        if (! $body || ! str_starts_with((string) $mime, 'image/')) {
+            return null;
+        }
+
+        return 'data:'.explode(';', $mime)[0].';base64,'.base64_encode($body);
+    }
+
+    private function tagline(string $sport): string
+    {
+        $lines = $sport === 'cricket'
+            ? ['The Battle For Glory', 'Every Run Counts', 'Rise To The Occasion', 'Where Legends Are Made']
+            : ['The Battle For Glory', 'Play Hard. Win Big.', 'Where Legends Are Made', 'One Ball. One Dream.'];
+
+        return $lines[random_int(0, count($lines) - 1)];
+    }
+
+    /** 1,00,000-style grouping, the way the audience writes prize amounts. */
+    private function indianMoney(float $amount): string
+    {
+        $whole = (string) (int) round($amount);
+        if (strlen($whole) <= 3) {
+            return $whole;
+        }
+
+        return preg_replace('/\B(?=(\d{2})+(?!\d))/', ',', substr($whole, 0, -3)).','.substr($whole, -3);
+    }
+
+    private function formatDay(?string $date): ?string
+    {
+        if (! $date) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($date)->format('j M Y');
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function buildSvg(Tournament $tournament, ?Organization $organization, ?string $backgroundImage, ?string $registrationQr = null): string
     {
         [$gradFrom, $gradTo, $accent] = self::PALETTES[$tournament->sport_code] ?? self::PALETTES['football'];
         $sportLabel = $tournament->sport_code === 'football' ? "\u{26BD} FOOTBALL" : "\u{1F3CF} CRICKET";
@@ -156,24 +326,38 @@ class PosterService
             $svg[] = '<text x="'.($w / 2).'" y="'.$infoY.'" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="'.$accent.'" text-anchor="middle">'.$this->escape($dateRange).'</text>';
         }
 
+        // Registration QR card (bottom-right) takes a column out of the chip row
+        // and the footer, which then left-align beside it.
+        $qrCardW = 240;
+        $contentRight = $registrationQr ? $w - 60 - $qrCardW - 24 : $w - 60;
+
         // Info chips
         if ($chips) {
             $chipY = $h - 320;
             $count = count($chips);
-            $chipW = ($w - 120 - ($count - 1) * 24) / $count;
+            $chipW = ($contentRight - 60 - ($count - 1) * 24) / $count;
             foreach ($chips as $i => [$label, $value]) {
                 $cx = 60 + $i * ($chipW + 24);
                 $svg[] = '<rect x="'.$cx.'" y="'.$chipY.'" width="'.$chipW.'" height="130" rx="20" fill="#ffffff" opacity="0.10"/>';
                 $svg[] = '<text x="'.($cx + $chipW / 2).'" y="'.($chipY + 46).'" font-family="Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="1.5" fill="'.$accent.'" text-anchor="middle">'.$this->escape($label).'</text>';
-                $svg[] = '<text x="'.($cx + $chipW / 2).'" y="'.($chipY + 92).'" font-family="Arial, sans-serif" font-size="30" font-weight="900" fill="#ffffff" text-anchor="middle">'.$this->escape($this->truncate($value, 14)).'</text>';
+                $svg[] = '<text x="'.($cx + $chipW / 2).'" y="'.($chipY + 92).'" font-family="Arial, sans-serif" font-size="'.($registrationQr ? 26 : 30).'" font-weight="900" fill="#ffffff" text-anchor="middle">'.$this->escape($this->truncate($value, 14)).'</text>';
             }
         }
 
         // Footer
         $svg[] = '<rect x="0" y="'.($h - 130).'" width="'.$w.'" height="130" fill="#000000" opacity="0.25"/>';
-        $svg[] = '<text x="'.($w / 2).'" y="'.($h - 78).'" font-family="Arial, sans-serif" font-size="34" font-weight="900" fill="#ffffff" text-anchor="middle">REGISTER YOUR TEAM TODAY</text>';
+        [$footerX, $footerAnchor] = $registrationQr ? [60, 'start'] : [$w / 2, 'middle'];
+        $svg[] = '<text x="'.$footerX.'" y="'.($h - 78).'" font-family="Arial, sans-serif" font-size="34" font-weight="900" fill="#ffffff" text-anchor="'.$footerAnchor.'">REGISTER YOUR TEAM TODAY</text>';
         $contact = trim((string) ($tournament->whatsapp ?: $tournament->phone));
-        $svg[] = '<text x="'.($w / 2).'" y="'.($h - 38).'" font-family="Arial, sans-serif" font-size="24" fill="'.$accent.'" text-anchor="middle">'.$this->escape($contact ?: 'Contact the organizer for details').'</text>';
+        $svg[] = '<text x="'.$footerX.'" y="'.($h - 38).'" font-family="Arial, sans-serif" font-size="24" fill="'.$accent.'" text-anchor="'.$footerAnchor.'">'.$this->escape($contact ?: 'Contact the organizer for details').'</text>';
+
+        if ($registrationQr) {
+            $cardX = $w - 60 - $qrCardW;
+            $cardY = $h - 340;
+            $svg[] = '<rect x="'.$cardX.'" y="'.$cardY.'" width="'.$qrCardW.'" height="280" rx="20" fill="#ffffff"/>';
+            $svg[] = '<image href="'.$registrationQr.'" x="'.($cardX + 15).'" y="'.($cardY + 15).'" width="210" height="210"/>';
+            $svg[] = '<text x="'.($cardX + $qrCardW / 2).'" y="'.($cardY + 260).'" font-family="Arial, sans-serif" font-size="18" font-weight="900" fill="'.$gradTo.'" text-anchor="middle">SCAN TO REGISTER</text>';
+        }
 
         $svg[] = '</svg>';
 

@@ -71,6 +71,9 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // Public client SPA origin — used for links printed on posters (registration QR).
+    'frontend_url' => env('FRONTEND_URL'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

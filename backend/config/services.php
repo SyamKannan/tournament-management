@@ -40,6 +40,7 @@ return [
     // plain template — never a hard failure.
     'openai' => [
         'api_key' => env('OPENAI_API_KEY'),
+        'image_model' => env('OPENAI_IMAGE_MODEL', 'gpt-image-1'),
     ],
 
     // Fallback Razorpay keys for PaymentGatewayService, used when a payment
@@ -67,6 +68,7 @@ return [
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image'),
     ],
 
     // Browsershot's Chrome. Required for poster rendering regardless of any

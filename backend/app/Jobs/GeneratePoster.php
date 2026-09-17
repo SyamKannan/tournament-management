@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\GameMatch;
+use App\Models\Organization;
 use App\Models\Player;
 use App\Models\Poster;
 use App\Models\Standing;
@@ -12,6 +13,8 @@ use App\Models\Venue;
 use App\Services\Poster\ArtDirectorService;
 use App\Services\Poster\BackgroundService;
 use App\Services\Poster\PaletteService;
+use App\Services\Poster\PosterRenderer;
+use App\Services\PosterService;
 use App\Services\RealtimeBroadcaster;
 use App\Services\TossService;
 use App\Support\Ids;
@@ -20,10 +23,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
-use Spatie\Browsershot\Browsershot;
 
 /**
  * Chains PaletteService -> ArtDirectorService -> BackgroundService -> Blade
@@ -43,13 +43,14 @@ class GeneratePoster implements ShouldQueue
 
     public int $tries = 1;
 
-    public int $timeout = 90;
+    public int $timeout = 180;
 
     public function __construct(
         private readonly string $tournamentId,
         private readonly ?string $matchId,
         private readonly string $posterType,
         private readonly ?string $createdBy = null,
+        private readonly ?string $origin = null,
     ) {}
 
     public function handle(
@@ -57,6 +58,8 @@ class GeneratePoster implements ShouldQueue
         ArtDirectorService $artDirector,
         BackgroundService $background,
         RealtimeBroadcaster $realtime,
+        PosterRenderer $renderer,
+        PosterService $posters,
     ): void {
         $tournament = Tournament::find($this->tournamentId);
 
@@ -67,53 +70,44 @@ class GeneratePoster implements ShouldQueue
         }
 
         $match = $this->matchId ? GameMatch::find($this->matchId) : null;
-        $colors = $palette->extract($tournament);
 
-        $copy = $artDirector->direct($this->buildMatchData($tournament, $match), $this->posterType, $colors);
-        $backgroundImage = null;
-
-        if ($copy) {
-            $backgroundImage = $background->generate($copy['mood_prompt']);
+        if ($this->posterType === 'tournament_announcement') {
+            // Same designed templates as the Tournaments page poster.
+            $html = $posters->tournamentHtml(
+                $tournament,
+                Organization::find($tournament->organization_id),
+                true,
+                $this->origin,
+            )['html'];
         } else {
-            $copy = $this->fallbackCopy($tournament, $match, $palette->toTemplatePalette($colors));
-        }
+            $colors = $palette->extract($tournament);
+            $copy = $artDirector->direct($this->buildMatchData($tournament, $match), $this->posterType, $colors);
+            $backgroundImage = null;
 
-        $viewData = [
-            ...$this->viewDataFor($tournament, $match),
-            'palette' => $copy['palette'],
-            'layout' => $copy['layout'],
-            'headline' => $copy['headline'],
-            'subhead' => $copy['subhead'],
-            'backgroundImage' => $backgroundImage,
-            'variant' => $this->pickVariant(),
-            'bokeh' => $this->randomBokeh(),
-            'antonFontBase64' => $this->fontBase64('Anton-Regular.ttf'),
-            'interFontBase64' => $this->fontBase64('Inter-Variable.ttf'),
-        ];
+            if ($copy) {
+                $backgroundImage = $background->generate($copy['mood_prompt']);
+            } else {
+                $copy = $this->fallbackCopy($tournament, $match, $palette->toTemplatePalette($colors));
+            }
 
-        $html = view('posters.partials.'.$this->posterType, $viewData)->render();
+            $viewData = [
+                ...$this->viewDataFor($tournament, $match),
+                'palette' => $copy['palette'],
+                'layout' => $copy['layout'],
+                'headline' => $copy['headline'],
+                'subhead' => $copy['subhead'],
+                'backgroundImage' => $backgroundImage,
+                'variant' => $this->pickVariant(),
+                'bokeh' => $this->randomBokeh(),
+                'antonFontBase64' => $renderer->fontBase64('Anton-Regular.ttf'),
+                'interFontBase64' => $renderer->fontBase64('Inter-Variable.ttf'),
+            ];
 
-        $targetDir = public_path('uploads/match-posters');
-        if (! File::isDirectory($targetDir)) {
-            File::makeDirectory($targetDir, 0755, true, true);
+            $html = view('posters.partials.'.$this->posterType, $viewData)->render();
         }
 
         $id = Ids::unique('poster');
-        $outputPath = "{$targetDir}/{$id}.png";
-
-        $shot = Browsershot::html($html)
-            ->windowSize(1080, 1350)
-            ->deviceScaleFactor(2)
-            ->waitUntilNetworkIdle()
-            ->noSandbox()
-            ->setNodeModulePath(base_path('node_modules'))
-            ->timeout(60);
-
-        if ($chromePath = $this->resolveChromePath()) {
-            $shot->setChromePath($chromePath);
-        }
-
-        $shot->save($outputPath);
+        $renderer->renderToFile($html, public_path("uploads/match-posters/{$id}.png"));
 
         $imageUrl = url("uploads/match-posters/{$id}.png");
 
@@ -222,19 +216,6 @@ class GeneratePoster implements ShouldQueue
             ];
         }
 
-        if ($this->posterType === 'tournament_announcement') {
-            return [
-                'tournament' => $tournamentArr,
-                'dateRange' => $dateRange,
-                'chips' => array_values(array_filter([
-                    ['label' => 'Dates', 'value' => $dateRange],
-                    $tournament->location ? ['label' => 'Venue', 'value' => $tournament->location] : null,
-                    ['label' => 'Format', 'value' => ucwords(str_replace('_', ' ', $tournament->format ?: 'League'))],
-                    $tournament->prize_money > 0 ? ['label' => 'Prize', 'value' => '₹'.number_format($tournament->prize_money)] : null,
-                ])),
-            ];
-        }
-
         // Every remaining poster type (matchday, toss, result, player_of_match)
         // is tied to a specific match.
         $teamA = $this->teamArray(Team::find($match?->team_a_id));
@@ -333,7 +314,6 @@ class GeneratePoster implements ShouldQueue
             ],
             'player_of_match' => ['Player of the Match', $tournament->name, 'centered'],
             'points_table' => ['Points Table', $tournament->name, 'centered'],
-            'tournament_announcement' => [$tournament->name, 'Registrations Open Now', 'centered'],
             default => [$tournament->name, '', 'centered'],
         };
 
@@ -394,42 +374,5 @@ class GeneratePoster implements ShouldQueue
         }
 
         return $circles;
-    }
-
-    private function fontBase64(string $filename): string
-    {
-        return Cache::rememberForever(
-            "poster_font_b64:{$filename}",
-            fn () => base64_encode(File::get(resource_path("fonts/{$filename}")))
-        );
-    }
-
-    /**
-     * `POSTER_CHROME_PATH` is required in production; this auto-detect only
-     * exists so local dev works with zero config on a machine that already
-     * has a browser installed.
-     */
-    private function resolveChromePath(): ?string
-    {
-        if ($configured = config('services.poster.chrome_path')) {
-            return $configured;
-        }
-
-        foreach ([
-            '/usr/bin/chromium',
-            '/usr/bin/chromium-browser',
-            '/usr/bin/google-chrome',
-            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-            'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-            'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        ] as $candidate) {
-            if (File::exists($candidate)) {
-                return $candidate;
-            }
-        }
-
-        return null;
     }
 }
