@@ -6,6 +6,7 @@ import type { Plan, Subscription, Invoice } from '../../types';
 import { CreditCard, ShieldCheck, Receipt, Check, RefreshCw, LayoutGrid, Download } from 'lucide-react';
 import { downloadInvoicePdf } from '../../utils/invoicePdf';
 import { PlanPickerModal } from '../../components/PlanPickerModal';
+import { PlanFeatureList, planFeatureLabel } from '../../components/PlanFeatureList';
 import { LoadingState, EmptyState } from '../../components/ui/Feedback';
 import { useToast } from '../../components/ui/Toast';
 
@@ -72,7 +73,7 @@ export const OrgBillingPage: React.FC = () => {
   }
 
   const { subscription, plan, usage, invoices } = data;
-  const otherPlans = allPlans.filter(p => p.id !== plan?.id).sort((a, b) => a.price - b.price);
+  const otherPlans = allPlans.filter(p => p.id !== plan?.id);
   // Highlight the cheapest plan that's a step up from the current one.
   const recommendedPlanId = otherPlans.find(p => p.price > (plan?.price ?? 0))?.id;
 
@@ -185,7 +186,7 @@ export const OrgBillingPage: React.FC = () => {
                     {plan.features.map((f, i) => (
                       <li key={i} className="flex items-center gap-1.5 text-xs text-slate-300">
                         <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        <span>{f}</span>
+                        <span>{planFeatureLabel(f)}</span>
                       </li>
                     ))}
                   </ul>
@@ -292,16 +293,9 @@ export const OrgBillingPage: React.FC = () => {
                   </div>
 
                   {p.features?.length > 0 && (
-                    <ul className="mt-4 space-y-2">
-                      {p.features.map((f, i) => (
-                        <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
-                          <span className="mt-px w-4 h-4 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
-                            <Check className="w-3 h-3 text-emerald-400" />
-                          </span>
-                          <span>{f}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="mt-4">
+                      <PlanFeatureList planName={p.name} features={p.features} accent={isRecommended ? 'emerald' : 'cyan'} />
+                    </div>
                   )}
 
                   <div className="flex-1 min-h-[1.25rem]" />

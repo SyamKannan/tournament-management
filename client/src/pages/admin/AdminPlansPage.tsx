@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import type { Plan, BillingInterval } from '../../types';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { Skeleton, SkeletonStats } from '../../components/ui/Feedback';
+import { PlanFeatureList } from '../../components/PlanFeatureList';
 import {
-  Plus, Edit2, Trash2, CheckCircle2,
-  X, Check, Power, PowerOff
+  Plus, Edit2, Trash2,
+  X, Check, Power, PowerOff, GripVertical, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 export const AdminPlansPage: React.FC = () => {
@@ -168,6 +169,62 @@ export const AdminPlansPage: React.FC = () => {
     }
   };
 
+  /* ---------------------------------------------------------------- Ordering */
+
+  // Card being dragged, and the order before the drag began (to detect a real change / revert).
+  const [dragId, setDragId] = useState<string | null>(null);
+  const orderBeforeDrag = useRef<Plan[] | null>(null);
+
+  const sameOrder = (a: Plan[], b: Plan[]) => a.length === b.length && a.every((p, i) => p.id === b[i].id);
+
+  const saveOrder = async (next: Plan[], previous: Plan[]) => {
+    if (sameOrder(next, previous)) return;
+    setPlans(next);
+    try {
+      setPlans(await api.post('/admin/plans/reorder', { ids: next.map(p => p.id) }));
+    } catch (err: any) {
+      setPlans(previous);
+      toast.error(err.message || 'Failed to save plan order');
+      fetchPlans();
+    }
+  };
+
+  const movePlan = (from: number, to: number) => {
+    if (to < 0 || to >= plans.length) return;
+    const next = [...plans];
+    next.splice(to, 0, next.splice(from, 1)[0]);
+    saveOrder(next, plans);
+  };
+
+  const handleDragStart = (e: React.DragEvent, planId: string) => {
+    orderBeforeDrag.current = plans;
+    setDragId(planId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', planId);
+  };
+
+  // Live preview: the dragged card slides into the slot being hovered.
+  const handleDragOver = (e: React.DragEvent, overId: string) => {
+    if (!dragId) return;
+    e.preventDefault();
+    if (overId === dragId) return;
+    setPlans(current => {
+      const from = current.findIndex(p => p.id === dragId);
+      const to = current.findIndex(p => p.id === overId);
+      if (from < 0 || to < 0) return current;
+      const next = [...current];
+      next.splice(to, 0, next.splice(from, 1)[0]);
+      return next;
+    });
+  };
+
+  const handleDragEnd = () => {
+    const previous = orderBeforeDrag.current;
+    orderBeforeDrag.current = null;
+    setDragId(null);
+    if (previous) saveOrder(plans, previous);
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -183,6 +240,10 @@ export const AdminPlansPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-black font-heading text-white">Club Membership & Pricing Plans</h1>
           <p className="text-xs text-slate-400 mt-1">Configure subscription packages, tournament limits, and monetization tiers</p>
+          <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+            <GripVertical className="w-3.5 h-3.5" aria-hidden="true" />
+            Drag cards to set the order plans appear on the landing page and the club billing page.
+          </p>
         </div>
         <button
           onClick={openCreateModal}
@@ -195,14 +256,24 @@ export const AdminPlansPage: React.FC = () => {
 
       {/* Plan Cards Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {plans.map(plan => {
+        {plans.map((plan, index) => {
           const isRecurring = plan.billing_type === 'recurring';
           const isActive = plan.status === 'active';
 
           return (
-            <div key={plan.id} className={`p-6 rounded-3xl glass-card border flex flex-col justify-between transition-all ${
-              isActive ? 'border-slate-800 hover:border-slate-700' : 'border-slate-800/60 opacity-60 hover:opacity-100'
-            }`}>
+            <div
+              key={plan.id}
+              draggable
+              onDragStart={e => handleDragStart(e, plan.id)}
+              onDragOver={e => handleDragOver(e, plan.id)}
+              onDrop={e => e.preventDefault()}
+              onDragEnd={handleDragEnd}
+              className={`relative p-6 rounded-3xl glass-card border flex flex-col justify-between transition-all cursor-grab active:cursor-grabbing ${
+                dragId === plan.id
+                  ? 'border-emerald-500/70 border-dashed opacity-50'
+                  : isActive ? 'border-slate-800 hover:border-slate-700' : 'border-slate-800/60 opacity-60 hover:opacity-100'
+              }`}
+            >
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
@@ -211,6 +282,24 @@ export const AdminPlansPage: React.FC = () => {
                     {isRecurring ? `${plan.billing_interval} Recurring` : 'One-Time Payment'}
                   </span>
                   <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => movePlan(index, index - 1)}
+                      disabled={index === 0}
+                      title="Show earlier"
+                      aria-label={`Move ${plan.name} earlier`}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => movePlan(index, index + 1)}
+                      disabled={index === plans.length - 1}
+                      title="Show later"
+                      aria-label={`Move ${plan.name} later`}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       onClick={() => handleToggleStatus(plan)}
                       title={isActive ? 'Deactivate plan' : 'Activate plan'}
@@ -263,16 +352,8 @@ export const AdminPlansPage: React.FC = () => {
                 </div>
 
                 {/* Features List */}
-                <div className="mt-4 space-y-1.5 text-xs text-slate-300">
-                  {plan.features?.slice(0, 5).map(f => (
-                    <div key={f} className="flex items-center gap-2 text-[11px]">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                      <span className="truncate capitalize">{f.replace(/_/g, ' ')}</span>
-                    </div>
-                  ))}
-                  {plan.features?.length > 5 && (
-                    <div className="text-[11px] text-slate-500 pl-5">+{plan.features.length - 5} more features enabled</div>
-                  )}
+                <div className="mt-4">
+                  <PlanFeatureList planName={plan.name} features={plan.features ?? []} preview={5} accent="emerald" />
                 </div>
               </div>
 

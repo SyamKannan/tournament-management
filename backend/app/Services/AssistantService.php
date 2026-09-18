@@ -415,7 +415,7 @@ class AssistantService
             return match ($name) {
                 'search_tournaments' => [$this->searchTournaments($str('query'), $str('sport')), false],
                 'get_tournament' => $this->tournament($str('tournament')),
-                'get_plans' => [Plan::query()->where('status', 'active')->orderBy('price')->get()
+                'get_plans' => [Plan::query()->where('status', 'active')->ordered()->get()
                     ->map(fn (Plan $p) => collect($p->toArray())->except(['created_at', 'updated_at', 'status']))->all(), false],
                 'get_current_matches' => $this->fromJson(app(MatchController::class)->current()),
                 'search_players' => $this->fromJson(app(PlayerController::class)->search(

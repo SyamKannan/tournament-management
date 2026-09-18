@@ -66,6 +66,7 @@ export interface Plan {
   storage_limit_mb: number;
   ad_limit: number;
   features: string[];
+  sort_order?: number;
   status: 'active' | 'inactive' | 'archived';
   created_at: string;
   updated_at: string;

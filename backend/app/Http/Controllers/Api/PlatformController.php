@@ -20,7 +20,7 @@ class PlatformController extends Controller
      */
     public function plans(): JsonResponse
     {
-        return response()->json(Plan::query()->where('status', 'active')->get());
+        return response()->json(Plan::query()->where('status', 'active')->ordered()->get());
     }
 
     /**

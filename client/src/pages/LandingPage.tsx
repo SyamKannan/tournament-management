@@ -4,14 +4,15 @@ import { motion } from 'framer-motion';
 import { api } from '../services/api';
 import type { Plan } from '../types';
 import {
-  CheckCircle2, ArrowRight, Search,
-  Zap, Tv, Smartphone, Trophy, Gavel, Wallet, X
+  ArrowRight, Search,
+  Zap, Tv, Smartphone, Trophy, Gavel, Wallet
 } from 'lucide-react';
 import { SPORTS_CAROUSELS, FEATURE_IMAGES } from '../lib/sportsImagery';
 import { useImageCarousel } from '../lib/useImageCarousel';
 import { ImageCarouselBackdrop } from '../components/ImageCarouselBackdrop';
 import { LiveMatchesMarquee } from '../components/LiveMatchesMarquee';
 import { SiteFooter } from '../components/SiteFooter';
+import { PlanFeatureList } from '../components/PlanFeatureList';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -22,9 +23,6 @@ const staggerContainer = {
   hidden: {},
   show: { transition: { staggerChildren: 0.09 } },
 };
-
-// Plan cards list only this many features so long plans don't stretch the pricing grid.
-const PLAN_FEATURE_PREVIEW = 6;
 
 const FEATURE_ITEMS = [
   {
@@ -77,14 +75,27 @@ const FEATURE_ITEMS = [
   },
 ];
 
+// Pricing tabs, in display order. `suffix` is shown after the price.
+const PLAN_CYCLES = [
+  { id: 'one_time', label: 'Per Tournament', suffix: '/ tournament' },
+  { id: 'monthly', label: 'Monthly', suffix: '/ month' },
+  { id: 'quarterly', label: 'Quarterly', suffix: '/ quarter' },
+  { id: 'yearly', label: 'Yearly', suffix: '/ year' },
+  { id: 'custom', label: 'Custom', suffix: '/ term' },
+] as const;
+type PlanCycle = 'all' | (typeof PLAN_CYCLES)[number]['id'];
+
+// A recurring plan with no interval is billed monthly (the backend default).
+const planCycle = (p: Plan): Exclude<PlanCycle, 'all'> =>
+  p.billing_type === 'one_time' ? 'one_time' : p.billing_interval ?? 'monthly';
+
 export const LandingPage: React.FC = () => {
   const heroSlide = useImageCarousel(SPORTS_CAROUSELS.hero.length, 7000);
-  const [billingCycle, setBillingCycle] = useState<'all' | 'monthly' | 'yearly'>('all');
+  const [billingCycle, setBillingCycle] = useState<PlanCycle>('all');
 
   // Dynamic Plans from Super Admin
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
-  const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchPlans = async () => {
@@ -104,30 +115,11 @@ export const LandingPage: React.FC = () => {
     fetchPlans();
   }, []);
 
-  const featureLabels: Record<string, string> = {
-    live_scoring: 'Live Scoring with Instant Undo',
-    scoreboard_tv: '16:9 Big Screen TV Scoreboard',
-    team_registration_links: 'Public Mobile Team Registration Links',
-    standings: 'Automated Points Tables & GD/NRR',
-    break_ads: 'Break-Time Sponsor Ads Rotator',
-    sponsor_management: 'Sponsor Tiers Management',
-    emergency_announcements: 'Emergency Delay Scoreboard Broadcasts',
-    player_auctions: 'IPL/ISL Live Player Auction Arena',
-    player_career_stats: 'Player Career Stats & Digital ID Pass',
-    offline_payments_tracking: 'Offline Cash & UPI Payment Tracker',
-    pdf_exports: 'Official Registration Receipts & PDF Exports',
-    advanced_analytics: 'Advanced Analytics & Insights',
-    custom_branding: 'Custom Organization Branding',
-    coin_toss: 'Pre-Match Coin Toss',
-    ai_tournament_poster: 'Match & Tournament Posters'
-  };
-
-  const filteredPlans = plans.filter(p => {
-    if (billingCycle === 'all') return true;
-    if (billingCycle === 'monthly') return p.billing_interval === 'monthly' || p.billing_type === 'recurring';
-    if (billingCycle === 'yearly') return p.billing_interval === 'yearly';
-    return true;
-  });
+  // Only offer tabs for cycles some plan actually uses, so no tab ever shows an empty grid.
+  const cycleTabs = (['all', ...PLAN_CYCLES.map(c => c.id)] as PlanCycle[])
+    .filter(tab => tab === 'all' || plans.some(p => planCycle(p) === tab));
+  const activeCycle = cycleTabs.includes(billingCycle) ? billingCycle : 'all';
+  const filteredPlans = activeCycle === 'all' ? plans : plans.filter(p => planCycle(p) === activeCycle);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 overflow-hidden">
@@ -282,21 +274,25 @@ export const LandingPage: React.FC = () => {
           </p>
 
           {/* Billing Interval Filter */}
-          <div className="inline-flex items-center gap-1.5 p-1 rounded-2xl bg-slate-900 border border-slate-800 mt-6 text-xs font-bold">
-            {(['all', 'monthly', 'yearly'] as const).map(tab => (
-              <button
-                key={tab}
-                onClick={() => setBillingCycle(tab)}
-                className={`px-4 py-1.5 rounded-xl capitalize transition-all ${
-                  billingCycle === tab
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                {tab === 'all' ? 'All Plans' : tab}
-              </button>
-            ))}
-          </div>
+          {cycleTabs.length > 2 && (
+            <div role="group" aria-label="Filter plans by billing cycle" className="inline-flex max-w-full flex-wrap justify-center items-center gap-1.5 p-1 rounded-2xl bg-slate-900 border border-slate-800 mt-6 text-xs font-bold">
+              {cycleTabs.map(tab => (
+                <button
+                  key={tab}
+                  type="button"
+                  aria-pressed={activeCycle === tab}
+                  onClick={() => setBillingCycle(tab)}
+                  className={`px-4 py-1.5 rounded-xl whitespace-nowrap transition-colors ${
+                    activeCycle === tab
+                      ? 'bg-emerald-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {tab === 'all' ? 'All Plans' : PLAN_CYCLES.find(c => c.id === tab)!.label}
+                </button>
+              ))}
+            </div>
+          )}
         </motion.div>
 
         {/* Dynamic Plans Grid */}
@@ -306,6 +302,8 @@ export const LandingPage: React.FC = () => {
           </div>
         ) : (
           <motion.div
+            // Remount on tab change: cards added under an already-played whileInView stay invisible.
+            key={activeCycle}
             variants={staggerContainer}
             initial="hidden"
             whileInView="show"
@@ -314,13 +312,15 @@ export const LandingPage: React.FC = () => {
           >
             {filteredPlans.map(plan => {
               // Centered wrap: an odd plan count leaves a centered last row, not a lone card on the left.
+              // A lone card keeps max-w-md; wider grids drop the cap and size by column.
               const planWidth = filteredPlans.length === 1
-                ? 'md:max-w-md'
+                ? ''
                 : filteredPlans.length === 4
-                ? 'md:w-[calc(50%-12px)] xl:w-[calc(25%-18px)]'
-                : 'md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)]';
+                ? 'md:max-w-none md:w-[calc(50%-12px)] xl:w-[calc(25%-18px)]'
+                : 'md:max-w-none md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)]';
               const isPopular = plan.id.includes('standard') || plan.name.toLowerCase().includes('pro');
-              const isOneTime = plan.billing_type === 'one_time';
+              const cycle = planCycle(plan);
+              const isOneTime = cycle === 'one_time';
               const isFree = plan.price === 0;
 
               return (
@@ -328,7 +328,7 @@ export const LandingPage: React.FC = () => {
                   key={plan.id}
                   variants={fadeUp}
                   transition={{ duration: 0.45 }}
-                  className={`w-full max-w-md md:max-w-none rounded-3xl p-6 flex flex-col justify-between transition-all relative ${planWidth} ${
+                  className={`w-full max-w-md rounded-3xl p-6 flex flex-col justify-between transition-all relative ${planWidth} ${
                     isPopular
                       ? 'glass-panel border-2 border-emerald-500/80 shadow-2xl shadow-emerald-500/10'
                       : isOneTime
@@ -361,7 +361,7 @@ export const LandingPage: React.FC = () => {
                         ₹{plan.price.toLocaleString()}
                       </span>
                       <span className="text-xs text-slate-400">
-                        {isOneTime ? '/ event' : `/${plan.billing_interval || 'month'}`}
+                        {PLAN_CYCLES.find(c => c.id === cycle)!.suffix}
                       </span>
                     </div>
 
@@ -390,57 +390,14 @@ export const LandingPage: React.FC = () => {
                       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
                         Included Features:
                       </span>
-                      <ul className="space-y-2 text-xs text-slate-300">
-                        {plan.features.slice(0, PLAN_FEATURE_PREVIEW).map(f => (
-                          <li key={f} className="flex items-center gap-2">
-                            <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${
-                              isPopular ? 'text-emerald-400' : isOneTime ? 'text-amber-400' : 'text-cyan-400'
-                            }`} />
-                            <span className="leading-tight">{featureLabels[f] || f.replace(/_/g, ' ')}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      {plan.features.length > PLAN_FEATURE_PREVIEW && (
-                        <button
-                          type="button"
-                          onClick={() => setExpandedPlanId(plan.id)}
-                          className={`mt-2.5 pl-[22px] text-[11px] font-semibold transition-colors ${
-                            isPopular ? 'text-emerald-400 hover:text-emerald-300' : isOneTime ? 'text-amber-400 hover:text-amber-300' : 'text-cyan-400 hover:text-cyan-300'
-                          }`}
-                        >
-                          + {plan.features.length - PLAN_FEATURE_PREVIEW} more features
-                        </button>
-                      )}
+                      <PlanFeatureList
+                        planName={plan.name}
+                        features={plan.features}
+                        accent={isPopular ? 'emerald' : isOneTime ? 'amber' : 'cyan'}
+                      />
                     </div>
                   </div>
 
-                  {expandedPlanId === plan.id && (
-                    <div className="absolute inset-0 z-10 rounded-3xl bg-slate-950/95 backdrop-blur-sm p-6 flex flex-col">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                          {plan.name} · All {plan.features.length} Features
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedPlanId(null)}
-                          aria-label="Close feature list"
-                          className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <ul className="flex-1 overflow-y-auto space-y-2 pr-1 text-xs text-slate-300">
-                        {plan.features.map(f => (
-                          <li key={f} className="flex items-center gap-2">
-                            <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${
-                              isPopular ? 'text-emerald-400' : isOneTime ? 'text-amber-400' : 'text-cyan-400'
-                            }`} />
-                            <span className="leading-tight">{featureLabels[f] || f.replace(/_/g, ' ')}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
 
                   <Link
                     to="/register-club"

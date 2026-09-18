@@ -75,6 +75,7 @@ Route::prefix('admin')->middleware(['auth.required', 'role:SUPER_ADMIN'])->group
 
     Route::get('plans', [AdminController::class, 'listPlans']);
     Route::post('plans', [AdminController::class, 'storePlan']);
+    Route::post('plans/reorder', [AdminController::class, 'reorderPlans']);
     Route::put('plans/{id}', [AdminController::class, 'updatePlan']);
     Route::delete('plans/{id}', [AdminController::class, 'destroyPlan']);
 

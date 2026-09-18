@@ -46,7 +46,36 @@ class AdminController extends Controller
 
     public function listPlans(): JsonResponse
     {
-        return response()->json(Plan::query()->get());
+        return response()->json(Plan::query()->ordered()->get());
+    }
+
+    /**
+     * Saves the order plans are shown in everywhere. `ids` must list every plan
+     * exactly once, so a stale admin tab can't silently drop a plan to the end.
+     */
+    public function reorderPlans(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array'],
+            'ids.*' => ['required', 'string', 'distinct'],
+        ]);
+
+        $existing = Plan::query()->pluck('id')->sort()->values()->all();
+        $given = collect($data['ids'])->sort()->values()->all();
+
+        if ($existing !== $given) {
+            return response()->json(['error' => 'The plan list has changed. Reload and try again.'], 422);
+        }
+
+        DB::transaction(function () use ($data) {
+            foreach ($data['ids'] as $position => $id) {
+                Plan::query()->whereKey($id)->update(['sort_order' => $position]);
+            }
+        });
+
+        $this->audit($request, 'REORDERED_PLANS', 'Plan', '*', 'Changed the display order of plans');
+
+        return response()->json(Plan::query()->ordered()->get());
     }
 
     public function storePlan(Request $request): JsonResponse
@@ -84,6 +113,7 @@ class AdminController extends Controller
             'ad_limit' => (int) ($data['ad_limit'] ?? 5),
             'features' => $data['features'] ?? [],
             'status' => 'active',
+            'sort_order' => (int) Plan::query()->max('sort_order') + 1,
         ]);
 
         $this->audit($request, 'CREATED_PLAN', 'Plan', $plan->id,
