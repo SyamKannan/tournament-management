@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import type { UserRole } from '../types';
+import { roleHome } from '../lib/roleHome';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -33,7 +34,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     if (role === 'SUPER_ADMIN') {
       return <>{children}</>;
     }
-    return <Navigate to="/login" replace />;
+    // Signed in, just not for this page (e.g. right after impersonating from an admin page):
+    // go to their own workspace rather than bouncing through the login screen.
+    return <Navigate to={roleHome(role)} replace />;
   }
 
   return <>{children}</>;

@@ -1,3 +1,4 @@
+import { label } from '../lib/labels';
 import React, { useState } from 'react';
 import { CheckCircle2, X } from 'lucide-react';
 
@@ -20,7 +21,7 @@ export const PLAN_FEATURE_LABELS: Record<string, string> = {
   ai_tournament_poster: 'Match & Tournament Posters',
 };
 
-export const planFeatureLabel = (id: string) => PLAN_FEATURE_LABELS[id] || id.replace(/_/g, ' ');
+export const planFeatureLabel = (id: string) => PLAN_FEATURE_LABELS[id] || label(id);
 
 const ACCENTS = {
   emerald: { icon: 'text-emerald-400', link: 'text-emerald-400 hover:text-emerald-300' },

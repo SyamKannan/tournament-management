@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import type { Subscription, Invoice } from '../../types';
 import { Skeleton, SkeletonTable } from '../../components/ui/Feedback';
+import { label } from '../../lib/labels';
 
 export const AdminSubscriptionsPage: React.FC = () => {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -101,7 +102,7 @@ export const AdminSubscriptionsPage: React.FC = () => {
                     </td>
                     <td className="px-4 py-4 text-center">
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
-                        {sub.status}
+                        {label(sub.status)}
                       </span>
                     </td>
                   </tr>
@@ -138,14 +139,14 @@ export const AdminSubscriptionsPage: React.FC = () => {
                       ₹{inv.amount.toLocaleString()}
                     </td>
                     <td className="px-4 py-4 uppercase text-slate-300 font-mono">
-                      {inv.payment_method}
+                      {label(inv.payment_method)}
                     </td>
                     <td className="px-4 py-4 text-slate-400 font-mono">
                       {new Date(inv.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-4 text-center">
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
-                        {inv.status}
+                        {label(inv.status)}
                       </span>
                     </td>
                   </tr>

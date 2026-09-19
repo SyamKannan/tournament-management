@@ -21,7 +21,10 @@ use Illuminate\Support\Facades\DB;
 class TournamentPaymentService
 {
     /**
-     * Break the ground fee into the options shown on the registration wizard.
+     * Break the ground fee into the options shown on the registration wizard:
+     * a team pays it in full, or — when the organizer allows it — half now and
+     * half later. (Older tournaments may still carry a custom percentage or
+     * fixed amount in `payment_config`; it no longer applies.)
      *
      * @return array{totalFee: float|int, allowPartial: bool, partialPercentage: int, partialAmount: float|int, fullAmount: float|int}
      */
@@ -31,18 +34,8 @@ class TournamentPaymentService
         $config = $tournament->payment_config ?? [];
         $allowPartial = (bool) ($config['allow_partial'] ?? false);
 
-        $partialAmount = $totalFee;
-        $partialPercentage = 100;
-
-        if ($allowPartial) {
-            if (($config['min_partial_type'] ?? 'percentage') === 'percentage') {
-                $partialPercentage = (int) ($config['min_partial_value'] ?: 50);
-                $partialAmount = round(($totalFee * $partialPercentage) / 100);
-            } else {
-                $partialAmount = (float) ($config['min_partial_value'] ?: round($totalFee / 2));
-                $partialPercentage = $totalFee > 0 ? (int) round(($partialAmount / $totalFee) * 100) : 0;
-            }
-        }
+        $partialPercentage = $allowPartial ? 50 : 100;
+        $partialAmount = $allowPartial ? round($totalFee / 2, 2) : $totalFee;
 
         return [
             'totalFee' => $this->money($totalFee),
@@ -155,6 +148,7 @@ class TournamentPaymentService
                     'manager_phone' => $team->manager_phone,
                     'total_fee' => $this->money((float) $payment->total_fee),
                     'paid_amount' => $this->money((float) $payment->paid_amount),
+                    'amount_paid_now' => $this->money($amountToPay),
                     'remaining_balance' => $this->money((float) $payment->remaining_amount),
                     'payment_method' => strtoupper(str_replace('_', ' ', (string) $paymentMethod)),
                     'transaction_id' => $payment->transaction_id,

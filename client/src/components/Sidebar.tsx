@@ -3,11 +3,12 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, CreditCard, Building2, Trophy, Users, Calendar,
-  Radio, Megaphone, FileText, Settings, History, X, Gamepad2, Image as ImageIcon
+  Radio, Megaphone, FileText, Settings, History, X, Gamepad2, Image as ImageIcon,
+  Receipt, PlusCircle
 } from 'lucide-react';
 
 interface SidebarProps {
-  type: 'admin' | 'organization';
+  type: 'admin' | 'organization' | 'team';
   /** Drawer state — only consulted below the `lg` breakpoint. */
   open: boolean;
   onClose: () => void;
@@ -36,6 +37,16 @@ const ORG_LINKS = [
   { to: '/organization/billing', label: 'Billing & Plan', icon: CreditCard },
 ];
 
+const TEAM_LINKS = [
+  { to: '/team/dashboard', label: 'Overview', icon: LayoutDashboard },
+  { to: '/team/squad', label: 'My Squad', icon: Users },
+  { to: '/team/fixtures', label: 'Fixtures & Results', icon: Calendar },
+  { to: '/team/join', label: 'Join Tournament', icon: PlusCircle },
+  { to: '/team/payments', label: 'Payments & Invoices', icon: Receipt },
+];
+
+const WORKSPACE_LINKS = { admin: ADMIN_LINKS, organization: ORG_LINKS, team: TEAM_LINKS };
+
 /**
  * Workspace navigation.
  *
@@ -43,8 +54,8 @@ const ORG_LINKS = [
  * phone keeps its full width for content instead of losing 16rem of it.
  */
 export const Sidebar: React.FC<SidebarProps> = ({ type, open, onClose }) => {
-  const { organization } = useAuth();
-  const links = type === 'admin' ? ADMIN_LINKS : ORG_LINKS;
+  const { organization, user } = useAuth();
+  const links = WORKSPACE_LINKS[type];
 
   // While the drawer covers the page, Escape closes it and the page behind
   // must not scroll underneath.
@@ -76,7 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ type, open, onClose }) => {
       )}
 
       <aside
-        aria-label={type === 'admin' ? 'Admin navigation' : 'Workspace navigation'}
+        aria-label={type === 'admin' ? 'Admin navigation' : type === 'team' ? 'Team navigation' : 'Workspace navigation'}
         className={`
           fixed inset-y-0 left-0 z-50 w-[17rem] p-4 flex flex-col justify-between
           glass-panel border-r border-slate-800/80 overflow-y-auto
@@ -89,10 +100,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ type, open, onClose }) => {
           <div className="flex items-start justify-between gap-2 mb-4">
             <div className="flex-1 min-w-0 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
               <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                {type === 'admin' ? 'Platform Control' : 'Active Organization'}
+                {type === 'admin' ? 'Platform Control' : type === 'team' ? 'Team Manager' : 'Active Organization'}
               </div>
               <div className="text-sm font-bold text-white truncate mt-0.5">
-                {type === 'admin' ? 'Super Admin Portal' : (organization?.name || 'Your Organization')}
+                {type === 'admin' ? 'Super Admin Portal' : type === 'team' ? (user?.name || 'My Teams') : (organization?.name || 'Your Organization')}
               </div>
               {type === 'organization' && organization?.type && (
                 <div className="flex items-center gap-1.5 mt-1.5">

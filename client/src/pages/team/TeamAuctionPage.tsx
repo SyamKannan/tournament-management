@@ -7,6 +7,7 @@ import { LoadingState, ErrorState, EmptyState } from '../../components/ui/Feedba
 import {
   Gavel, Wallet, Users, ArrowLeft, TrendingUp, CheckCircle2, Trophy,
 } from 'lucide-react';
+import { label } from '../../lib/labels';
 
 interface MyTeamView {
   auction: any;
@@ -311,7 +312,7 @@ export const TeamAuctionsListPage: React.FC = () => {
                     ? 'bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/30'
                     : 'bg-slate-800 text-slate-400 ring-1 ring-slate-700'
                 }`}>
-                  {auction.status}
+                  {label(auction.status)}
                 </span>
               </div>
 

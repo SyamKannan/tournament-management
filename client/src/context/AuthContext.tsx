@@ -113,7 +113,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const impersonate = async (options: { userId?: string; organizationId?: string }) => {
-    setIsLoading(true);
     try {
       const currentToken = localStorage.getItem('sports_saas_token');
       if (!localStorage.getItem('sports_saas_impersonator_token') && currentToken) {

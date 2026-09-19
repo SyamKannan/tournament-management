@@ -69,6 +69,11 @@ const OrgPostersPage = lazyPage(() => import('./pages/organization/OrgPostersPag
 // Team Manager Workspace
 const TeamAuctionPage = lazyPage(() => import('./pages/team/TeamAuctionPage'), 'TeamAuctionPage');
 const TeamAuctionsListPage = lazyPage(() => import('./pages/team/TeamAuctionPage'), 'TeamAuctionsListPage');
+const TeamDashboardPage = lazyPage(() => import('./pages/team/TeamDashboardPage'), 'TeamDashboardPage');
+const TeamPaymentsPage = lazyPage(() => import('./pages/team/TeamPaymentsPage'), 'TeamPaymentsPage');
+const TeamSquadPage = lazyPage(() => import('./pages/team/TeamSquadPage'), 'TeamSquadPage');
+const TeamFixturesPage = lazyPage(() => import('./pages/team/TeamFixturesPage'), 'TeamFixturesPage');
+const TeamJoinPage = lazyPage(() => import('./pages/team/TeamJoinPage'), 'TeamJoinPage');
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
@@ -79,7 +84,9 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const isTVMode = location.pathname.startsWith('/scoreboard') || location.pathname.startsWith('/auction/tv');
   const isAdmin = location.pathname.startsWith('/admin');
   const isOrg = location.pathname.startsWith('/organization');
-  const hasSidebar = isAdmin || isOrg;
+  // The team manager's workspace; the live auction room keeps its own full-width layout.
+  const isTeam = /^\/team\/(dashboard|squad|fixtures|join|payments)/.test(location.pathname);
+  const hasSidebar = isAdmin || isOrg || isTeam;
 
   // Route changes close the mobile drawer and return the reader to the top.
   useEffect(() => {
@@ -106,7 +113,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <div className="flex-1 flex w-full">
         {hasSidebar && (
           <Sidebar
-            type={isAdmin ? 'admin' : 'organization'}
+            type={isAdmin ? 'admin' : isTeam ? 'team' : 'organization'}
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
           />
@@ -294,7 +301,32 @@ export const App: React.FC = () => {
                 } />
 
                 {/* Team Manager Workspace (Protected) */}
-            <Route path="/team" element={<Navigate to="/team/auctions" replace />} />
+            <Route path="/team" element={<Navigate to="/team/dashboard" replace />} />
+            <Route path="/team/dashboard" element={
+              <ProtectedRoute allowedRoles={['TEAM_MANAGER']}>
+                <TeamDashboardPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/team/payments" element={
+              <ProtectedRoute allowedRoles={['TEAM_MANAGER']}>
+                <TeamPaymentsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/team/squad" element={
+              <ProtectedRoute allowedRoles={['TEAM_MANAGER']}>
+                <TeamSquadPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/team/fixtures" element={
+              <ProtectedRoute allowedRoles={['TEAM_MANAGER']}>
+                <TeamFixturesPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/team/join" element={
+              <ProtectedRoute allowedRoles={['TEAM_MANAGER']}>
+                <TeamJoinPage />
+              </ProtectedRoute>
+            } />
             <Route path="/team/auctions" element={
               <ProtectedRoute allowedRoles={['TEAM_MANAGER', 'ORG_ADMIN', 'SUPER_ADMIN']}>
                 <TeamAuctionsListPage />

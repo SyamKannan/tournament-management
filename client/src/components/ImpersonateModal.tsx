@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { 
@@ -7,6 +8,73 @@ import {
   LogIn, Loader2, Sparkles, Trophy, Users
 } from 'lucide-react';
 import { useToast } from './ui/Toast';
+import { roleHome } from '../lib/roleHome';
+
+const TONES = {
+  emerald: {
+    border: 'hover:border-emerald-500/40', name: 'group-hover:text-emerald-400',
+    avatar: 'bg-emerald-950/50 border-emerald-500/30 text-emerald-400',
+    button: 'bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 border-emerald-500/30',
+  },
+  cyan: {
+    border: 'hover:border-cyan-500/40', name: 'group-hover:text-cyan-400',
+    avatar: 'bg-cyan-950/50 border-cyan-500/30 text-cyan-400',
+    button: 'bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 border-cyan-500/30',
+  },
+  purple: {
+    border: 'hover:border-purple-500/40', name: 'group-hover:text-purple-400',
+    avatar: 'bg-purple-950/50 border-purple-500/30 text-purple-400',
+    button: 'bg-purple-600/20 hover:bg-purple-600 text-purple-300 border-purple-500/30',
+  },
+};
+
+interface TargetCardProps {
+  name: string;
+  subtitle?: string;
+  detail?: React.ReactNode;
+  image?: string;
+  fallbackIcon: React.ElementType;
+  tone: keyof typeof TONES;
+  actionLabel: string;
+  pending: boolean;
+  onLogin: () => void;
+}
+
+/** An account the super admin can log in as. Long names truncate but show in full on hover. */
+const TargetCard: React.FC<TargetCardProps> = ({
+  name, subtitle, detail, image, fallbackIcon: FallbackIcon, tone, actionLabel, pending, onLogin,
+}) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const t = TONES[tone];
+
+  return (
+    <div className={`p-3 rounded-2xl bg-slate-950/70 border border-slate-800 ${t.border} transition-colors flex items-center gap-3 group min-w-0`}>
+      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 overflow-hidden ${t.avatar}`}>
+        {image && !imageFailed ? (
+          <img src={image} alt="" onError={() => setImageFailed(true)} className="w-full h-full object-cover" />
+        ) : (
+          <FallbackIcon className="w-5 h-5" aria-hidden="true" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1" title={[name, subtitle].filter(Boolean).join('\n')}>
+        <h4 className={`text-sm font-bold text-white truncate transition-colors ${t.name}`}>{name}</h4>
+        {subtitle && <p className="text-xs text-slate-400 truncate">{subtitle}</p>}
+        {detail && <div className="text-[11px] text-slate-500 truncate">{detail}</div>}
+      </div>
+      <button
+        type="button"
+        onClick={onLogin}
+        disabled={pending}
+        aria-label={`${actionLabel}: ${name}`}
+        title={actionLabel}
+        className={`px-3 py-1.5 rounded-xl border text-xs font-bold hover:text-white transition-all flex items-center gap-1.5 shrink-0 active:scale-95 disabled:opacity-50 ${t.button}`}
+      >
+        {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogIn className="w-3.5 h-3.5" />}
+        <span>Log in</span>
+      </button>
+    </div>
+  );
+};
 
 interface ImpersonateModalProps {
   isOpen: boolean;
@@ -65,9 +133,9 @@ export const ImpersonateModal: React.FC<ImpersonateModalProps> = ({ isOpen, onCl
     try {
       setImpersonatingId(org.id);
       const res = await impersonate({ organizationId: org.id });
-      toast.success(`Logged in as ${res.user.name} (${org.name})`);
+      toast.success(`Now viewing as ${org.name}`);
       onClose();
-      navigate('/organization/dashboard');
+      navigate(roleHome(res.user.role), { replace: true });
     } catch (err: any) {
       toast.error(err?.message || 'Failed to impersonate organization');
     } finally {
@@ -81,13 +149,7 @@ export const ImpersonateModal: React.FC<ImpersonateModalProps> = ({ isOpen, onCl
       const res = await impersonate({ userId: user.id });
       toast.success(`Logged in as ${res.user.name}`);
       onClose();
-      if (res.user.role === 'PLAYER') {
-        navigate('/player/dashboard');
-      } else if (res.user.role === 'TEAM_MANAGER') {
-        navigate('/team/auctions');
-      } else {
-        navigate('/organization/dashboard');
-      }
+      navigate(roleHome(res.user.role), { replace: true });
     } catch (err: any) {
       toast.error(err?.message || 'Failed to impersonate user');
     } finally {
@@ -125,11 +187,12 @@ export const ImpersonateModal: React.FC<ImpersonateModalProps> = ({ isOpen, onCl
 
   if (!isOpen) return null;
 
-  return (
+  // Portal to <body>: the navbar's backdrop-blur would otherwise make `fixed` relative to the navbar.
+  return createPortal(
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-3xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+      <div className="relative w-full max-w-4xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh] max-h-[88dvh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
+        <div className="shrink-0 px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 p-0.5 shadow-lg shadow-amber-500/20 flex items-center justify-center">
               <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
@@ -154,7 +217,7 @@ export const ImpersonateModal: React.FC<ImpersonateModalProps> = ({ isOpen, onCl
         </div>
 
         {/* Search & Tabs Toolbar */}
-        <div className="p-4 border-b border-slate-800 bg-slate-900/60 space-y-3">
+        <div className="shrink-0 p-4 border-b border-slate-800 bg-slate-900/60 space-y-3">
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -214,7 +277,7 @@ export const ImpersonateModal: React.FC<ImpersonateModalProps> = ({ isOpen, onCl
         </div>
 
         {/* Content list */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-6">
           {loading ? (
             <div className="py-16 text-center text-slate-400">
               <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-amber-400" />
@@ -231,47 +294,20 @@ export const ImpersonateModal: React.FC<ImpersonateModalProps> = ({ isOpen, onCl
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    {filteredOrgs.map((org) => {
-                      const isPending = impersonatingId === org.id;
-                      return (
-                        <div
-                          key={org.id}
-                          className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 hover:border-emerald-500/40 transition-all flex items-center justify-between gap-3 group"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <img
-                              src={org.logo}
-                              alt={org.name}
-                              className="w-10 h-10 rounded-xl object-cover border border-slate-700 bg-slate-900 flex-shrink-0"
-                            />
-                            <div className="min-w-0">
-                              <h4 className="text-sm font-bold text-white truncate group-hover:text-emerald-400 transition-colors">
-                                {org.name}
-                              </h4>
-                              <p className="text-xs text-slate-400 truncate">
-                                Admin: {org.admin_user?.name || org.contact_person || 'Org Admin'}
-                              </p>
-                              <div className="text-[11px] text-slate-500 truncate">
-                                {org.admin_user?.email || org.email}
-                              </div>
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => handleImpersonateOrg(org)}
-                            disabled={isPending}
-                            className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0 active:scale-95 disabled:opacity-50"
-                          >
-                            {isPending ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <LogIn className="w-3.5 h-3.5" />
-                            )}
-                            <span>Login As Club</span>
-                          </button>
-                        </div>
-                      );
-                    })}
+                    {filteredOrgs.map((org) => (
+                      <TargetCard
+                        key={org.id}
+                        name={org.name}
+                        subtitle={`Admin: ${org.admin_user?.name || org.contact_person || 'Org Admin'}`}
+                        detail={org.admin_user?.email || org.email}
+                        image={org.logo}
+                        fallbackIcon={Building2}
+                        tone="emerald"
+                        actionLabel="Log in as club"
+                        pending={impersonatingId === org.id}
+                        onLogin={() => handleImpersonateOrg(org)}
+                      />
+                    ))}
                   </div>
                 </div>
               )}
@@ -285,49 +321,20 @@ export const ImpersonateModal: React.FC<ImpersonateModalProps> = ({ isOpen, onCl
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    {filteredPlayers.map((player) => {
-                      const isPending = impersonatingId === player.id;
-                      return (
-                        <div
-                          key={player.id}
-                          className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 hover:border-cyan-500/40 transition-all flex items-center justify-between gap-3 group"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-xl bg-cyan-950/50 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold flex-shrink-0">
-                              {player.avatar ? (
-                                <img src={player.avatar} alt={player.name} className="w-full h-full object-cover rounded-xl" />
-                              ) : (
-                                <UserIcon className="w-5 h-5" />
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <h4 className="text-sm font-bold text-white truncate group-hover:text-cyan-400 transition-colors">
-                                {player.name}
-                              </h4>
-                              <p className="text-xs text-slate-400 truncate">
-                                {player.email}
-                              </p>
-                              <div className="text-[11px] text-slate-500 font-mono">
-                                {player.phone || 'Player Profile'}
-                              </div>
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => handleImpersonateUser(player)}
-                            disabled={isPending}
-                            className="px-3 py-1.5 rounded-xl bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white border border-cyan-500/30 text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0 active:scale-95 disabled:opacity-50"
-                          >
-                            {isPending ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <LogIn className="w-3.5 h-3.5" />
-                            )}
-                            <span>Login As Player</span>
-                          </button>
-                        </div>
-                      );
-                    })}
+                    {filteredPlayers.map((player) => (
+                      <TargetCard
+                        key={player.id}
+                        name={player.name}
+                        subtitle={player.email}
+                        detail={<span className="font-mono">{player.phone || 'Player Profile'}</span>}
+                        image={player.avatar}
+                        fallbackIcon={UserIcon}
+                        tone="cyan"
+                        actionLabel="Log in as player"
+                        pending={impersonatingId === player.id}
+                        onLogin={() => handleImpersonateUser(player)}
+                      />
+                    ))}
                   </div>
                 </div>
               )}
@@ -341,45 +348,19 @@ export const ImpersonateModal: React.FC<ImpersonateModalProps> = ({ isOpen, onCl
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    {filteredManagers.map((manager) => {
-                      const isPending = impersonatingId === manager.id;
-                      return (
-                        <div
-                          key={manager.id}
-                          className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 hover:border-purple-500/40 transition-all flex items-center justify-between gap-3 group"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-xl bg-purple-950/50 border border-purple-500/30 flex items-center justify-center text-purple-400 font-bold flex-shrink-0">
-                              <UserIcon className="w-5 h-5" />
-                            </div>
-                            <div className="min-w-0">
-                              <h4 className="text-sm font-bold text-white truncate group-hover:text-purple-400 transition-colors">
-                                {manager.name}
-                              </h4>
-                              <p className="text-xs text-slate-400 truncate">
-                                {manager.email}
-                              </p>
-                              <div className="text-[11px] text-purple-400/80">
-                                Team Manager
-                              </div>
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => handleImpersonateUser(manager)}
-                            disabled={isPending}
-                            className="px-3 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/30 text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0 active:scale-95 disabled:opacity-50"
-                          >
-                            {isPending ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <LogIn className="w-3.5 h-3.5" />
-                            )}
-                            <span>Login As Manager</span>
-                          </button>
-                        </div>
-                      );
-                    })}
+                    {filteredManagers.map((manager) => (
+                      <TargetCard
+                        key={manager.id}
+                        name={manager.name}
+                        subtitle={manager.email}
+                        detail={<span className="text-purple-400/80">Team Manager</span>}
+                        fallbackIcon={UserIcon}
+                        tone="purple"
+                        actionLabel="Log in as team manager"
+                        pending={impersonatingId === manager.id}
+                        onLogin={() => handleImpersonateUser(manager)}
+                      />
+                    ))}
                   </div>
                 </div>
               )}
@@ -396,16 +377,17 @@ export const ImpersonateModal: React.FC<ImpersonateModalProps> = ({ isOpen, onCl
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between text-xs text-slate-400">
-          <span>🔒 Actions performed while impersonating are logged to audit trail.</span>
+        <div className="shrink-0 px-4 sm:px-6 py-3 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-3 text-xs text-slate-400">
+          <span className="min-w-0">🔒 Actions performed while impersonating are logged to the audit trail.</span>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-medium transition-colors"
+            className="shrink-0 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-medium transition-colors"
           >
             Cancel
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

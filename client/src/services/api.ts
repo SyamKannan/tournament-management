@@ -16,7 +16,7 @@ export class ApiError extends Error {
  * ends the session, so the app doesn't sit there looking signed in while every
  * request fails.
  */
-export const SESSION_ENDED_EVENT = 'sportivo:session-ended';
+export const SESSION_ENDED_EVENT = 'kickwick:session-ended';
 
 function endSession(reason: string) {
   window.dispatchEvent(new CustomEvent(SESSION_ENDED_EVENT, { detail: { reason } }));

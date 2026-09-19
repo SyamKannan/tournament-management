@@ -5,9 +5,11 @@ import {
   LogIn, Loader2, UserCheck, Phone
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { roleHome } from '../../lib/roleHome';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { Skeleton, SkeletonTable } from '../../components/ui/Feedback';
+import { label } from '../../lib/labels';
 
 export const AdminUsersPage: React.FC = () => {
   const toast = useToast();
@@ -40,15 +42,9 @@ export const AdminUsersPage: React.FC = () => {
     try {
       setImpersonatingUserId(targetUser.id);
       const res = await impersonate({ userId: targetUser.id });
-      toast.success(`Logged in as ${res.user.name} (${targetUser.role})`);
+      toast.success(`Logged in as ${res.user.name} (${label(targetUser.role)})`);
       
-      if (res.user.role === 'PLAYER') {
-        navigate('/player/dashboard');
-      } else if (res.user.role === 'TEAM_MANAGER') {
-        navigate('/team/auctions');
-      } else {
-        navigate('/organization/dashboard');
-      }
+      navigate(roleHome(res.user.role), { replace: true });
     } catch (err: any) {
       toast.error(err?.message || 'Failed to impersonate user');
     } finally {
@@ -272,7 +268,7 @@ export const AdminUsersPage: React.FC = () => {
                     {/* Role */}
                     <td className="px-4 py-4">
                       <span className={`px-2.5 py-1 rounded-lg border font-bold text-[10px] tracking-wider uppercase font-mono ${roleBadge}`}>
-                        {u.role}
+                        {label(u.role)}
                       </span>
                     </td>
 

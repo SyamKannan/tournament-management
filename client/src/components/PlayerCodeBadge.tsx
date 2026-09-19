@@ -24,7 +24,7 @@ export const PlayerCodeBadge: React.FC<{ code?: string | null; size?: 'sm' | 'md
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 font-mono font-black ${
+      className={`inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 font-code font-black ${
         size === 'sm' ? 'px-1.5 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'
       }`}
       title="Player Code — use it on Player Stats"

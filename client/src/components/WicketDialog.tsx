@@ -96,7 +96,7 @@ export const WicketDialog: React.FC<WicketDialogProps> = ({
     >
       <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm animate-fade-in" onClick={onCancel} aria-hidden="true" />
 
-      <div className="relative w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl bg-slate-900 ring-1 ring-slate-700/70 shadow-2xl shadow-black/60 p-6 animate-dialog-in">
+      <div className="relative w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl bg-slate-900 ring-1 ring-slate-700/70 shadow-2xl shadow-black/60 p-5 sm:p-6 max-h-[92dvh] overflow-y-auto animate-dialog-in">
         <div className="flex items-start gap-4">
           <div className="shrink-0 w-11 h-11 rounded-xl grid place-items-center bg-rose-500/10 ring-1 ring-rose-500/30">
             <AlertTriangle className="w-5 h-5 text-rose-400" aria-hidden="true" />

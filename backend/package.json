@@ -1,5 +1,5 @@
 {
-  "name": "sportivo-backend",
+  "name": "kickwick-backend",
   "private": true,
   "description": "Node side-dependency for Browsershot poster rendering only — the app itself is Laravel. Browsershot's bundled script requires the full `puppeteer` package by name (not puppeteer-core), but .puppeteerrc.cjs skips its Chromium download — POSTER_CHROME_PATH always points it at a real system Chrome/Chromium instead.",
   "dependencies": {

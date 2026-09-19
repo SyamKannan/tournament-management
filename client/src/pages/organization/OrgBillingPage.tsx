@@ -9,6 +9,7 @@ import { PlanPickerModal } from '../../components/PlanPickerModal';
 import { PlanFeatureList, planFeatureLabel } from '../../components/PlanFeatureList';
 import { LoadingState, EmptyState } from '../../components/ui/Feedback';
 import { useToast } from '../../components/ui/Toast';
+import { label } from '../../lib/labels';
 
 interface UsageMetric {
   current: number;
@@ -169,7 +170,7 @@ export const OrgBillingPage: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-base font-bold text-white">{plan.name}</span>
                   <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold uppercase border border-emerald-500/20">
-                    {subscription?.status || 'Active'}
+                    {label(subscription?.status) || 'Active'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">
@@ -344,13 +345,13 @@ export const OrgBillingPage: React.FC = () => {
                 <tbody className="divide-y divide-slate-800/80">
                   {invoices.map(inv => (
                     <tr key={inv.id} className="bg-slate-900/60 hover:bg-slate-900 transition-colors">
-                      <td className="px-4 py-3 font-mono text-slate-300">{inv.invoice_number}</td>
+                      <td className="px-4 py-3 font-code text-slate-300">{inv.invoice_number}</td>
                       <td className="px-4 py-3 text-slate-400">{new Date(inv.created_at).toLocaleDateString()}</td>
                       <td className="px-4 py-3 font-mono font-bold text-white">₹{inv.amount.toLocaleString()}</td>
                       <td className="px-4 py-3 text-slate-400 uppercase">{inv.payment_method}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${STATUS_STYLES[inv.status] || 'bg-slate-800 text-slate-300 border-slate-700'}`}>
-                          {inv.status}
+                          {label(inv.status)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">

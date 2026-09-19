@@ -213,8 +213,9 @@ class TournamentController extends Controller
                 'ground_fee' => (float) ($data['ground_fee'] ?? 0),
                 'payment_config' => [
                     'allow_partial' => (bool) ($paymentConfig['allow_partial'] ?? true),
-                    'min_partial_type' => $paymentConfig['min_partial_type'] ?? 'percentage',
-                    'min_partial_value' => (float) ($paymentConfig['min_partial_value'] ?? 50),
+                    // Part payment is always half the fee; kept for older clients.
+                    'min_partial_type' => 'percentage',
+                    'min_partial_value' => 50,
                     'enabled_methods' => ! empty($paymentConfig['enabled_methods'])
                         ? array_values(array_intersect($paymentConfig['enabled_methods'], Tournament::PAYMENT_METHODS))
                         : Tournament::PAYMENT_METHODS,

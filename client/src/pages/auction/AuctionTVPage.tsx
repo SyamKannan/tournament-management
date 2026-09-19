@@ -182,7 +182,7 @@ export const AuctionTVPage: React.FC = () => {
               </div>
 
               {/* Giant Highest Bid Box */}
-              <div className="text-center md:text-right shrink-0 p-6 rounded-3xl bg-slate-950 border-2 border-slate-800 shadow-2xl min-w-[280px]">
+              <div className="text-center md:text-right shrink-0 p-6 rounded-3xl bg-slate-950 border-2 border-slate-800 shadow-2xl w-full md:w-auto md:min-w-[280px]">
                 <span className="text-[11px] font-bold text-amber-400 uppercase tracking-widest block">
                   CURRENT HIGHEST BID
                 </span>
@@ -224,7 +224,7 @@ export const AuctionTVPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 text-slate-500 shrink-0">
-          <span>Sportivo Live Auction</span>
+          <span>KickWick Live Auction</span>
           <span>•</span>
           <span className="text-amber-400 font-bold">Live Sync</span>
         </div>

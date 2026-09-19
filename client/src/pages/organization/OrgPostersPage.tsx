@@ -6,6 +6,7 @@ import { TournamentPicker } from '../../components/ui/TournamentPicker';
 import { Skeleton, SkeletonCard, EmptyState } from '../../components/ui/Feedback';
 import { useToast } from '../../components/ui/Toast';
 import { Image as ImageIcon, Download, Share2, Trash2, Sparkles, Loader2 } from 'lucide-react';
+import { label } from '../../lib/labels';
 
 const POSTER_TYPES: { value: string; label: string; needsMatch: boolean }[] = [
   { value: 'matchday', label: 'Matchday (VS lockup)', needsMatch: true },
@@ -254,7 +255,7 @@ export const OrgPostersPage: React.FC = () => {
                 <img src={poster.image_path} alt={poster.poster_type} className="w-full aspect-[4/5] object-cover" loading="lazy" />
                 <div className="p-3 flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wide text-amber-400">
-                    {poster.poster_type.replace(/_/g, ' ')}
+                    {label(poster.poster_type)}
                   </span>
                   <div className="flex items-center gap-1">
                     <a

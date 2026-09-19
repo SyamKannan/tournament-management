@@ -35,7 +35,7 @@ export function downloadInvoicePdf(invoice: Invoice): void {
     startY: 59 + billedTo.length * 6 + 6,
     head: [['Description', 'Amount']],
     body: [
-      ['Sportivo platform subscription', money(invoice.amount)],
+      ['KickWick platform subscription', money(invoice.amount)],
     ],
     foot: [['Total', money(invoice.amount)]],
     theme: 'grid',

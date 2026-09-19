@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ShieldAlert, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
 import { useToast } from './ui/Toast';
+import { label } from '../lib/labels';
 
 export const ImpersonationBanner: React.FC = () => {
   const { isImpersonating, user, organization, role, stopImpersonating } = useAuth();
@@ -27,11 +28,14 @@ export const ImpersonationBanner: React.FC = () => {
     }
   };
 
+  // Logged in as a club: the club is who you are, not its admin user.
+  const isClub = role === 'ORG_ADMIN' && !!organization;
+
   const roleLabel = 
     role === 'ORG_ADMIN' ? 'Club / Org Admin' :
     role === 'PLAYER' ? 'Player / Athlete' :
     role === 'TEAM_MANAGER' ? 'Team Manager' :
-    role === 'SCORER' ? 'Official Scorer' : role;
+    role === 'SCORER' ? 'Official Scorer' : label(role);
 
   return (
     <aside
@@ -45,14 +49,16 @@ export const ImpersonationBanner: React.FC = () => {
           </div>
           <div className="truncate">
             <span className="font-bold tracking-wide uppercase text-[11px] bg-black/30 px-2 py-0.5 rounded-full border border-white/10 mr-2 text-amber-200 inline-flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> Impersonating Persona
+              <Sparkles className="w-3 h-3" /> {isClub ? 'Viewing as club' : 'Viewing as'}
             </span>
             <span className="font-semibold text-white truncate">
-              {user?.name || 'User'}
+              {isClub ? organization.name : (user?.name || 'User')}
             </span>
-            <span className="text-amber-100/90 ml-1.5 hidden sm:inline text-xs">
-              ({roleLabel}{organization ? ` • ${organization.name}` : ''})
-            </span>
+            {!isClub && (
+              <span className="text-amber-100/90 ml-1.5 hidden sm:inline text-xs">
+                ({roleLabel}{organization ? ` • ${organization.name}` : ''})
+              </span>
+            )}
           </div>
         </div>
 

@@ -43,6 +43,8 @@ Route::get('sports', [PlatformController::class, 'sports']);
 Route::get('payment-methods', [PlatformController::class, 'paymentMethods']);
 Route::get('footer', [PlatformController::class, 'footer']);
 Route::get('health', [PlatformController::class, 'health']);
+// Headline counts for the sign-in / sign-up pages (cached).
+Route::get('platform-stats', [PlatformController::class, 'stats']);
 Route::post('payments/demo/{orderId}/pay', [PaymentController::class, 'demoPay'])->middleware('throttle:30,1');
 
 // Restores the demo dataset. Local and staging only — never expose in production.
@@ -155,6 +157,16 @@ Route::prefix('teams')->group(function () {
     // people running the tournament rather than everyone in the organization.
     Route::get('tournament/{tournamentId}', [TeamController::class, 'forTournament'])
         ->middleware(['auth.required', 'role:ORG_ADMIN,SCORER,SUPER_ADMIN']);
+
+    // The team manager's portal. Declared before `{id}` so "mine" isn't read as a team id.
+    Route::middleware(['auth.required', 'role:TEAM_MANAGER'])->group(function () {
+        Route::get('mine', [TeamController::class, 'mine']);
+        Route::get('open-tournaments', [TeamController::class, 'openTournaments']);
+        Route::get('my-payments', [TeamController::class, 'myPayments']);
+        Route::post('{id}/balance/order', [TeamController::class, 'balanceOrder']);
+        Route::post('{id}/balance/pay', [TeamController::class, 'payBalance']);
+        Route::put('{id}/players/{playerId}', [TeamController::class, 'updateManagedPlayer']);
+    });
 
     Route::get('{id}', [TeamController::class, 'show']);
     Route::get('{id}/receipt', [TeamController::class, 'receipt']);

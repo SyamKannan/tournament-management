@@ -16,6 +16,7 @@ import {
   Printer, CreditCard, Check, RotateCcw,
   Info, FileText, Search, X
 } from 'lucide-react';
+import { label } from '../../lib/labels';
 
 export const OrgTournamentAuctionManagePage: React.FC = () => {
   const confirm = useConfirm();
@@ -102,7 +103,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
     if (!auction) return;
     try {
       await api.post(`/auctions/${auction.id}/status`, { status: newStatus });
-      toast.success(`Auction status set to ${newStatus.replace('_', ' ')}`);
+      toast.success(`Auction status set to ${label(newStatus).toLowerCase()}`);
       fetchAuctionData();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to update status');
@@ -218,11 +219,11 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
     }
 
     const proceed = await confirm({
-      title: `Bulk mark all ${count} players as ${status.toUpperCase()}?`,
+      title: `Bulk mark all ${count} players as ${label(status).toLowerCase()}?`,
       message: status === 'paid'
         ? 'This will mark all sold players as Paid (recorded via Cash settlement by default). You can customize individual records afterwards.'
         : 'This will revert all sold player payment statuses back to Pending.',
-      confirmLabel: `Mark all as ${status}`,
+      confirmLabel: `Mark all as ${label(status).toLowerCase()}`,
       tone: status === 'paid' ? 'default' : 'danger',
     });
     if (!proceed) return;
@@ -413,7 +414,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                     auction.status === 'paused' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
                     'bg-slate-800 text-slate-300'
                   }`}>
-                    ● {auction.status.replace('_', ' ')}
+                    ● {label(auction.status)}
                   </span>
                 ) : (
                   <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[11px] font-bold uppercase">
@@ -550,7 +551,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                   <p className="text-xs text-slate-400 mt-0.5">Control when team managers and players can enter the bidding arena</p>
                 </div>
                 <span className="text-xs font-mono font-bold text-amber-400 uppercase">
-                  Current: {auction.status}
+                  Current: {label(auction.status)}
                 </span>
               </div>
 
@@ -1201,7 +1202,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                               <div>
                                 <span className="text-white font-semibold uppercase">{sp.payment_method || 'CASH'}</span>
                                 {sp.payment_reference && (
-                                  <span className="block font-mono text-[10px] text-cyan-400">Ref: {sp.payment_reference}</span>
+                                  <span className="block font-code text-[10px] text-cyan-400">Ref: {sp.payment_reference}</span>
                                 )}
                                 {sp.paid_at && (
                                   <span className="text-[10px] text-slate-500 block">
@@ -1248,7 +1249,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
       {/* RECORD / EDIT PAYMENT SETTLEMENT MODAL */}
       {paymentModalOpen && selectedPlayerForPayment && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl overflow-y-auto max-h-[calc(100dvh-2rem)] space-y-5 animate-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">

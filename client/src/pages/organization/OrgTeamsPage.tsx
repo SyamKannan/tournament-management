@@ -12,6 +12,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { Skeleton, SkeletonTable, EmptyState } from '../../components/ui/Feedback';
 import { TournamentPicker } from '../../components/ui/TournamentPicker';
+import { label } from '../../lib/labels';
 
 export const OrgTeamsPage: React.FC = () => {
   const toast = useToast();
@@ -283,7 +284,7 @@ export const OrgTeamsPage: React.FC = () => {
                           {feeState}
                         </span>
                         {pay?.payment_method && paidAmount > 0 && (
-                          <span className="text-[11px] text-slate-500 font-normal uppercase">{pay.payment_method.replace('_', ' ')}</span>
+                          <span className="text-[11px] text-slate-500 font-normal uppercase">{label(pay.payment_method)}</span>
                         )}
                       </div>
                     </td>
@@ -317,7 +318,7 @@ export const OrgTeamsPage: React.FC = () => {
                         team.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400' :
                         team.status === 'pending' ? 'bg-amber-500/20 text-amber-400' : 'bg-rose-500/20 text-rose-400'
                       }`}>
-                        {team.status}
+                        {label(team.status)}
                       </span>
                     </td>
 

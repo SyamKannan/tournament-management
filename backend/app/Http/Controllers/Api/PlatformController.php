@@ -3,10 +3,16 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\GameMatch;
+use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\PlatformSetting;
+use App\Models\Player;
 use App\Models\Sport;
+use App\Models\Team;
+use App\Models\Tournament;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Unauthenticated platform endpoints: the public plan catalogue and a health probe.
@@ -56,6 +62,25 @@ class PlatformController extends Controller
             'support_email' => $footer['show_contact'] ? $settings->support_email : null,
             'support_phone' => $footer['show_contact'] ? $settings->support_phone : null,
         ]);
+    }
+
+    /**
+     * Headline counts for the sign-in and sign-up pages. Only public-facing
+     * activity is counted (active clubs, published tournaments), and the
+     * result is cached briefly since every visitor to those pages asks.
+     */
+    public function stats(): JsonResponse
+    {
+        return response()->json(Cache::remember('platform-stats', now()->addMinutes(10), fn () => [
+            'clubs' => Organization::query()->where('status', 'active')->count(),
+            'tournaments' => Tournament::query()->where('status', '!=', 'draft')->count(),
+            'teams' => Team::query()->whereNotIn('status', ['rejected', 'withdrawn'])->count(),
+            'players' => Player::query()->count(),
+            'matches_played' => GameMatch::query()->where('status', 'completed')->count(),
+            'live_matches' => GameMatch::query()
+                ->whereIn('status', ['toss', 'in_progress', 'half_time', 'innings_break', 'drinks_break'])
+                ->count(),
+        ]));
     }
 
     public function health(): JsonResponse

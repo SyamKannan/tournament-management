@@ -7,6 +7,7 @@ import type {
   Match, Team, Player, CricketMatchState, FootballMatchState, FootballScorecardSide, ScorecardInnings,
 } from '../types';
 import { FOOTBALL_EVENT_LABELS, tossDecisionPhrase } from '../lib/football';
+import { label } from '../lib/labels';
 
 interface MatchExportProps {
   match: Match;
@@ -176,7 +177,7 @@ export const MatchExport: React.FC<MatchExportProps> = ({
       if (match.man_of_the_match_player_id) {
         summary.push(['Player of the Match', playerName(match.man_of_the_match_player_id)]);
       }
-      summary.push(['Status', match.status.replace(/_/g, ' ')]);
+      summary.push(['Status', label(match.status)]);
 
       autoTable(doc, {
         startY: 42,
@@ -342,7 +343,7 @@ const appendFootball = (
       ? events.map(event => [
         `${event.minute}'`,
         teamName(event.team_id),
-        FOOTBALL_EVENT_LABELS[event.event_type] ?? event.event_type.replace(/_/g, ' '),
+        FOOTBALL_EVENT_LABELS[event.event_type] ?? label(event.event_type),
         event.event_type === 'substitution'
           ? `${playerName(event.sub_in_player_id)} on`
           : playerName(event.player_id),

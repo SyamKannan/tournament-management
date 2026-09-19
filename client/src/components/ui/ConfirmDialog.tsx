@@ -83,7 +83,7 @@ const ConfirmModal: React.FC<{ options: PendingConfirm; onSettle: (confirmed: bo
       />
 
       <div className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl bg-slate-900 ring-1 ring-slate-700/70
-                      shadow-2xl shadow-black/60 p-6 animate-dialog-in">
+                      shadow-2xl shadow-black/60 p-5 sm:p-6 max-h-[92dvh] overflow-y-auto animate-dialog-in">
         <div className="flex items-start gap-4">
           <div className={`shrink-0 w-11 h-11 rounded-xl grid place-items-center ring-1 ${
             danger ? 'bg-rose-500/10 ring-rose-500/30' : 'bg-cyan-500/10 ring-cyan-500/30'

@@ -2,11 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-  Trophy, ShieldCheck, Building2, UserCircle, User,
+  ShieldCheck, Building2, UserCircle, User,
   LogOut, ChevronDown, LogIn, Plus, Menu, X, Wifi, WifiOff, Gavel,
   Sparkles, ArrowLeft, Settings
 } from 'lucide-react';
 import { ImpersonateModal } from './ImpersonateModal';
+import { label } from '../lib/labels';
+import { BrandMark } from './brand/BrandMark';
 
 interface NavbarProps {
   /** Shown only on workspace routes, where a sidebar exists to open. */
@@ -69,19 +71,41 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
   const WORKSPACES = {
     SUPER_ADMIN:  { to: '/admin/dashboard',        label: 'Admin Console',  icon: ShieldCheck, classes: 'from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/20' },
     ORG_ADMIN:    { to: '/organization/dashboard', label: 'Club Dashboard', icon: Building2,   classes: 'from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-cyan-600/20' },
-    // Auction is the only thing the team-manager workspace does today, and it's
-    // hidden until launch — so this role lands on the home page for now.
-    TEAM_MANAGER: { to: '/',                       label: 'My Team',        icon: Gavel,       classes: 'from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-600/20' },
+    TEAM_MANAGER: { to: '/team/dashboard',         label: 'My Team',        icon: Gavel,       classes: 'from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-600/20' },
     PLAYER:       { to: '/player/dashboard',       label: 'My Profile',     icon: UserCircle,  classes: 'from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-violet-600/20' },
   } as const;
 
   const workspace = WORKSPACES[role as keyof typeof WORKSPACES] ?? WORKSPACES.ORG_ADMIN;
 
+  // A club account represents the club, not a person: show its crest and name.
+  const isClubAccount = role === 'ORG_ADMIN' && !!organization;
+  const ROLE_CAPTIONS: Record<string, string> = {
+    SUPER_ADMIN: 'Super Admin', PLAYER: 'Player', TEAM_MANAGER: 'Team Manager', SCORER: 'Scorer',
+  };
+  const identity = isClubAccount
+    ? {
+        image: organization.logo,
+        title: organization.name,
+        fullTitle: organization.name,
+        caption: 'Club account',
+        email: organization.email || user?.email,
+        badge: organization.type || 'Club',
+      }
+    : {
+        image: user?.avatar,
+        title: user?.name?.split(' ')[0],
+        fullTitle: user?.name,
+        caption: ROLE_CAPTIONS[role] || organization?.name || 'Member',
+        email: user?.email,
+        badge: role === 'SUPER_ADMIN' ? 'Platform Super Admin' : (organization?.name || ROLE_CAPTIONS[role] || label(role)),
+      };
+
   const WorkspaceIcon = workspace.icon;
 
   return (
     <header className="sticky top-0 z-50 bg-slate-950/90 border-b border-slate-800/80 backdrop-blur-xl">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Inside a workspace the header spans the full width so it lines up with the sidebar below it. */}
+      <div className={showMenuButton ? 'px-4 sm:px-6' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'}>
         <div className="flex items-center justify-between h-16 gap-3">
 
           <div className="flex items-center gap-2 min-w-0">
@@ -96,14 +120,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
             )}
 
             <Link to="/" className="flex items-center gap-2.5 group min-w-0">
-              <div className="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 p-0.5
-                              shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
-                <div className="w-full h-full bg-slate-950 rounded-[10px] grid place-items-center">
-                  <Trophy className="w-4 h-4 text-emerald-400" aria-hidden="true" />
-                </div>
-              </div>
+              <BrandMark className="w-9 h-9 shrink-0 shadow-md shadow-emerald-500/20 rounded-xl group-hover:scale-105 transition-transform" />
               <span className="text-base font-black tracking-tight text-white font-heading flex items-center gap-1.5">
-                SPORTIVO
+                KickWick
                 <span className="hidden sm:inline text-emerald-400 text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/10
                                  border border-emerald-500/20 font-sans font-bold uppercase">
                   PRO
@@ -113,20 +132,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
           </div>
 
           <nav className="hidden lg:flex items-center gap-1 text-sm font-medium text-slate-300" aria-label="Main">
-            <Link to="/" className="px-3 py-2 rounded-lg hover:text-white hover:bg-slate-800/60 transition-colors text-sm font-semibold">
-              Home
-            </Link>
+            {/* Players, clubs and team managers work from their own workspace; the logo still links home. */}
+            {(!isAuthenticated || role === 'SUPER_ADMIN') && (
+              <Link to="/" className="px-3 py-2 rounded-lg hover:text-white hover:bg-slate-800/60 transition-colors text-sm font-semibold">
+                Home
+              </Link>
+            )}
             <Link to="/players" className="px-3 py-2 rounded-lg hover:text-white hover:bg-slate-800/60 transition-colors text-sm font-semibold">
               Player Stats
             </Link>
-            {isAuthenticated && (
-              <Link
-                to={workspace.to}
-                className="px-3 py-2 rounded-lg hover:text-white hover:bg-slate-800/60 transition-colors text-sm font-semibold"
-              >
-                Workspace
-              </Link>
-            )}
           </nav>
 
           <div className="flex items-center gap-2">
@@ -187,14 +201,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
               </>
             ) : (
               <>
-                <Link
+                {/* The sidebar already leads around the workspace; outside it, this is the way back in. */}
+                {!showMenuButton && <Link
                   to={workspace.to}
                   className={`hidden md:flex px-3 py-2 rounded-xl bg-gradient-to-r ${workspace.classes}
                               text-white text-sm font-bold shadow-md items-center gap-1.5 transition-colors`}
                 >
                   <WorkspaceIcon className="w-4 h-4" aria-hidden="true" />
                   {workspace.label}
-                </Link>
+                </Link>}
 
                 <div className="relative" ref={menuRef}>
                   <button
@@ -205,17 +220,19 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
                     className="flex items-center gap-2 p-1.5 rounded-xl bg-slate-900 border border-slate-800
                                hover:border-slate-700 transition-colors"
                   >
-                    <img
-                      src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
-                      alt=""
-                      className="w-7 h-7 rounded-lg object-cover"
-                    />
+                    {identity.image ? (
+                      <img src={identity.image} alt="" className="w-7 h-7 rounded-lg object-cover bg-slate-800" />
+                    ) : (
+                      <span className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-slate-300">
+                        {isClubAccount ? <Building2 className="w-4 h-4" aria-hidden="true" /> : <UserCircle className="w-4 h-4" aria-hidden="true" />}
+                      </span>
+                    )}
                     <span className="hidden sm:block text-left pr-1">
                       <span className="block text-xs font-bold text-white leading-tight truncate max-w-[130px]">
-                        {user?.name?.split(' ')[0]}
+                        {identity.title}
                       </span>
                       <span className="block text-[11px] text-slate-400 font-medium truncate max-w-[130px]">
-                        {role === 'SUPER_ADMIN' ? 'Super Admin' : (organization?.name || 'Club Admin')}
+                        {identity.caption}
                       </span>
                     </span>
                     <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} aria-hidden="true" />
@@ -228,11 +245,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
                                  shadow-2xl shadow-black/50 p-1.5 z-50 backdrop-blur-xl animate-toast-in"
                     >
                       <div className="px-3 py-2.5 border-b border-slate-800/80 mb-1">
-                        <p className="text-sm font-bold text-white truncate">{user?.name}</p>
-                        <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+                        <p className="text-sm font-bold text-white truncate">{identity.fullTitle}</p>
+                        <p className="text-xs text-slate-400 truncate">{identity.email}</p>
                         <span className="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400
                                          border border-emerald-500/20 text-[11px] font-bold uppercase">
-                          {role === 'SUPER_ADMIN' ? 'Platform Super Admin' : (organization?.name || 'Org Admin')}
+                          {identity.badge}
                         </span>
                       </div>
 
@@ -253,7 +270,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
                                    hover:bg-slate-800 transition-colors flex items-center gap-2.5"
                       >
                         <Settings className="w-4 h-4 text-cyan-400" aria-hidden="true" />
-                        My Profile
+                        {isClubAccount ? 'Club Profile' : 'My Profile'}
                       </Link>
 
                       {role === 'SUPER_ADMIN' && !isImpersonating && (

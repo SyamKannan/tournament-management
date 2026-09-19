@@ -1,14 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
+import { roleHome } from '../../lib/roleHome';
 import { SHOW_ADMIN_LOGIN, SHOW_DEMO_ACCOUNTS } from '../../config';
 import { AuthShowcase } from '../../components/AuthShowcase';
 import { SPORTS_CAROUSELS } from '../../lib/sportsImagery';
-import {
-  Trophy, ShieldCheck, Building2, Lock, Mail,
-  ArrowRight, AlertCircle, Eye, EyeOff, User
-} from 'lucide-react';
+import { AuthLayout, AuthHeader, AuthCard, AuthAlert, AuthField, AuthSubmit, AuthFooter, type AuthAccent } from '../../components/auth/AuthUI';
+import { ShieldCheck, Building2, Lock, Mail, Eye, EyeOff, User, type LucideIcon } from 'lucide-react';
+
+type LoginTab = 'ORG_ADMIN' | 'PLAYER' | 'SUPER_ADMIN';
+
+const TABS: { id: LoginTab; label: string; icon: LucideIcon; accent: AuthAccent }[] = [
+  { id: 'ORG_ADMIN', label: 'Club', icon: Building2, accent: 'emerald' },
+  { id: 'PLAYER', label: 'Player', icon: User, accent: 'amber' },
+  ...(SHOW_ADMIN_LOGIN ? [{ id: 'SUPER_ADMIN' as const, label: 'Admin', icon: ShieldCheck, accent: 'cyan' as const }] : []),
+];
+
+const DEMO_ACCOUNTS: Record<LoginTab, { name: string; email: string }[]> = {
+  ORG_ADMIN: [
+    { name: 'Green Valley Sports Club', email: 'admin@greenvalley.com' },
+    { name: 'Malabar Cricket Academy', email: 'admin@malabar.com' },
+  ],
+  PLAYER: [
+    { name: 'Shameer Babu · Football striker', email: 'shameer.player@gmail.com' },
+    { name: 'Rahul Menon · Cricket all-rounder', email: 'rahul.player@gmail.com' },
+  ],
+  SUPER_ADMIN: [{ name: 'Syam · Platform super admin', email: 'syamdas@gmail.com' }],
+};
 
 export const LoginPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -18,7 +37,7 @@ export const LoginPage: React.FC = () => {
   const redirectUrl = searchParams.get('redirect');
   const initialRoleParam = searchParams.get('role');
 
-  const [activeTab, setActiveTab] = useState<'ORG_ADMIN' | 'PLAYER' | 'SUPER_ADMIN'>(
+  const [activeTab, setActiveTab] = useState<LoginTab>(
     initialRoleParam === 'SUPER_ADMIN' && SHOW_ADMIN_LOGIN ? 'SUPER_ADMIN' : initialRoleParam === 'PLAYER' ? 'PLAYER' : 'ORG_ADMIN'
   );
 
@@ -31,19 +50,11 @@ export const LoginPage: React.FC = () => {
   // If already authenticated, redirect
   useEffect(() => {
     if (isAuthenticated) {
-      if (redirectUrl) {
-        navigate(redirectUrl);
-      } else if (role === 'SUPER_ADMIN') {
-        navigate('/admin/dashboard');
-      } else if (role === 'PLAYER') {
-        navigate('/player/dashboard');
-      } else {
-        navigate('/organization/dashboard');
-      }
+      navigate(redirectUrl || roleHome(role));
     }
   }, [isAuthenticated, role, redirectUrl, navigate]);
 
-  const handleTabChange = (tab: 'ORG_ADMIN' | 'PLAYER' | 'SUPER_ADMIN') => {
+  const handleTabChange = (tab: LoginTab) => {
     setActiveTab(tab);
     setError(null);
     // Pre-filling seeded credentials is a demo convenience only.
@@ -60,7 +71,7 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleQuickFill = (demoEmail: string, demoPass: string, tab: 'ORG_ADMIN' | 'PLAYER' | 'SUPER_ADMIN') => {
+  const handleQuickFill = (demoEmail: string, demoPass: string, tab: LoginTab) => {
     setActiveTab(tab);
     setEmail(demoEmail);
     setPassword(demoPass);
@@ -79,15 +90,7 @@ export const LoginPage: React.FC = () => {
 
     try {
       const result = await login(email, password);
-      if (redirectUrl) {
-        navigate(redirectUrl);
-      } else if (result.user.role === 'SUPER_ADMIN') {
-        navigate('/admin/dashboard');
-      } else if (result.user.role === 'PLAYER') {
-        navigate('/player/dashboard');
-      } else {
-        navigate('/organization/dashboard');
-      }
+      navigate(redirectUrl || roleHome(result.user.role));
     } catch (err: any) {
       setError(err?.message || 'Invalid email or password. Please verify your credentials.');
     } finally {
@@ -95,257 +98,142 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  const accent = TABS.find(t => t.id === activeTab)?.accent ?? 'emerald';
+
   return (
-    <div className="lg:flex">
-      <AuthShowcase
-        images={SPORTS_CAROUSELS.login}
-        eyebrow="Live Match Control"
-        title={<>Run your tournament like <span className="text-emerald-400">it's matchday.</span></>}
-        description="Live scoring with instant undo, automated standings, and 16:9 broadcast scoreboards — all from one dashboard."
-        stats={[
-          { value: '120+', label: 'Clubs Onboarded' },
-          { value: '500+', label: 'Matches Scored' },
-          { value: '16:9', label: 'TV Broadcast' },
-        ]}
-        accent="emerald"
+    <AuthLayout
+      accent={accent}
+      showcase={
+        <AuthShowcase
+          images={SPORTS_CAROUSELS.login}
+          eyebrow="Welcome back"
+          title={<>Sign in to run your <span className="text-emerald-400">tournaments.</span></>}
+          description="Score matches live, keep the points table up to date and manage your teams, all in one place."
+          stats={['clubs', 'tournaments', 'matches_played', 'teams', 'live_matches']}
+          accent="emerald"
+        />
+      }
+    >
+      <AuthHeader
+        accent={accent}
+        title="Welcome back"
+        subtitle="Sign in to your dashboard, player profile and live scoreboards."
       />
 
-    <div className="min-h-[85vh] flex-1 flex items-center justify-center px-4 py-12">
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: [0.21, 1.02, 0.73, 1] }}
-        className="w-full max-w-md"
-      >
-        {/* Brand Header */}
-        <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-2.5 group mb-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-cyan-500 p-0.5 shadow-xl shadow-emerald-500/20 group-hover:scale-105 transition-transform flex items-center justify-center">
-              <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-                <Trophy className="w-6 h-6 text-emerald-400" />
-              </div>
-            </div>
-          </Link>
-          <h1 className="text-2xl font-black font-heading text-white tracking-tight">
-            Sign In to Sportivo
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Access your tournament dashboard, player profile, and live scoreboards
-          </p>
-        </div>
-
-        {/* Portal Tabs */}
-        <div className="flex rounded-2xl bg-slate-900/90 p-1 border border-slate-800 mb-6 text-xs font-bold">
-          <button
-            type="button"
-            onClick={() => handleTabChange('ORG_ADMIN')}
-            className={`flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === 'ORG_ADMIN'
-                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Building2 className="w-3.5 h-3.5" />
-            <span>Club Login</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleTabChange('PLAYER')}
-            className={`flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all ${
-              activeTab === 'PLAYER'
-                ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <User className="w-3.5 h-3.5" />
-            <span>Player Login</span>
-          </button>
-
-          {SHOW_ADMIN_LOGIN && (
+      {/* Account type */}
+      <div role="tablist" aria-label="Account type" className="relative flex p-1 mb-5 rounded-2xl bg-slate-900/80 ring-1 ring-white/5">
+        {TABS.map(tab => {
+          const active = tab.id === activeTab;
+          return (
             <button
+              key={tab.id}
               type="button"
-              onClick={() => handleTabChange('SUPER_ADMIN')}
-              className={`flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all ${
-                activeTab === 'SUPER_ADMIN'
-                  ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/20'
-                  : 'text-slate-400 hover:text-white'
+              role="tab"
+              aria-selected={active}
+              onClick={() => handleTabChange(tab.id)}
+              className={`relative flex-1 h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                active ? 'text-white' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Super Admin</span>
-            </button>
-          )}
-        </div>
-
-        {/* Login Card */}
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-2xl relative">
-          {error && (
-            <div className="mb-5 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2.5 animate-in fade-in">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+              {active && (
+                <motion.span
+                  layoutId="login-tab"
+                  className="absolute inset-0 rounded-xl bg-slate-700/70 ring-1 ring-white/10 shadow"
+                  transition={{ type: 'spring', stiffness: 500, damping: 38 }}
                 />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold text-slate-300">
-                  Password
-                </label>
-              </div>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-3 text-slate-500 hover:text-slate-300"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className={`w-full py-3 rounded-xl text-white font-black text-sm shadow-lg flex items-center justify-center gap-2 transition-all mt-6 ${
-                activeTab === 'SUPER_ADMIN'
-                  ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-cyan-600/20'
-                  : activeTab === 'PLAYER'
-                  ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-600/20'
-                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/20'
-              }`}
-            >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  <span>Sign In</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
               )}
+              <tab.icon className="relative w-4 h-4" />
+              <span className="relative">{tab.label}</span>
             </button>
-          </form>
+          );
+        })}
+      </div>
 
-          {/* Seeded demo logins — only rendered when VITE_SHOW_DEMO_ACCOUNTS=true. */}
-          {SHOW_DEMO_ACCOUNTS && (
-          <div className="mt-6 pt-5 border-t border-slate-800/80">
-            <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block mb-2">
-              1-Click Demo Accounts:
-            </span>
+      <AuthCard>
+        <AuthAlert message={error} />
 
-            {activeTab === 'PLAYER' ? (
-              <div className="space-y-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('shameer.player@gmail.com', '12345678', 'PLAYER')}
-                  className="w-full p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-left text-xs transition-colors flex items-center justify-between"
-                >
-                  <div>
-                    <span className="font-bold text-white block">Shameer Babu (⚽ Football Striker)</span>
-                    <span className="text-[11px] text-slate-400">shameer.player@gmail.com • 12345678</span>
-                  </div>
-                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono text-[11px] font-bold">Fill</span>
-                </button>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <AuthField label="Email" htmlFor="login-email" icon={Mail}>
+            <input
+              id="login-email"
+              type="email"
+              autoComplete="email"
+              inputMode="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
+              required
+              className="auth-field"
+            />
+          </AuthField>
 
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('rahul.player@gmail.com', '12345678', 'PLAYER')}
-                  className="w-full p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-left text-xs transition-colors flex items-center justify-between"
-                >
-                  <div>
-                    <span className="font-bold text-white block">Rahul Menon (🏏 Cricket All-Rounder)</span>
-                    <span className="text-[11px] text-slate-400">rahul.player@gmail.com • 12345678</span>
-                  </div>
-                  <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono text-[11px] font-bold">Fill</span>
-                </button>
-              </div>
-            ) : activeTab === 'SUPER_ADMIN' ? (
+          <AuthField
+            label="Password"
+            htmlFor="login-password"
+            icon={Lock}
+            trailing={
               <button
                 type="button"
-                onClick={() => handleQuickFill('syamdas@gmail.com', '12345678', 'SUPER_ADMIN')}
-                className="w-full p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-left text-xs transition-colors flex items-center justify-between"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="w-9 h-9 rounded-lg grid place-items-center text-slate-500 hover:text-slate-200 hover:bg-white/5"
               >
-                <div>
-                  <span className="font-bold text-white block">Syam (Platform Super Admin)</span>
-                  <span className="text-[11px] text-slate-400">syamdas@gmail.com • 12345678</span>
-                </div>
-                <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono text-[11px] font-bold">Fill</span>
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
-            ) : (
-              <div className="space-y-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('admin@greenvalley.com', '12345678', 'ORG_ADMIN')}
-                  className="w-full p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-left text-xs transition-colors flex items-center justify-between"
-                >
-                  <div>
-                    <span className="font-bold text-white block">Green Valley Sports Club</span>
-                    <span className="text-[11px] text-slate-400">admin@greenvalley.com • 12345678</span>
-                  </div>
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono text-[11px] font-bold">Fill</span>
-                </button>
+            }
+          >
+            <input
+              id="login-password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              required
+              className="auth-field pr-12"
+            />
+          </AuthField>
 
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('admin@malabar.com', '12345678', 'ORG_ADMIN')}
-                  className="w-full p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-left text-xs transition-colors flex items-center justify-between"
-                >
-                  <div>
-                    <span className="font-bold text-white block">Malabar Cricket Academy</span>
-                    <span className="text-[11px] text-slate-400">admin@malabar.com • 12345678</span>
-                  </div>
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono text-[11px] font-bold">Fill</span>
-                </button>
-              </div>
-            )}
+          <div className="pt-2">
+            <AuthSubmit accent={accent} loading={isLoading}>Sign in</AuthSubmit>
           </div>
-          )}
-        </div>
+        </form>
 
-        {/* Footer Links */}
-        <div className="mt-6 p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-          <div>
-            Are you an athlete?{' '}
-            <Link to="/register-player" className="text-cyan-400 font-bold hover:underline">
-              Register as Player ↗
-            </Link>
+        {/* Seeded demo logins — only rendered when VITE_SHOW_DEMO_ACCOUNTS=true. */}
+        {SHOW_DEMO_ACCOUNTS && (
+          <div className="mt-6">
+            <div className="flex items-center gap-3 mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              <span className="h-px flex-1 bg-white/10" />
+              Demo accounts
+              <span className="h-px flex-1 bg-white/10" />
+            </div>
+            <div className="space-y-2">
+              {DEMO_ACCOUNTS[activeTab].map(acc => (
+                <button
+                  key={acc.email}
+                  type="button"
+                  onClick={() => handleQuickFill(acc.email, '12345678', activeTab)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] ring-1 ring-white/5 text-left flex items-center justify-between gap-3 transition-colors"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-white truncate">{acc.name}</span>
+                    <span className="block text-xs text-slate-400 truncate">{acc.email}</span>
+                  </span>
+                  <span className="shrink-0 text-xs font-bold text-slate-300">Use</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-slate-500 text-center">Password for every demo account: 12345678</p>
           </div>
-          <div>
-            Club or Academy?{' '}
-            <Link to="/register-club" className="text-emerald-400 font-bold hover:underline">
-              Register Club ↗
-            </Link>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-    </div>
+        )}
+      </AuthCard>
+
+      <AuthFooter
+        links={[
+          { prompt: 'New player?', to: '/register-player', label: 'Create a player profile' },
+          { prompt: 'Running a club?', to: '/register-club', label: 'Register your club' },
+        ]}
+      />
+    </AuthLayout>
   );
 };

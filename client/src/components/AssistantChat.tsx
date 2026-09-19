@@ -132,7 +132,7 @@ export const AssistantChat: React.FC = () => {
         <ScoreyAvatar size={40} animated />
         <div className="flex-1">
           <div className="text-sm font-semibold text-white">Scorey</div>
-          <div className="text-xs text-slate-400">Your Sportivo buddy · scores, stats & how-tos</div>
+          <div className="text-xs text-slate-400">Your KickWick buddy · scores, stats & how-tos</div>
         </div>
         {messages.length > 0 && (
           <button onClick={() => { setMessages([]); setError(null); }} aria-label="New conversation" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white">
@@ -149,7 +149,7 @@ export const AssistantChat: React.FC = () => {
           <div className="space-y-3">
             <div className="flex flex-col items-center gap-2 pb-1 pt-2 text-center">
               <ScoreyAvatar size={72} animated />
-              <p className="text-slate-300">Hi, I'm <strong className="text-white">Scorey</strong>! 👋 Ask me about live scores, fixtures, points tables, player stats — or how anything on Sportivo works.</p>
+              <p className="text-slate-300">Hi, I'm <strong className="text-white">Scorey</strong>! 👋 Ask me about live scores, fixtures, points tables, player stats — or how anything on KickWick works.</p>
             </div>
             <div className="flex flex-col gap-2">
               {SUGGESTIONS.map((s) => (

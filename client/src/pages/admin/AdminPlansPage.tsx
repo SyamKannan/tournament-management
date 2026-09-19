@@ -451,7 +451,7 @@ export const AdminPlansPage: React.FC = () => {
                 <label className="block text-slate-300 font-bold uppercase tracking-wider text-[11px] mb-2">
                   Plan Resource Limits
                 </label>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="block text-slate-400 text-[11px] mb-1">Tournaments</label>
                     <input

@@ -12,6 +12,7 @@ import { PlayerCodeBadge } from '../../components/PlayerCodeBadge';
 import { ImageUploadModal } from '../../components/ImageUploadModal';
 import { PhoneInput } from '../../components/PhoneInput';
 import { useToast } from '../../components/ui/Toast';
+import { useAuth } from '../../context/AuthContext';
 import type { PaymentMethod } from '../../types';
 import type { RazorpayOrder, RazorpayVerifiedPayment } from '../../utils/razorpay';
 import { openCheckout } from '../../utils/checkout';
@@ -74,6 +75,18 @@ export const PublicTeamRegisterPage: React.FC = () => {
   const [managerEmail, setManagerEmail] = useState('');
   const [managerAddress, setManagerAddress] = useState('');
 
+  // Entering from a team manager's portal: start from their own details
+  // (the team is linked to their account when it's submitted).
+  const { user, role } = useAuth();
+  const isManagerAccount = role === 'TEAM_MANAGER' && !!user;
+  useEffect(() => {
+    if (!isManagerAccount || !user) return;
+    setManagerName(current => current || user.name || '');
+    setManagerPhone(current => current || user.phone || '');
+    setManagerWhatsapp(current => current || user.phone || '');
+    setManagerEmail(current => current || user.email || '');
+  }, [isManagerAccount, user]);
+
   // Step 3: Squad Players
   const [players, setPlayers] = useState<PlayerRow[]>([]);
   const [photoUploadIndex, setPhotoUploadIndex] = useState<number | null>(null);
@@ -98,6 +111,8 @@ export const PublicTeamRegisterPage: React.FC = () => {
         setTournament(res.tournament);
         setOrganization(res.organization);
         setPaymentOptions(res.payment_options);
+        // Half is only on offer when the organizer allows paying in halves.
+        setSelectedPaymentOption(res.payment_options?.allowPartial ? 'partial' : 'full');
         setClosedReason(
           res.closed_reason
             || (res.is_full ? `This tournament is full — all ${res.tournament.max_teams} places have been taken.` : null)
@@ -315,7 +330,9 @@ export const PublicTeamRegisterPage: React.FC = () => {
 
   const isFootball = tournament.sport_code === 'football';
   const totalGroundFee = tournament.ground_fee || 0;
-  const partialAmount = paymentOptions?.partialAmount || Math.round(totalGroundFee / 2);
+  // A team pays in full, or half now when the organizer allows it.
+  const allowHalf = !!paymentOptions?.allowPartial && totalGroundFee > 0;
+  const partialAmount = allowHalf ? (paymentOptions?.partialAmount || totalGroundFee / 2) : totalGroundFee;
   const isPayAtGround = paymentMethod === 'pay_at_ground';
   const amountToPayNow = isPayAtGround ? 0 : (selectedPaymentOption === 'full' ? totalGroundFee : partialAmount);
   const balanceDue = Math.max(0, totalGroundFee - amountToPayNow);
@@ -413,7 +430,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">Village / Town</label>
                   <input
@@ -704,7 +721,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
             <div className="space-y-5 animate-in fade-in">
               <div className="border-b border-slate-800 pb-3 mb-4">
                 <h2 className="text-lg font-bold text-white font-heading">Step 4: Ground Fee & Payment</h2>
-                <p className="text-xs text-slate-400">Choose between full payment or partial advance payment</p>
+                <p className="text-xs text-slate-400">{allowHalf ? 'Pay the full ground fee, or half now and half later' : 'Pay the ground fee'}</p>
               </div>
 
               {/* Summary Card */}
@@ -770,13 +787,14 @@ export const PublicTeamRegisterPage: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-bold text-sm">Full Payment (100%)</span>
+                        <span className="font-bold text-sm">Full Payment</span>
                         <span className="font-mono text-base font-black text-emerald-400">₹{totalGroundFee.toLocaleString()}</span>
                       </div>
                       <p className="text-[11px] text-slate-400">Pay complete ground fee in advance. Instant fully-paid confirmation.</p>
                     </button>
 
-                    {/* Partial 50% Payment Option */}
+                    {/* Half now, half later — only when the organizer allows it */}
+                    {allowHalf && (
                     <button
                       type="button"
                       onClick={() => setSelectedPaymentOption('partial')}
@@ -787,11 +805,12 @@ export const PublicTeamRegisterPage: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-bold text-sm">Partial Advance (50%)</span>
+                        <span className="font-bold text-sm">Half Payment</span>
                         <span className="font-mono text-base font-black text-amber-400">₹{partialAmount.toLocaleString()}</span>
                       </div>
-                      <p className="text-[11px] text-slate-400">Pay ₹{partialAmount.toLocaleString()} now. Remaining ₹{balanceDue.toLocaleString()} due at match venue.</p>
+                      <p className="text-[11px] text-slate-400">Pay ₹{partialAmount.toLocaleString()} now. Pay the other ₹{(totalGroundFee - partialAmount).toLocaleString()} later, online or at the ground.</p>
                     </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -907,6 +926,15 @@ export const PublicTeamRegisterPage: React.FC = () => {
                   <Download className="w-4 h-4" />
                   <span>View & Download Official PDF Receipt</span>
                 </button>
+
+                {isManagerAccount && (
+                  <Link
+                    to="/team/dashboard"
+                    className="px-6 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors"
+                  >
+                    Go to My Team
+                  </Link>
+                )}
 
                 <Link
                   to={`/tournaments/${tournament.slug}`}

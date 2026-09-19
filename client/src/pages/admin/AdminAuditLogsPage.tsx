@@ -3,6 +3,7 @@ import { api } from '../../services/api';
 import type { AuditLog } from '../../types';
 import { Search } from 'lucide-react';
 import { Skeleton, SkeletonTable } from '../../components/ui/Feedback';
+import { label } from '../../lib/labels';
 
 export const AdminAuditLogsPage: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -87,7 +88,7 @@ export const AdminAuditLogsPage: React.FC = () => {
                       <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase ${
                         isViolation ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/10 text-emerald-400'
                       }`}>
-                        {log.action}
+                        {label(log.action)}
                       </span>
                     </td>
                     <td className="px-4 py-3.5 text-slate-300">

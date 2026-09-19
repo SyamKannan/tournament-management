@@ -1,13 +1,31 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles } from 'lucide-react';
 import { ImageCarouselBackdrop } from './ImageCarouselBackdrop';
 import { useImageCarousel } from '../lib/useImageCarousel';
+import { api } from '../services/api';
 
-interface AuthShowcaseStat {
-  value: string;
-  label: string;
-}
+/** Live counts from `GET /platform-stats`. */
+export type PlatformStatKey = 'clubs' | 'tournaments' | 'teams' | 'players' | 'matches_played' | 'live_matches';
+type PlatformStats = Record<PlatformStatKey, number>;
+
+const STAT_LABELS: Record<PlatformStatKey, string> = {
+  clubs: 'Clubs',
+  tournaments: 'Tournaments',
+  teams: 'Teams',
+  players: 'Players',
+  matches_played: 'Matches played',
+  live_matches: 'Live now',
+};
+
+const compact = new Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 });
+
+/** Fetched once per page load and shared by whichever auth page is open. */
+let statsRequest: Promise<PlatformStats | null> | null = null;
+const loadStats = () =>
+  (statsRequest ??= api.get('/platform-stats').catch(() => {
+    statsRequest = null;
+    return null;
+  }));
 
 type Accent = 'emerald' | 'cyan' | 'amber' | 'violet';
 
@@ -16,7 +34,8 @@ interface AuthShowcaseProps {
   eyebrow: string;
   title: React.ReactNode;
   description: string;
-  stats: AuthShowcaseStat[];
+  /** Which live counts to show, in order of preference; the first three above zero are shown. */
+  stats: PlatformStatKey[];
   accent?: Accent;
 }
 
@@ -54,15 +73,23 @@ export const AuthShowcase: React.FC<AuthShowcaseProps> = ({
   accent = 'emerald',
 }) => {
   const activeSlide = useImageCarousel(images.length, 6000);
+  const [counts, setCounts] = useState<PlatformStats | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    loadStats().then(result => { if (alive) setCounts(result); });
+    return () => { alive = false; };
+  }, []);
+
+  // A brand-new platform shouldn't advertise "0 clubs": zero counts are skipped,
+  // and the row disappears entirely if nothing is worth showing.
+  const shown = counts ? stats.filter(key => (counts[key] ?? 0) > 0).slice(0, 3) : [];
 
   return (
-    <div className="relative hidden lg:block lg:w-[45%] xl:w-1/2 overflow-hidden shrink-0 lg:sticky lg:top-0 lg:h-screen lg:self-start">
+    <div className="relative hidden lg:block lg:w-[45%] xl:w-1/2 overflow-hidden shrink-0 lg:sticky lg:top-16 lg:h-[calc(100dvh-4rem)] lg:self-start">
       <ImageCarouselBackdrop images={images} activeIndex={activeSlide} />
       <div className="absolute inset-0 photo-overlay-base" aria-hidden="true" />
       <div className="absolute inset-0" style={{ backgroundImage: ACCENT_WASH[accent] }} aria-hidden="true" />
-
-      <div className="absolute top-12 right-12 text-4xl opacity-70 animate-float-slow select-none" aria-hidden="true">⚽</div>
-      <div className="absolute top-1/3 left-12 text-3xl opacity-50 animate-float-slower select-none" aria-hidden="true">🏏</div>
 
       {images.length > 1 && (
         <div className="absolute top-10 left-10 z-10 flex items-center gap-1.5">
@@ -81,8 +108,7 @@ export const AuthShowcase: React.FC<AuthShowcaseProps> = ({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: [0.21, 1.02, 0.73, 1] }}
         >
-          <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-bold uppercase tracking-wider mb-5 ${ACCENT_BADGE[accent]}`}>
-            <Sparkles className="w-3.5 h-3.5" />
+          <span className={`inline-flex items-center px-3 py-1 rounded-full border text-[11px] font-bold uppercase tracking-wider mb-5 ${ACCENT_BADGE[accent]}`}>
             {eyebrow}
           </span>
           <h2 className="text-3xl xl:text-4xl font-black font-heading text-white leading-tight mb-3 max-w-md">
@@ -93,20 +119,25 @@ export const AuthShowcase: React.FC<AuthShowcaseProps> = ({
           </p>
         </motion.div>
 
+        {shown.length > 0 && (
         <div className="grid grid-cols-3 gap-4 max-w-md">
-          {stats.map((stat, i) => (
+          {shown.map((key, i) => (
             <motion.div
-              key={stat.label}
+              key={key}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.15 + i * 0.1, ease: [0.21, 1.02, 0.73, 1] }}
               className="p-3 rounded-2xl bg-slate-950/50 border border-white/10 backdrop-blur-sm"
             >
-              <div className="text-lg font-black text-white font-heading">{stat.value}</div>
-              <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide leading-tight mt-0.5">{stat.label}</div>
+              <div className="text-lg font-black text-white font-heading flex items-center gap-1.5">
+                {key === 'live_matches' && <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" aria-hidden="true" />}
+                {compact.format(counts![key])}
+              </div>
+              <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide leading-tight mt-0.5">{STAT_LABELS[key]}</div>
             </motion.div>
           ))}
         </div>
+        )}
       </div>
     </div>
   );

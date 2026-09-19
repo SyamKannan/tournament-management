@@ -13,6 +13,7 @@ import {
   Gavel, Clock, Check, X, Tv, 
   Search, Zap, AlertTriangle, CheckCircle2
 } from 'lucide-react';
+import { label } from '../../lib/labels';
 
 export const LiveAuctionArenaPage: React.FC = () => {
   const confirm = useConfirm();
@@ -652,7 +653,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
                       <span className={`block text-[11px] font-bold uppercase ${
                         p.status === 'sold' ? 'text-emerald-400' : p.status === 'unsold' ? 'text-rose-400' : 'text-cyan-400'
                       }`}>
-                        {p.status}
+                        {label(p.status)}
                       </span>
                     </div>
 

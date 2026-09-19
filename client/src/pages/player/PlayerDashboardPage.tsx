@@ -181,7 +181,7 @@ export const PlayerDashboardPage: React.FC = () => {
                     Settled via {(auction_entry.payment_method || 'Cash').toUpperCase()}
                   </div>
                   {auction_entry.payment_reference && (
-                    <div className="font-mono text-[11px] text-cyan-400">Ref: {auction_entry.payment_reference}</div>
+                    <div className="font-code text-[11px] text-cyan-400">Ref: {auction_entry.payment_reference}</div>
                   )}
                   {auction_entry.paid_at && (
                     <div className="text-[11px] text-slate-500">Paid on {new Date(auction_entry.paid_at).toLocaleDateString()}</div>

@@ -89,7 +89,7 @@ draft tournaments 404). Careers join squad entries through the user account (id 
 tool loop over raw HTTP: Gemini when `GEMINI_API_KEY` is set (free tier, `GEMINI_MODEL`), else Claude via
 `ANTHROPIC_API_KEY` (`ASSISTANT_MODEL`). Both share one tool list, whose tools
 read only public data: non-draft tournaments, and the public `PlayerController`/`MatchController` actions.
-Never give a tool contact fields (phones, emails, addresses). "How does Sportivo work" answers come from the
+Never give a tool contact fields (phones, emails, addresses). "How does KickWick work" answers come from the
 platform guide in its `SYSTEM_PROMPT` — update it when a user-facing flow changes. No key → 503; widget is
 `client/src/components/AssistantChat.tsx`, history kept in sessionStorage.
 

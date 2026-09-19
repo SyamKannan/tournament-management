@@ -5,6 +5,7 @@ import type { Organization, Tournament, Sponsor } from '../../types';
 import { 
   Trophy
 } from 'lucide-react';
+import { label } from '../../lib/labels';
 
 export const PublicOrganizationPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -88,7 +89,7 @@ export const PublicOrganizationPage: React.FC = () => {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
-                        {t.sport_code.toUpperCase()} • {t.format}
+                        {t.sport_code.toUpperCase()} • {label(t.format)}
                       </span>
                       <span className="font-mono text-xs font-bold text-emerald-400">Fee: ₹{t.ground_fee}</span>
                     </div>

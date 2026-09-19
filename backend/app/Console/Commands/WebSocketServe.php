@@ -59,7 +59,7 @@ class WebSocketServe extends Command
     private function bootWebSocketListener(Hub $hub, string $host, int $port, string $path, string $bridgeHost, int $bridgePort): void
     {
         $worker = new Worker("websocket://{$host}:{$port}");
-        $worker->name = 'sportivo-ws';
+        $worker->name = 'kickwick-ws';
         $worker->count = 1;
 
         // The bridge listener is opened from inside this worker rather than as a
@@ -81,7 +81,7 @@ class WebSocketServe extends Command
 
             $connection->send($this->json([
                 'type' => 'CONNECTED',
-                'message' => 'Connected to Sportivo live updates',
+                'message' => 'Connected to KickWick live updates',
             ]));
         };
 
@@ -142,7 +142,7 @@ class WebSocketServe extends Command
     private function bootBridgeListener(Hub $hub, string $host, int $port): void
     {
         $worker = new Worker("http://{$host}:{$port}");
-        $worker->name = 'sportivo-ws-bridge';
+        $worker->name = 'kickwick-ws-bridge';
 
         $worker->onMessage = function (TcpConnection $connection, WorkermanRequest $request) use ($hub) {
             $connection->send($this->handleBridgeRequest($hub, $request));

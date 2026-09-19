@@ -7,6 +7,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { TournamentPicker } from '../../components/ui/TournamentPicker';
 import { Skeleton, SkeletonCard, EmptyState } from '../../components/ui/Feedback';
+import { label } from '../../lib/labels';
 
 export const OrgFixturesPage: React.FC = () => {
   const confirm = useConfirm();
@@ -259,7 +260,7 @@ export const OrgFixturesPage: React.FC = () => {
                   m.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :
                   isCancelled ? 'bg-rose-500/10 text-rose-400 line-through' : 'bg-slate-800 text-slate-300'
                 }`}>
-                  {m.status.replace('_', ' ')}
+                  {label(m.status)}
                 </span>
               </div>
 

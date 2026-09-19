@@ -6,6 +6,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { TournamentPicker } from '../../components/ui/TournamentPicker';
 import { EmptyState, Skeleton, SkeletonStats, SkeletonTable } from '../../components/ui/Feedback';
+import { label } from '../../lib/labels';
 
 export const OrgReportsPage: React.FC = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -236,7 +237,7 @@ export const OrgReportsPage: React.FC = () => {
                         <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase ${
                           r.status === 'fully_paid' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
                         }`}>
-                          {r.status}
+                          {label(r.status)}
                         </span>
                       </td>
                     </tr>

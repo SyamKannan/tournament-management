@@ -1,4 +1,4 @@
-# Sportivo
+# KickWick
 
 Multi-tenant platform for running village and club sports tournaments — football and
 cricket — with live scoring, big-screen scoreboards, player auctions, ground-fee

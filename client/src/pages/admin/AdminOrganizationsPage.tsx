@@ -5,10 +5,12 @@ import {
   Plus, X, LogIn, Loader2, Building2, Search, Trophy, ShieldCheck, AlertCircle
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { roleHome } from '../../lib/roleHome';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { Skeleton, SkeletonTable } from '../../components/ui/Feedback';
 import { PhoneInput } from '../../components/PhoneInput';
+import { label } from '../../lib/labels';
 
 export const AdminOrganizationsPage: React.FC = () => {
   const toast = useToast();
@@ -66,8 +68,8 @@ export const AdminOrganizationsPage: React.FC = () => {
     try {
       setImpersonatingOrgId(org.id);
       const res = await impersonate({ organizationId: org.id });
-      toast.success(`Logged in as ${res.user.name} (${org.name})`);
-      navigate('/organization/dashboard');
+      toast.success(`Now viewing as ${org.name}`);
+      navigate(roleHome(res.user.role), { replace: true });
     } catch (err: any) {
       toast.error(err?.message || 'Failed to login as organization admin');
     } finally {
@@ -291,7 +293,7 @@ export const AdminOrganizationsPage: React.FC = () => {
                     <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase ${
                       org.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                     }`}>
-                      {org.status}
+                      {label(org.status)}
                     </span>
                   </td>
                   <td className="px-4 py-4 text-right">
@@ -332,7 +334,7 @@ export const AdminOrganizationsPage: React.FC = () => {
       {/* Manual Onboarding Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-          <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-y-auto max-h-[calc(100dvh-2rem)]">
             <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
               <h3 className="text-base font-bold text-white font-heading">Onboard Organization (Super Admin)</h3>
               <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-white">

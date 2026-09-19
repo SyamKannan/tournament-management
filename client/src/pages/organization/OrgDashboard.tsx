@@ -8,6 +8,7 @@ import {
 import { Link } from 'react-router-dom';
 import { ImageUploadModal } from '../../components/ImageUploadModal';
 import { useToast } from '../../components/ui/Toast';
+import { label } from '../../lib/labels';
 
 export const OrgDashboard: React.FC = () => {
   const toast = useToast();
@@ -200,7 +201,7 @@ export const OrgDashboard: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-white">{plan.name}</span>
                   <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold uppercase border border-emerald-500/20">
-                    {subscription?.status || 'Active'}
+                    {label(subscription?.status) || 'Active'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
@@ -286,7 +287,7 @@ export const OrgDashboard: React.FC = () => {
                       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
                       : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                   }`}>
-                    {t.sport_code === 'football' ? '⚽ 7s Football' : '🏏 T20 Cricket'} • {t.status.replace(/_/g, ' ')}
+                    {t.sport_code === 'football' ? '⚽ 7s Football' : '🏏 T20 Cricket'} • {label(t.status)}
                   </span>
                   <span className="text-xs font-mono font-bold text-slate-300">Ground Fee: ₹{t.ground_fee}</span>
                 </div>

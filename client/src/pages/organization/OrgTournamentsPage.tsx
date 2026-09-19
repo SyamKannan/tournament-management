@@ -18,6 +18,7 @@ import { RegistrationQrModal } from '../../components/RegistrationQrModal';
 import { FEATURE_AUCTION_ENABLED } from '../../config';
 import type { PaymentMethod } from '../../types';
 import { ALL_PAYMENT_METHODS, PAYMENT_METHOD_META } from '../../lib/paymentMethods';
+import { label } from '../../lib/labels';
 
 type PosterTemplate = 'auto' | 'arena' | 'split' | 'classic';
 
@@ -73,7 +74,6 @@ export const OrgTournamentsPage: React.FC = () => {
   const [planTeamLimit, setPlanTeamLimit] = useState<number | null>(null);
   const [groundFee, setGroundFee] = useState<number>(5000);
   const [allowPartial, setAllowPartial] = useState<boolean>(true);
-  const [partialValue, setPartialValue] = useState<number>(50); // 50%
   const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[]>(ALL_PAYMENT_METHODS);
   const [prizeMoney, setPrizeMoney] = useState<number>(50000);
   const [footballFormat, setFootballFormat] = useState('7-a-side');
@@ -193,8 +193,9 @@ export const OrgTournamentsPage: React.FC = () => {
       ground_fee: Number(groundFee),
       payment_config: {
         allow_partial: allowPartial,
+        // Teams pay in full or in halves.
         min_partial_type: 'percentage',
-        min_partial_value: Number(partialValue),
+        min_partial_value: 50,
         enabled_methods: enabledMethods
       },
       prize_money: Number(prizeMoney),
@@ -237,8 +238,9 @@ export const OrgTournamentsPage: React.FC = () => {
       payment_config: {
         ...basePaymentConfig,
         allow_partial: allowPartial,
+        // Teams pay in full or in halves.
         min_partial_type: 'percentage',
-        min_partial_value: Number(partialValue),
+        min_partial_value: 50,
         enabled_methods: enabledMethods
       },
       prize_money: Number(prizeMoney),
@@ -284,7 +286,6 @@ export const OrgTournamentsPage: React.FC = () => {
     setMaxTeams(Number(t.max_teams) || 8);
     setGroundFee(Number(t.ground_fee) || 0);
     setAllowPartial(paymentConfig.allow_partial !== false);
-    setPartialValue(Number(paymentConfig.min_partial_value) || 50);
     setEnabledMethods(paymentConfig.enabled_methods?.length ? paymentConfig.enabled_methods : ALL_PAYMENT_METHODS);
     setPrizeMoney(Number(t.prize_money) || 0);
     setFootballFormat(settings.football_format || '7-a-side');
@@ -377,7 +378,7 @@ export const OrgTournamentsPage: React.FC = () => {
                     <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
                       isFb ? 'bg-emerald-500/20 text-emerald-400' : 'bg-cyan-500/20 text-cyan-400'
                     }`}>
-                      {isFb ? '⚽ Football' : '🏏 Cricket'} • {t.format.replace(/_/g, ' ')}
+                      {isFb ? '⚽ Football' : '🏏 Cricket'} • {label(t.format)}
                     </span>
 
                     {isCancelled && (
@@ -389,7 +390,7 @@ export const OrgTournamentsPage: React.FC = () => {
                     {hasAuctionEnabled ? (
                       <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-black uppercase tracking-wider flex items-center gap-1">
                         <Gavel className="w-3 h-3" />
-                        <span>Auction: {t.auction_status || 'upcoming'}</span>
+                        <span>Auction: {label(t.auction_status || 'upcoming')}</span>
                       </span>
                     ) : (
                       <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[11px] font-semibold uppercase tracking-wider">
@@ -417,7 +418,7 @@ export const OrgTournamentsPage: React.FC = () => {
                       type="text"
                       readOnly
                       value={`${window.location.origin}/register/team/${regToken}`}
-                      className="flex-1 min-w-0 basis-full sm:basis-auto px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-[11px] font-mono text-slate-300 truncate"
+                      className="flex-1 min-w-0 basis-full sm:basis-auto px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-[11px] font-code text-slate-300 truncate"
                     />
                     <button
                       onClick={() => handleCopyLink(regToken)}
@@ -759,7 +760,7 @@ export const OrgTournamentsPage: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Cricket Format</label>
                     <select
@@ -816,17 +817,6 @@ export const OrgTournamentsPage: React.FC = () => {
                       className="w-full px-3 py-1.5 rounded-xl glass-input font-mono font-bold text-emerald-400"
                     />
                   </div>
-                  <div>
-                    <label className="block text-slate-400 text-[11px] mb-1">Min Partial Payment (%)</label>
-                    <input
-                      type="number"
-                      min="10"
-                      max="90"
-                      value={partialValue}
-                      onChange={(e) => setPartialValue(Number(e.target.value))}
-                      className="w-full px-3 py-1.5 rounded-xl glass-input font-mono text-amber-400"
-                    />
-                  </div>
                 </div>
 
                 <label className="flex items-center gap-2 text-slate-300 cursor-pointer pt-1">
@@ -836,7 +826,7 @@ export const OrgTournamentsPage: React.FC = () => {
                     onChange={(e) => setAllowPartial(e.target.checked)}
                     className="rounded text-emerald-500"
                   />
-                  <span>Allow Teams to Pay {partialValue}% Advance Ground Fee during Registration</span>
+                  <span>Let teams pay half the ground fee now and half later</span>
                 </label>
 
                 <div className="pt-3 border-t border-slate-800/80">

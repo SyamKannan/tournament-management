@@ -113,7 +113,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
         </div>
 
         {/* Printable Body */}
-        <div className="p-6 overflow-y-auto space-y-6 text-slate-200">
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-6 text-slate-200">
           {/* Status banner */}
           <div className={`p-4 rounded-xl border flex items-center justify-between ${
             isFullyPaid 
@@ -160,7 +160,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
             </div>
             <div>
               <span className="text-slate-400 block text-[11px]">Transaction ID</span>
-              <span className="font-mono text-slate-300 truncate block">{data.transaction_id}</span>
+              <span className="font-code text-slate-300 truncate block">{data.transaction_id}</span>
             </div>
           </div>
 
@@ -195,7 +195,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
             <QrCode className="w-6 h-6 text-emerald-400 flex-shrink-0" />
             <div className="truncate">
               <div className="font-semibold text-slate-300">Digital Authenticity Signature</div>
-              <div className="font-mono text-slate-500 truncate">{data.qr_code_signature}</div>
+              <div className="font-code text-slate-500 truncate">{data.qr_code_signature}</div>
             </div>
           </div>
         </div>
