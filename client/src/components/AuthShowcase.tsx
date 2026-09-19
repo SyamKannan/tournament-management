@@ -49,8 +49,8 @@ const ACCENT_BADGE: Record<Accent, string> = {
 // Two-stop duotone wash layered over the base scrim — gives each page's
 // showcase a distinct, richer color identity instead of a flat single tint.
 const ACCENT_WASH: Record<Accent, string> = {
-  emerald: 'linear-gradient(115deg, rgba(16,185,129,0.38) 0%, transparent 45%), linear-gradient(305deg, rgba(6,182,212,0.22) 0%, transparent 40%)',
-  cyan: 'linear-gradient(115deg, rgba(6,182,212,0.38) 0%, transparent 45%), linear-gradient(305deg, rgba(59,130,246,0.22) 0%, transparent 40%)',
+  emerald: 'linear-gradient(115deg, rgba(200, 245, 53,0.38) 0%, transparent 45%), linear-gradient(305deg, rgba(56, 189, 248,0.22) 0%, transparent 40%)',
+  cyan: 'linear-gradient(115deg, rgba(56, 189, 248,0.38) 0%, transparent 45%), linear-gradient(305deg, rgba(59,130,246,0.22) 0%, transparent 40%)',
   amber: 'linear-gradient(115deg, rgba(245,158,11,0.38) 0%, transparent 45%), linear-gradient(305deg, rgba(236,72,153,0.18) 0%, transparent 40%)',
   violet: 'linear-gradient(115deg, rgba(139,92,246,0.38) 0%, transparent 45%), linear-gradient(305deg, rgba(236,72,153,0.2) 0%, transparent 40%)',
 };

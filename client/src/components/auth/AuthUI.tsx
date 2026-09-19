@@ -9,15 +9,15 @@ export type AuthAccent = 'emerald' | 'cyan' | 'amber';
 
 const ACCENT_VARS: Record<AuthAccent, React.CSSProperties> = {
   emerald: {
-    '--auth-accent': '#10b981',
-    '--auth-ring': 'rgba(16, 185, 129, 0.18)',
-    '--auth-glow-a': 'rgba(16, 185, 129, 0.16)',
-    '--auth-glow-b': 'rgba(6, 182, 212, 0.12)',
+    '--auth-accent': '#c8f535',
+    '--auth-ring': 'rgba(200, 245, 53, 0.18)',
+    '--auth-glow-a': 'rgba(200, 245, 53, 0.16)',
+    '--auth-glow-b': 'rgba(56, 189, 248, 0.12)',
   } as React.CSSProperties,
   cyan: {
-    '--auth-accent': '#06b6d4',
-    '--auth-ring': 'rgba(6, 182, 212, 0.18)',
-    '--auth-glow-a': 'rgba(6, 182, 212, 0.16)',
+    '--auth-accent': '#38bdf8',
+    '--auth-ring': 'rgba(56, 189, 248, 0.18)',
+    '--auth-glow-a': 'rgba(56, 189, 248, 0.16)',
     '--auth-glow-b': 'rgba(59, 130, 246, 0.12)',
   } as React.CSSProperties,
   amber: {

@@ -22,7 +22,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
     doc.setFillColor(3, 7, 18);
     doc.rect(0, 0, 210, 40, 'F');
 
-    doc.setTextColor(16, 185, 129);
+    doc.setTextColor(29, 37, 70);
     doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
     doc.text('OFFICIAL TOURNAMENT REGISTRATION RECEIPT', 14, 20);
@@ -51,7 +51,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
         ['Payment Status', isFullyPaid ? 'FULLY PAID (100%)' : `PARTIALLY PAID (Balance Due: Rs. ${data.remaining_balance})`]
       ],
       theme: 'grid',
-      headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255] },
+      headStyles: { fillColor: [29, 37, 70], textColor: [255, 255, 255] },
       styles: { fontSize: 10, cellPadding: 4 }
     });
 

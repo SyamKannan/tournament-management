@@ -10,7 +10,7 @@ export function downloadInvoicePdf(invoice: Invoice): void {
   doc.setFillColor(3, 7, 18);
   doc.rect(0, 0, 210, 40, 'F');
 
-  doc.setTextColor(16, 185, 129);
+  doc.setTextColor(29, 37, 70);
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
   doc.text('INVOICE', 14, 20);
@@ -39,7 +39,7 @@ export function downloadInvoicePdf(invoice: Invoice): void {
     ],
     foot: [['Total', money(invoice.amount)]],
     theme: 'grid',
-    headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255] },
+    headStyles: { fillColor: [29, 37, 70], textColor: [255, 255, 255] },
     footStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
     columnStyles: { 1: { halign: 'right' } },
     styles: { fontSize: 10, cellPadding: 4 },

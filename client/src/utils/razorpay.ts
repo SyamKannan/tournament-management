@@ -61,7 +61,7 @@ export function openRazorpayCheckout(opts: CheckoutOptions): Promise<RazorpayVer
       name: opts.name,
       description: opts.description,
       prefill: { ...opts.prefill, method: opts.method },
-      theme: opts.theme || { color: '#10b981' },
+      theme: opts.theme || { color: '#c8f535' },
       // Only show the methods the admin/organizer allow for this payment.
       config: {
         display: {

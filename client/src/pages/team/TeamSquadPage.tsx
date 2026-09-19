@@ -30,7 +30,7 @@ function downloadSquadSheet(entry: ManagedTeam) {
   const doc = new jsPDF();
   doc.setFillColor(3, 7, 18);
   doc.rect(0, 0, 210, 32, 'F');
-  doc.setTextColor(16, 185, 129);
+  doc.setTextColor(29, 37, 70);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
   doc.text(`${team.name.toUpperCase()} — SQUAD SHEET`, 14, 16);
@@ -49,7 +49,7 @@ function downloadSquadSheet(entry: ManagedTeam) {
         : [p.jersey_number || '', name, p.cricket_role || '', p.cricket_batting_style || '', p.cricket_bowling_style || '', p.mobile || ''];
     }),
     theme: 'striped',
-    headStyles: { fillColor: [16, 185, 129] },
+    headStyles: { fillColor: [29, 37, 70] },
     styles: { fontSize: 9 },
   });
   doc.save(`${team.name.replace(/[^a-zA-Z0-9]/g, '_')}_Squad.pdf`);

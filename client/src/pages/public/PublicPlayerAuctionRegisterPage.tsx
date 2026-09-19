@@ -165,7 +165,7 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
   const activeBasePrice = auction.base_prices?.find(c => c.category === category)?.price || 2500;
 
   return (
-    <div className="min-h-screen bg-[#060913] text-slate-100 py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#070b1d] text-slate-100 py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Top Header Card */}
         <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-2xl relative overflow-hidden">

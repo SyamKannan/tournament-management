@@ -72,7 +72,7 @@ export const PlanFeatureList: React.FC<Props> = ({ planName, features, preview =
       )}
 
       {open && (
-        <div className="absolute inset-0 z-20 rounded-[inherit] bg-slate-950/95 backdrop-blur-sm p-6 flex flex-col">
+        <div className="absolute inset-0 z-20 rounded-3xl bg-slate-950/95 backdrop-blur-sm p-6 flex flex-col">
           <div className="flex items-center justify-between gap-2 mb-3">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
               {planName} · All {features.length} Features

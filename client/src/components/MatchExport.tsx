@@ -148,7 +148,7 @@ export const MatchExport: React.FC<MatchExportProps> = ({
       doc.setFillColor(15, 23, 42);
       doc.rect(0, 0, 210, 34, 'F');
 
-      doc.setTextColor(16, 185, 129);
+      doc.setTextColor(29, 37, 70);
       doc.setFontSize(15);
       doc.setFont('helvetica', 'bold');
       doc.text(`${teamA.name} vs ${teamB.name}`.toUpperCase(), 14, 16);
@@ -184,7 +184,7 @@ export const MatchExport: React.FC<MatchExportProps> = ({
         head: [['Match Details', '']],
         body: summary,
         theme: 'grid',
-        headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255] },
+        headStyles: { fillColor: [29, 37, 70], textColor: [255, 255, 255] },
       });
 
       if (isFootball) {

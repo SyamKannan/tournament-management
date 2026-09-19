@@ -182,7 +182,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-[#060913] text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="min-h-screen bg-[#070b1d] text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6">
       {/* Top Header Navigation */}
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-3.5">

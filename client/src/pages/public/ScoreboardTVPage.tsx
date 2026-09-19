@@ -24,10 +24,10 @@ interface ScoreFlash {
 }
 
 const FLASH_TONES: Record<ScoreFlash['tone'], { text: string; glow: string }> = {
-  emerald: { text: 'text-emerald-400', glow: 'rgba(16,185,129,0.35)' },
+  emerald: { text: 'text-emerald-400', glow: 'rgba(200, 245, 53,0.35)' },
   amber: { text: 'text-amber-400', glow: 'rgba(245,158,11,0.35)' },
   rose: { text: 'text-rose-400', glow: 'rgba(244,63,94,0.35)' },
-  cyan: { text: 'text-cyan-300', glow: 'rgba(34,211,238,0.32)' },
+  cyan: { text: 'text-cyan-300', glow: 'rgba(56, 189, 248,0.32)' },
 };
 
 const DISMISSAL_WORDS: Record<string, string> = {
@@ -511,7 +511,7 @@ export const ScoreboardTVPage: React.FC = () => {
   const itemSecondsLeft = endsAt ? Math.max(0, Math.ceil((Date.parse(endsAt) - Date.now()) / 1000)) : null;
 
   return (
-    <div className="h-screen w-screen bg-[#060913] text-white flex flex-col select-none overflow-hidden p-3 sm:p-4 lg:p-6 font-sans relative">
+    <div className="h-screen w-screen bg-[#070b1d] text-white flex flex-col select-none overflow-hidden p-3 sm:p-4 lg:p-6 font-sans relative">
       {/* The call for the ball just bowled — over everything, including a
           break takeover, because it is the thing the crowd looked up for. It
           clears itself and the scoreline is straight back underneath. */}
@@ -984,7 +984,7 @@ const FullScreenItem: React.FC<{
 
     return (
       <div className={`tv-flash-backdrop absolute inset-0 z-[100] flex flex-col items-center justify-center p-[5vw] text-center ${
-        urgent ? 'bg-gradient-to-br from-rose-950 via-slate-950 to-rose-950' : 'bg-gradient-to-br from-slate-950 via-[#0b1328] to-slate-950'
+        urgent ? 'bg-gradient-to-br from-rose-950 via-slate-950 to-rose-950' : 'bg-gradient-to-br from-slate-950 via-[#0d1430] to-slate-950'
       }`}>
         <div className="absolute top-[3vh] right-[3vw]">{countdown}</div>
 

@@ -117,7 +117,7 @@ export const PublicTournamentPage: React.FC = () => {
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-20 font-sans">
       {/* Tournament Hero Banner */}
       <div className="relative border-b border-slate-800/80 bg-gradient-to-b from-slate-900 to-slate-950">
-        <div className={`absolute inset-0 pointer-events-none ${isFootball ? 'bg-[radial-gradient(40rem_16rem_at_15%_0%,rgba(16,185,129,0.14),transparent)]' : 'bg-[radial-gradient(40rem_16rem_at_15%_0%,rgba(245,158,11,0.14),transparent)]'}`} aria-hidden="true" />
+        <div className={`absolute inset-0 pointer-events-none ${isFootball ? 'bg-[radial-gradient(40rem_16rem_at_15%_0%,rgba(200, 245, 53,0.14),transparent)]' : 'bg-[radial-gradient(40rem_16rem_at_15%_0%,rgba(245,158,11,0.14),transparent)]'}`} aria-hidden="true" />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6">
             <div className="flex items-start gap-3.5 sm:gap-4 min-w-0">

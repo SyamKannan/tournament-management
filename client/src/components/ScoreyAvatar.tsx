@@ -18,16 +18,16 @@ export const ScoreyAvatar: React.FC<{ size?: number; animated?: boolean; classNa
     className={`${animated ? 'scorey-bob' : ''} ${className}`}
   >
     {/* star antenna */}
-    <line x1="32" y1="12" x2="32" y2="5" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" />
+    <line x1="32" y1="12" x2="32" y2="5" stroke="#d6f95a" strokeWidth="2.5" strokeLinecap="round" />
     <path d="M32 0.5l1.6 3.3 3.6.5-2.6 2.5.6 3.6-3.2-1.7-3.2 1.7.6-3.6-2.6-2.5 3.6-.5z" fill="#fbbf24" />
 
     {/* body */}
-    <circle cx="32" cy="36" r="25" fill="#10b981" />
+    <circle cx="32" cy="36" r="25" fill="#c8f535" />
     <circle cx="32" cy="36" r="25" fill="url(#scorey-shine)" />
     {/* football patches */}
-    <path d="M32 13.5l4.5 3.3-1.7 5.2h-5.6l-1.7-5.2z" fill="#047857" opacity="0.55" />
-    <path d="M9.6 30.5l4.7-1.2 2.4 4.6-3.3 4.2-4.4-.9a23 23 0 0 1 .6-6.7z" fill="#047857" opacity="0.45" />
-    <path d="M54.4 30.5l-4.7-1.2-2.4 4.6 3.3 4.2 4.4-.9a23 23 0 0 0-.6-6.7z" fill="#047857" opacity="0.45" />
+    <path d="M32 13.5l4.5 3.3-1.7 5.2h-5.6l-1.7-5.2z" fill="#6b8c0a" opacity="0.55" />
+    <path d="M9.6 30.5l4.7-1.2 2.4 4.6-3.3 4.2-4.4-.9a23 23 0 0 1 .6-6.7z" fill="#6b8c0a" opacity="0.45" />
+    <path d="M54.4 30.5l-4.7-1.2-2.4 4.6 3.3 4.2 4.4-.9a23 23 0 0 0-.6-6.7z" fill="#6b8c0a" opacity="0.45" />
 
     {/* face */}
     <g className={animated ? 'scorey-blink' : ''}>

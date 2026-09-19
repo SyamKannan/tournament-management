@@ -77,7 +77,7 @@ export const OrgReportsPage: React.FC = () => {
     doc.setFillColor(15, 23, 42);
     doc.rect(0, 0, 210, 35, 'F');
 
-    doc.setTextColor(16, 185, 129);
+    doc.setTextColor(29, 37, 70);
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text('GROUND FEE FINANCIAL REPORT (PAYMENT SYSTEM 2)', 14, 18);
@@ -100,7 +100,7 @@ export const OrgReportsPage: React.FC = () => {
         ['Collection Percentage', `${sum.collection_percentage}%`]
       ],
       theme: 'grid',
-      headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255] }
+      headStyles: { fillColor: [29, 37, 70], textColor: [255, 255, 255] }
     });
 
     // Breakdown Table

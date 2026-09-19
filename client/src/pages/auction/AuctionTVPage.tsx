@@ -78,7 +78,7 @@ export const AuctionTVPage: React.FC = () => {
   const currentBid = auction.current_bid_amount || (current_player ? current_player.base_price : 0);
 
   return (
-    <div className="min-h-screen w-screen bg-[#050811] text-white flex flex-col justify-between select-none p-6 sm:p-8 lg:p-10 font-sans overflow-y-auto relative">
+    <div className="min-h-screen w-screen bg-[#060918] text-white flex flex-col justify-between select-none p-6 sm:p-8 lg:p-10 font-sans overflow-y-auto relative">
       {/* Top Broadcast Header Bar */}
       <header className="flex items-center justify-between pb-4 border-b border-slate-800/80">
         <div className="flex items-center gap-4">

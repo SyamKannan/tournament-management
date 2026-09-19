@@ -10,7 +10,76 @@
      URLs, player codes and reference numbers. */
   --font-mono: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-code: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
-  --font-heading: 'Outfit', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Barlow Semi Condensed', 'Outfit', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+
+  /* "Volt & Midnight" theme. Pages use the stock palette names, so the theme
+     is set by re-pointing them here instead of editing every screen:
+     slate   -> midnight neutrals (surfaces, borders, secondary text)
+     emerald -> volt lime (primary actions, success, live)
+     teal    -> aqua (partner to volt in gradients)
+     cyan    -> sky blue (secondary accent) */
+  --color-slate-50: #f5f7ff;
+  --color-slate-100: #eceffd;
+  --color-slate-200: #dbe1f7;
+  --color-slate-300: #bfc8ea;
+  --color-slate-400: #8e9bc8;
+  --color-slate-500: #636f9e;
+  --color-slate-600: #444f7a;
+  --color-slate-700: #2f385e;
+  --color-slate-800: #1d2546;
+  --color-slate-900: #111834;
+  --color-slate-950: #070b1d;
+
+  --color-emerald-50: #f9ffe6;
+  --color-emerald-100: #f1fdc4;
+  --color-emerald-200: #e4fb8f;
+  --color-emerald-300: #d6f95a;
+  --color-emerald-400: #c8f535;
+  --color-emerald-500: #bbeb1f;
+  --color-emerald-600: #a6d614;
+  --color-emerald-700: #6b8c0a;
+  --color-emerald-800: #4f680c;
+  --color-emerald-900: #34450d;
+  --color-emerald-950: #1c2606;
+
+  --color-teal-50: #ecfeff;
+  --color-teal-100: #cffafe;
+  --color-teal-200: #a5f3fc;
+  --color-teal-300: #67e8f9;
+  --color-teal-400: #22d3ee;
+  --color-teal-500: #06b6d4;
+  --color-teal-600: #0aa5c9;
+  --color-teal-700: #0e7490;
+  --color-teal-800: #155e75;
+  --color-teal-900: #164e63;
+  --color-teal-950: #083344;
+
+  --color-cyan-50: #f0f9ff;
+  --color-cyan-100: #e0f2fe;
+  --color-cyan-200: #bae6fd;
+  --color-cyan-300: #7dd3fc;
+  --color-cyan-400: #38bdf8;
+  --color-cyan-500: #0ea5e9;
+  --color-cyan-600: #0284c7;
+  --color-cyan-700: #0369a1;
+  --color-cyan-800: #075985;
+  --color-cyan-900: #0c4a6e;
+  --color-cyan-950: #082f49;
+}
+
+/* Volt is a light colour: anything filled with it takes dark ink instead of
+   the white the screens were written with. Unlayered, so it wins over the
+   `text-white` utility sitting next to it. */
+:is(.bg-emerald-300, .bg-emerald-400, .bg-emerald-500, .bg-emerald-600,
+    .from-emerald-400, .from-emerald-500, .from-emerald-600).text-white,
+:is(.bg-emerald-300, .bg-emerald-400, .bg-emerald-500, .bg-emerald-600,
+    .from-emerald-400, .from-emerald-500, .from-emerald-600) .text-white,
+:is(.bg-emerald-300, .bg-emerald-400, .bg-emerald-500, .bg-emerald-600,
+    .from-emerald-400, .from-emerald-500, .from-emerald-600):not([class*="text-"]),
+.hover\:bg-emerald-500.hover\:text-white:hover,
+.hover\:bg-emerald-600.hover\:text-white:hover,
+.hover\:bg-emerald-600:hover .text-white {
+  color: var(--color-slate-950);
 }
 
 @layer base {
@@ -23,7 +92,7 @@
   }
 
   body {
-    background-color: #050814;
+    background-color: #070b1d;
     color: #f1f5f9;
     font-family: var(--font-sans);
     overflow-x: hidden;
@@ -43,13 +112,13 @@
   }
 
   ::selection {
-    background: rgba(16, 185, 129, 0.35);
+    background: rgba(200, 245, 53, 0.35);
     color: #fff;
   }
 
   /* Visible keyboard focus everywhere, without drawing rings for mouse users. */
   :focus-visible {
-    outline: 2px solid #10b981;
+    outline: 2px solid #c8f535;
     outline-offset: 2px;
     border-radius: 6px;
   }
@@ -92,7 +161,7 @@
 .auth-stage {
   position: relative;
   isolation: isolate;
-  background-color: #050814;
+  background-color: #070b1d;
 }
 
 /* Soft aurora behind the form, plus a faint grid so the empty side of the
@@ -103,8 +172,8 @@
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(38rem 26rem at 85% -5%, var(--auth-glow-a, rgba(16, 185, 129, 0.16)), transparent 65%),
-    radial-gradient(30rem 22rem at -10% 105%, var(--auth-glow-b, rgba(6, 182, 212, 0.12)), transparent 65%);
+    radial-gradient(38rem 26rem at 85% -5%, var(--auth-glow-a, rgba(200, 245, 53, 0.16)), transparent 65%),
+    radial-gradient(30rem 22rem at -10% 105%, var(--auth-glow-b, rgba(56, 189, 248, 0.12)), transparent 65%);
   pointer-events: none;
 }
 
@@ -114,8 +183,8 @@
   inset: 0;
   z-index: -1;
   background-image:
-    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+    linear-gradient(rgba(142, 155, 200, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(142, 155, 200, 0.05) 1px, transparent 1px);
   background-size: 44px 44px;
   -webkit-mask-image: radial-gradient(ellipse at center, #000 20%, transparent 75%);
   mask-image: radial-gradient(ellipse at center, #000 20%, transparent 75%);
@@ -123,7 +192,7 @@
 }
 
 .auth-card {
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.78), rgba(8, 12, 26, 0.86));
+  background: linear-gradient(180deg, rgba(17, 24, 52, 0.78), rgba(9, 13, 32, 0.86));
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -139,32 +208,32 @@
   padding-left: 2.75rem;
   padding-right: 1rem;
   border-radius: 0.875rem;
-  background: rgba(2, 6, 23, 0.6);
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(7, 11, 29, 0.6);
+  border: 1px solid rgba(142, 155, 200, 0.16);
   color: #fff;
   font-size: 0.9rem;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
 .auth-field::placeholder {
-  color: #64748b;
+  color: #636f9e;
 }
 
 .auth-field:hover {
-  border-color: rgba(148, 163, 184, 0.3);
+  border-color: rgba(142, 155, 200, 0.3);
 }
 
 .auth-field:focus {
   outline: none;
-  background: rgba(2, 6, 23, 0.85);
-  border-color: var(--auth-accent, #10b981);
-  box-shadow: 0 0 0 4px var(--auth-ring, rgba(16, 185, 129, 0.18));
+  background: rgba(7, 11, 29, 0.85);
+  border-color: var(--auth-accent, #c8f535);
+  box-shadow: 0 0 0 4px var(--auth-ring, rgba(200, 245, 53, 0.18));
 }
 }
 
 .font-heading {
   font-family: var(--font-heading);
-  letter-spacing: -0.01em;
+  letter-spacing: 0.005em;
 }
 
 .font-mono,
@@ -179,11 +248,13 @@
 
 /* App-shell backdrop: a faint pitch-light glow behind every workspace page. */
 .app-shell {
-  background-color: #050814;
+  background-color: #070b1d;
+  /* Floodlight glows over faint diagonal pitch stripes. */
   background-image:
-    radial-gradient(60rem 30rem at 10% -10%, rgba(16, 185, 129, 0.07), transparent 60%),
-    radial-gradient(50rem 28rem at 100% 0%, rgba(6, 182, 212, 0.06), transparent 60%),
-    radial-gradient(60rem 40rem at 50% 120%, rgba(99, 102, 241, 0.05), transparent 60%);
+    radial-gradient(60rem 30rem at 10% -10%, rgba(200, 245, 53, 0.08), transparent 60%),
+    radial-gradient(50rem 28rem at 100% 0%, rgba(56, 189, 248, 0.08), transparent 60%),
+    radial-gradient(60rem 40rem at 50% 120%, rgba(99, 102, 241, 0.07), transparent 60%),
+    repeating-linear-gradient(135deg, rgba(142, 155, 200, 0.022) 0 2px, transparent 2px 84px);
   background-attachment: fixed;
 }
 
@@ -243,7 +314,7 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #64748b;
+    color: #636f9e;
   }
 
   .responsive-table td.rt-full {
@@ -257,10 +328,10 @@
 
 /* Ambient Radial Mesh Gradients */
 .bg-mesh-dark {
-  background-color: #050814;
+  background-color: #070b1d;
   background-image: 
-    radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.08) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(6, 182, 212, 0.08) 0px, transparent 50%),
+    radial-gradient(at 0% 0%, rgba(200, 245, 53, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(56, 189, 248, 0.08) 0px, transparent 50%),
     radial-gradient(at 50% 50%, rgba(99, 102, 241, 0.04) 0px, transparent 50%),
     radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.06) 0px, transparent 50%);
 }
@@ -273,11 +344,11 @@
   z-index: 200;
   padding: 0.625rem 1rem;
   border-radius: 0.75rem;
-  background: linear-gradient(135deg, #10b981, #06b6d4);
-  color: #020617;
+  background: linear-gradient(135deg, #c8f535, #38bdf8);
+  color: #070b1d;
   font-size: 0.875rem;
   font-weight: 800;
-  box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.5);
+  box-shadow: 0 10px 25px -5px rgba(200, 245, 53, 0.5);
   transition: top 0.15s ease-out;
 }
 
@@ -287,7 +358,7 @@
 
 /* Premium Glassmorphism Styles */
 .glass-panel {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.82) 0%, rgba(10, 15, 30, 0.75) 100%);
+  background: linear-gradient(135deg, rgba(17, 24, 52, 0.82) 0%, rgba(11, 16, 38, 0.75) 100%);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -295,48 +366,55 @@
 }
 
 .glass-card {
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.65) 100%);
+  background: linear-gradient(180deg, rgba(29, 37, 70, 0.55) 0%, rgba(17, 24, 52, 0.72) 100%);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(142, 155, 200, 0.12);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+    0 12px 32px -12px rgba(0, 0, 0, 0.6);
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .glass-card:hover {
-  border-color: rgba(52, 211, 153, 0.3);
-  box-shadow: 0 20px 40px -15px rgba(16, 185, 129, 0.12), 0 0 20px 0 rgba(16, 185, 129, 0.05);
+  border-color: rgba(200, 245, 53, 0.35);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+    0 22px 44px -16px rgba(200, 245, 53, 0.16),
+    0 0 24px 0 rgba(200, 245, 53, 0.05);
   transform: translateY(-2px);
 }
 
 .glass-card-static {
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.65) 100%);
+  background: linear-gradient(180deg, rgba(29, 37, 70, 0.55) 0%, rgba(17, 24, 52, 0.72) 100%);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(142, 155, 200, 0.12);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+    0 12px 32px -12px rgba(0, 0, 0, 0.6);
 }
 
 .glass-input {
-  background: rgba(10, 15, 30, 0.7);
+  background: rgba(11, 16, 38, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: #fff;
   transition: all 0.2s ease;
 }
 
 .glass-input:focus {
-  border-color: #10b981;
-  background: rgba(15, 23, 42, 0.85);
+  border-color: #c8f535;
+  background: rgba(17, 24, 52, 0.85);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25), 0 0 20px -5px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 0 0 3px rgba(200, 245, 53, 0.25), 0 0 20px -5px rgba(200, 245, 53, 0.3);
 }
 
 /* Vibrant Glow Effects */
 .glow-emerald {
-  box-shadow: 0 0 30px -5px rgba(16, 185, 129, 0.35);
+  box-shadow: 0 0 30px -5px rgba(200, 245, 53, 0.35);
 }
 
 .glow-cyan {
-  box-shadow: 0 0 30px -5px rgba(6, 182, 212, 0.35);
+  box-shadow: 0 0 30px -5px rgba(56, 189, 248, 0.35);
 }
 
 .glow-purple {
@@ -349,7 +427,7 @@
 
 /* Gradient Text */
 .text-gradient-emerald {
-  background: linear-gradient(135deg, #34d399 0%, #06b6d4 100%);
+  background: linear-gradient(135deg, #d6f95a 0%, #38bdf8 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -373,16 +451,16 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: #070b1d;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #1d2546;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #2f385e;
 }
 
 /* Horizontally scrollable regions (wide tables, fixture rows) should not show
@@ -502,7 +580,7 @@
 /* Base darkening scrim for photography so images sit inside the dark theme;
    layer an accent-tinted gradient (inline, per page) on top for color. */
 .photo-overlay-base {
-  background: linear-gradient(180deg, rgba(5, 8, 20, 0.3) 0%, rgba(5, 8, 20, 0.62) 55%, rgba(5, 8, 20, 0.97) 100%);
+  background: linear-gradient(180deg, rgba(7, 11, 29, 0.3) 0%, rgba(7, 11, 29, 0.62) 55%, rgba(7, 11, 29, 0.97) 100%);
 }
 
 /* Coin toss: a real two-sided coin (distinct Heads/Tails faces) that spins on

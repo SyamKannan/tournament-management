@@ -177,7 +177,7 @@ export const PublicPlayerProfilePage: React.FC = () => {
   const awards = stats.awards || [];
 
   return (
-    <div className="min-h-screen bg-[#060913] text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
+    <div className="min-h-screen bg-[#070b1d] text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
       {/* Top Breadcrumb */}
       <div>
         <Link

@@ -59,7 +59,7 @@ export const PlayerDashboardPage: React.FC = () => {
   const crickStats = stats.cricket;
 
   return (
-    <div className="min-h-screen bg-[#060913] text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
+    <div className="min-h-screen bg-[#070b1d] text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
       {/* Player Header Banner */}
       <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-slate-800 shadow-2xl relative overflow-hidden">
         <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-6">
