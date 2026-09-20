@@ -37,19 +37,51 @@ class PosterService
         'cricket' => ['#0e7490', '#1e1b4b', '#fb923c'],
     ];
 
-    /** Per template, per sport: deep background, primary, accent, secondary accent. */
+    /**
+     * Per template, per sport, per colorway: deep background, primary, accent,
+     * secondary accent. Three layouts alone made every regenerate look like the
+     * last one — a colorway is what makes "draw it again" worth pressing, and
+     * the four tokens are all any template reads (see _base.blade.php :root).
+     *
+     * Classic stays gold-accented in every colorway on purpose: its title and
+     * trophy are drawn with a fixed gold gradient, so only the field changes.
+     */
     private const TEMPLATE_PALETTES = [
         'arena' => [
-            'football' => ['deep' => '#020d07', 'primary' => '#0a7a3f', 'accent' => '#c8ff2e', 'accent2' => '#ffffff'],
-            'cricket' => ['deep' => '#050a24', 'primary' => '#1d3bb8', 'accent' => '#ffc21a', 'accent2' => '#ff4d3d'],
+            'football' => [
+                'floodlit' => ['deep' => '#020d07', 'primary' => '#0a7a3f', 'accent' => '#c8ff2e', 'accent2' => '#ffffff'],
+                'crimson' => ['deep' => '#170406', 'primary' => '#b0142c', 'accent' => '#ffd23f', 'accent2' => '#ffffff'],
+                'royal' => ['deep' => '#04081f', 'primary' => '#1b3fa8', 'accent' => '#22d3ee', 'accent2' => '#ffffff'],
+            ],
+            'cricket' => [
+                'midnight' => ['deep' => '#050a24', 'primary' => '#1d3bb8', 'accent' => '#ffc21a', 'accent2' => '#ff4d3d'],
+                'sunset' => ['deep' => '#1b0713', 'primary' => '#a3197a', 'accent' => '#ff9f1c', 'accent2' => '#ffffff'],
+                'turf' => ['deep' => '#04120c', 'primary' => '#0f766e', 'accent' => '#a3e635', 'accent2' => '#ffffff'],
+            ],
         ],
         'split' => [
-            'football' => ['deep' => '#0b0b0f', 'primary' => '#ff5a1f', 'accent' => '#ffd400', 'accent2' => '#ffffff'],
-            'cricket' => ['deep' => '#0c1233', 'primary' => '#e11d48', 'accent' => '#ffd166', 'accent2' => '#ffffff'],
+            'football' => [
+                'ember' => ['deep' => '#0b0b0f', 'primary' => '#ff5a1f', 'accent' => '#ffd400', 'accent2' => '#ffffff'],
+                'volt' => ['deep' => '#0a0f0a', 'primary' => '#15803d', 'accent' => '#c8ff2e', 'accent2' => '#ffffff'],
+                'indigo' => ['deep' => '#0a0a16', 'primary' => '#4f46e5', 'accent' => '#f472b6', 'accent2' => '#ffffff'],
+            ],
+            'cricket' => [
+                'rose' => ['deep' => '#0c1233', 'primary' => '#e11d48', 'accent' => '#ffd166', 'accent2' => '#ffffff'],
+                'lagoon' => ['deep' => '#041318', 'primary' => '#0891b2', 'accent' => '#facc15', 'accent2' => '#ffffff'],
+                'violet' => ['deep' => '#120a1f', 'primary' => '#7c3aed', 'accent' => '#ffd400', 'accent2' => '#ffffff'],
+            ],
         ],
         'classic' => [
-            'football' => ['deep' => '#07080a', 'primary' => '#14301f', 'accent' => '#e9c46a', 'accent2' => '#fff4d6'],
-            'cricket' => ['deep' => '#07080a', 'primary' => '#2a1a0c', 'accent' => '#e9c46a', 'accent2' => '#fff4d6'],
+            'football' => [
+                'noir' => ['deep' => '#07080a', 'primary' => '#14301f', 'accent' => '#e9c46a', 'accent2' => '#fff4d6'],
+                'maroon' => ['deep' => '#0b0405', 'primary' => '#4a0d1a', 'accent' => '#e9c46a', 'accent2' => '#fff4d6'],
+                'navy' => ['deep' => '#04070f', 'primary' => '#132a4d', 'accent' => '#e9c46a', 'accent2' => '#fff4d6'],
+            ],
+            'cricket' => [
+                'noir' => ['deep' => '#07080a', 'primary' => '#2a1a0c', 'accent' => '#e9c46a', 'accent2' => '#fff4d6'],
+                'emerald' => ['deep' => '#04120c', 'primary' => '#0b3a2e', 'accent' => '#e9c46a', 'accent2' => '#fff4d6'],
+                'maroon' => ['deep' => '#0b0405', 'primary' => '#4a0d1a', 'accent' => '#e9c46a', 'accent2' => '#fff4d6'],
+            ],
         ],
     ];
 
@@ -59,7 +91,9 @@ class PosterService
     ) {}
 
     /**
-     * @return array{url: string, used_ai: bool, template: string}
+     * @param  string|null  $avoid  the design already on screen ("split:ember"),
+     *                              so regenerating never redraws the same poster
+     * @return array{url: string, used_ai: bool, template: string, design: string}
      */
     public function generate(
         Tournament $tournament,
@@ -67,8 +101,9 @@ class PosterService
         bool $useAi = true,
         ?string $origin = null,
         ?string $template = null,
+        ?string $avoid = null,
     ): array {
-        $poster = $this->tournamentHtml($tournament, $organization, $useAi, $origin, $template);
+        $poster = $this->tournamentHtml($tournament, $organization, $useAi, $origin, $template, $avoid);
         $filename = $tournament->id.'_'.Ids::token(6);
         $targetDir = public_path('uploads/posters');
 
@@ -79,6 +114,7 @@ class PosterService
                 'url' => url("uploads/posters/{$filename}.png"),
                 'used_ai' => $poster['used_ai'],
                 'template' => $poster['template'],
+                'design' => $poster['design'],
             ];
         } catch (\Throwable $e) {
             Log::warning('Poster render failed, falling back to SVG', ['message' => $e->getMessage()]);
@@ -91,11 +127,12 @@ class PosterService
             'url' => url("uploads/posters/{$filename}.svg"),
             'used_ai' => $poster['used_ai'],
             'template' => 'svg',
+            'design' => 'svg',
         ];
     }
 
     /**
-     * @return array{html: string, template: string, used_ai: bool, background: ?string, qr: ?string}
+     * @return array{html: string, template: string, colorway: string, design: string, used_ai: bool, background: ?string, qr: ?string}
      */
     public function tournamentHtml(
         Tournament $tournament,
@@ -103,12 +140,14 @@ class PosterService
         bool $useAi = true,
         ?string $origin = null,
         ?string $template = null,
+        ?string $avoid = null,
     ): array {
-        $template = in_array($template, self::TEMPLATES, true) ? $template : self::TEMPLATES[random_int(0, count(self::TEMPLATES) - 1)];
         $sport = $tournament->sport_code === 'cricket' ? 'cricket' : 'football';
+        [$template, $colorway] = $this->pickDesign($template, $sport, $avoid);
+        $palette = self::TEMPLATE_PALETTES[$template][$sport][$colorway];
 
         $background = ($useAi && $this->artwork->isConfigured())
-            ? $this->artwork->generateBackground($this->buildArtPrompt($tournament, $template))
+            ? $this->artwork->generateBackground($this->buildArtPrompt($tournament, $template, $palette))
             : null;
 
         $registrationUrl = RegistrationQr::url($tournament, $origin);
@@ -116,7 +155,7 @@ class PosterService
 
         $html = view("posters.tournament.{$template}", [
             'sport' => $sport,
-            'palette' => self::TEMPLATE_PALETTES[$template][$sport],
+            'palette' => $palette,
             'name' => $tournament->name,
             'tagline' => $this->tagline($sport),
             'orgName' => $organization?->name ?: 'Independent Organizer',
@@ -146,10 +185,38 @@ class PosterService
         return [
             'html' => $html,
             'template' => $template,
+            'colorway' => $colorway,
+            'design' => $template.':'.$colorway,
             'used_ai' => $background !== null,
             'background' => $background,
             'qr' => $qr,
         ];
+    }
+
+    /**
+     * Picks the layout and colorway to draw. An unknown or 'auto' template
+     * opens the pick up to every layout; `$avoid` (the design already on
+     * screen) is dropped from the pool so pressing Regenerate always produces
+     * a poster that looks different — unless it is the only design that
+     * matches what was asked for.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function pickDesign(?string $template, string $sport, ?string $avoid): array
+    {
+        $layouts = in_array($template, self::TEMPLATES, true) ? [$template] : self::TEMPLATES;
+
+        $pool = [];
+        foreach ($layouts as $layout) {
+            foreach (array_keys(self::TEMPLATE_PALETTES[$layout][$sport]) as $colorway) {
+                $pool[] = [$layout, $colorway];
+            }
+        }
+
+        $fresh = array_values(array_filter($pool, fn (array $design) => $design[0].':'.$design[1] !== $avoid));
+        $pool = $fresh ?: $pool;
+
+        return $pool[random_int(0, count($pool) - 1)];
     }
 
     /**
@@ -158,7 +225,8 @@ class PosterService
      * precisely by the template) and from recognizable faces, since a generic
      * "cricket player" prompt tends to produce someone who reads as a real star.
      */
-    private function buildArtPrompt(Tournament $tournament, string $template): string
+    /** @param  array{deep: string, primary: string, accent: string, accent2: string}  $palette */
+    private function buildArtPrompt(Tournament $tournament, string $template, array $palette): string
     {
         $subject = $tournament->sport_code === 'cricket'
             ? 'a cricket batter in full kit mid cover-drive, the red ball exploding off the bat with sparks and dust'
@@ -172,6 +240,9 @@ class PosterService
 
         return 'Premium sports tournament poster key art, cinematic photograph, '.$subject.'. '
             .$composition.' '
+            // The art sits under type coloured from this palette, so ask for the
+            // same grade rather than letting every colorway share one background.
+            .'Colour grade built around '.$palette['primary'].' with '.$palette['accent'].' highlights, deepening to '.$palette['deep'].'. '
             .'Dramatic rim lighting, volumetric light rays, haze, flying particles, high contrast, rich colour grade, '
             .'shallow depth of field, ultra detailed, portrait 4:5. '
             .'The player is seen from behind or in silhouette, face not visible, generic unbranded kit. '

@@ -647,6 +647,9 @@ class TournamentController extends Controller
 
         $data = $request->validate([
             'template' => ['nullable', 'string', 'in:auto,'.implode(',', PosterService::TEMPLATES)],
+            // The design already on screen ("split:ember"), so a regenerate
+            // draws something the organizer can actually see is different.
+            'avoid' => ['nullable', 'string', 'max:40'],
         ]);
         $useAi = $request->boolean('use_ai', true);
 
@@ -654,7 +657,14 @@ class TournamentController extends Controller
         set_time_limit(240);
 
         $organization = Organization::find($tournament->organization_id);
-        $result = $this->posters->generate($tournament, $organization, $useAi, $request->headers->get('origin'), $data['template'] ?? null);
+        $result = $this->posters->generate(
+            $tournament,
+            $organization,
+            $useAi,
+            $request->headers->get('origin'),
+            $data['template'] ?? null,
+            $data['avoid'] ?? null,
+        );
 
         $tournament->poster = $result['url'];
         $tournament->save();
@@ -681,6 +691,7 @@ class TournamentController extends Controller
             'poster' => $result['url'],
             'used_ai' => $result['used_ai'],
             'template' => $result['template'],
+            'design' => $result['design'],
         ]);
     }
 

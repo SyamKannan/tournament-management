@@ -63,7 +63,14 @@ export const OrgTournamentsPage: React.FC = () => {
   const [posterTournament, setPosterTournament] = useState<any | null>(null);
   const [qrTournament, setQrTournament] = useState<any | null>(null);
   const [posterTemplate, setPosterTemplate] = useState<PosterTemplate>('auto');
+  // What the poster on screen was actually drawn with — layout and colorway,
+  // e.g. "split:ember". "Surprise me" picks server-side, so the chip you
+  // clicked doesn't answer this, and the API needs it back to draw something
+  // different next time.
+  const [posterDesign, setPosterDesign] = useState<string | null>(null);
   const [generatingPosterId, setGeneratingPosterId] = useState<string | null>(null);
+  const posterDesignLabel =
+    POSTER_TEMPLATES.find(opt => opt.id === posterDesign?.split(':')[0])?.label ?? null;
 
   // Form State for Creating Tournament
   const [name, setName] = useState('');
@@ -147,13 +154,20 @@ export const OrgTournamentsPage: React.FC = () => {
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
   };
 
-  const handleGeneratePoster = async (t: any) => {
+  // `template` is passed explicitly when a design chip triggers this, so the
+  // click doesn't race the state update it just made.
+  const handleGeneratePoster = async (t: any, template: PosterTemplate = posterTemplate) => {
     setGeneratingPosterId(t.id);
     try {
-      const res = await api.post(`/tournaments/${t.id}/poster`, { use_ai: true, template: posterTemplate });
+      const res = await api.post(`/tournaments/${t.id}/poster`, {
+        use_ai: true,
+        template,
+        avoid: posterDesign,
+      });
       const updated = { ...t, poster: res.poster };
       setTournaments(prev => prev.map(x => (x.id === t.id ? { ...x, poster: res.poster } : x)));
       setPosterTournament(updated);
+      setPosterDesign(res.design ?? null);
       toast.success(res.used_ai ? 'Poster ready with AI artwork.' : 'Poster ready.');
     } catch (err: any) {
       toast.error(err.message || 'Failed to generate poster.');
@@ -460,7 +474,16 @@ export const OrgTournamentsPage: React.FC = () => {
                   <button
                     type="button"
                     disabled={generatingPosterId === t.id}
-                    onClick={() => (t.poster ? setPosterTournament(t) : handleGeneratePoster(t))}
+                    onClick={() => {
+                      if (!t.poster) {
+                        handleGeneratePoster(t);
+                        return;
+                      }
+                      // Reopening an existing poster: nothing tells us which
+                      // design it was drawn with, so don't claim one.
+                      setPosterDesign(null);
+                      setPosterTournament(t);
+                    }}
                     className="px-3 py-1.5 rounded-xl bg-fuchsia-500/20 hover:bg-fuchsia-500/30 text-fuchsia-300 font-bold flex items-center gap-1 transition-colors disabled:opacity-60 disabled:cursor-wait"
                   >
                     {generatingPosterId === t.id ? (
@@ -978,8 +1001,20 @@ export const OrgTournamentsPage: React.FC = () => {
             </div>
 
             <div className="p-6 overflow-y-auto space-y-4">
-              <div className="rounded-2xl overflow-hidden border border-slate-800">
-                <img src={posterTournament.poster} alt={`${posterTournament.name} poster`} className="w-full h-auto block" />
+              <div className="relative rounded-2xl overflow-hidden border border-slate-800">
+                <img
+                  src={posterTournament.poster}
+                  alt={`${posterTournament.name} poster`}
+                  className={`w-full h-auto block transition-opacity ${
+                    generatingPosterId === posterTournament.id ? 'opacity-30' : 'opacity-100'
+                  }`}
+                />
+                {generatingPosterId === posterTournament.id && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/40">
+                    <Loader2 className="w-7 h-7 animate-spin text-fuchsia-300" />
+                    <span className="text-xs font-bold text-fuchsia-100">Designing…</span>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -989,8 +1024,12 @@ export const OrgTournamentsPage: React.FC = () => {
                     <button
                       key={opt.id}
                       type="button"
-                      onClick={() => setPosterTemplate(opt.id)}
-                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                      disabled={generatingPosterId === posterTournament.id}
+                      onClick={() => {
+                        setPosterTemplate(opt.id);
+                        handleGeneratePoster(posterTournament, opt.id);
+                      }}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors disabled:opacity-60 disabled:cursor-wait ${
                         posterTemplate === opt.id
                           ? 'bg-fuchsia-500/20 border-fuchsia-400 text-fuchsia-200'
                           : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:bg-slate-800'
@@ -1000,6 +1039,11 @@ export const OrgTournamentsPage: React.FC = () => {
                     </button>
                   ))}
                 </div>
+                <p className="text-[11px] text-slate-500 mt-2">
+                  {posterDesignLabel
+                    ? `Showing the ${posterDesignLabel} design. Regenerate redraws it in a new colour scheme.`
+                    : 'Pick a design to redraw this poster.'}
+                </p>
               </div>
 
               <div className="flex flex-wrap gap-2">

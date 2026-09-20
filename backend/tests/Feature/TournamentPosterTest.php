@@ -56,6 +56,54 @@ class TournamentPosterTest extends TestCase
         $this->assertStringNotContainsString('class="qr-img"', $poster['html']);
     }
 
+    /**
+     * Regenerating has to produce something the organizer can see is different,
+     * so the design on screen is never the one drawn next — within one layout
+     * (a new colorway) and across "Surprise me" (a new layout or colorway).
+     */
+    public function test_regenerating_never_redraws_the_design_on_screen(): void
+    {
+        Http::fake(['*' => Http::response('', 404)]);
+        config(['services.openai.api_key' => null, 'services.gemini.api_key' => null]);
+
+        $tournament = Tournament::find('tourney-football-sevens');
+        $service = app(PosterService::class);
+
+        $design = $service->tournamentHtml($tournament, null, false, null, 'split')['design'];
+        $this->assertStringStartsWith('split:', $design);
+
+        foreach (['split', 'auto'] as $request) {
+            for ($i = 0; $i < 12; $i++) {
+                $next = $service->tournamentHtml($tournament, null, false, null, $request, $design);
+                $this->assertNotSame($design, $next['design']);
+                if ($request === 'split') {
+                    $this->assertSame('split', $next['template']);
+                }
+                $design = $next['design'];
+            }
+        }
+    }
+
+    public function test_every_colorway_of_every_template_renders(): void
+    {
+        Http::fake(['*' => Http::response('', 404)]);
+        config(['services.openai.api_key' => null, 'services.gemini.api_key' => null]);
+
+        $tournament = Tournament::find('tourney-football-sevens');
+        $service = app(PosterService::class);
+
+        $seen = [];
+        // Enough draws to hit all three colorways of each layout with certainty
+        // to spare; the pick is random, not a rotation.
+        for ($i = 0; $i < 200; $i++) {
+            $poster = $service->tournamentHtml($tournament, null, false, null, 'auto');
+            $seen[$poster['design']] = true;
+            $this->assertStringContainsString(e($tournament->name), $poster['html']);
+        }
+
+        $this->assertCount(count(PosterService::TEMPLATES) * 3, $seen);
+    }
+
     public function test_poster_endpoint_rejects_unknown_template(): void
     {
         $this->withHeaders(['x-demo-role' => 'ORG_ADMIN', 'x-demo-org-id' => Tournament::find('tourney-football-sevens')->organization_id])
