@@ -178,7 +178,7 @@ export const OrgReportsPage: React.FC = () => {
       ) : (
         <div className="space-y-6">
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-5 rounded-2xl glass-card border border-slate-800">
               <span className="text-xs text-slate-400 font-semibold uppercase">Total Expected</span>
               <div className="text-2xl font-black text-white font-heading font-mono mt-1">
@@ -212,7 +212,7 @@ export const OrgReportsPage: React.FC = () => {
           {/* Records Table */}
           <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
+              <table className="responsive-table w-full min-w-[820px] text-xs text-left">
                 <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
                   <tr>
                     <th className="px-5 py-3.5">Team Name</th>
@@ -227,13 +227,13 @@ export const OrgReportsPage: React.FC = () => {
                 <tbody className="divide-y divide-slate-800">
                   {reportData.records.map((r: any) => (
                     <tr key={r.team_id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="px-5 py-3.5 font-bold text-white text-xs">{r.team_name}</td>
-                      <td className="px-4 py-3.5 text-slate-300">{r.manager_name} ({r.manager_phone})</td>
-                      <td className="px-4 py-3.5 font-mono text-slate-200">₹{r.total_fee.toLocaleString()}</td>
-                      <td className="px-4 py-3.5 font-mono font-bold text-emerald-400">₹{r.paid_amount.toLocaleString()}</td>
-                      <td className="px-4 py-3.5 font-mono font-bold text-amber-400">₹{r.remaining_amount.toLocaleString()}</td>
-                      <td className="px-4 py-3.5 uppercase font-mono text-[11px] text-slate-400">{r.payment_method}</td>
-                      <td className="px-4 py-3.5 text-center">
+                      <td data-label="Team Name" className="px-5 py-3.5 font-bold text-white text-xs rt-full">{r.team_name}</td>
+                      <td data-label="Manager Contact" className="px-4 py-3.5 text-slate-300 rt-full">{r.manager_name} ({r.manager_phone})</td>
+                      <td data-label="Total Fee" className="px-4 py-3.5 font-mono text-slate-200">₹{r.total_fee.toLocaleString()}</td>
+                      <td data-label="Paid Amount" className="px-4 py-3.5 font-mono font-bold text-emerald-400">₹{r.paid_amount.toLocaleString()}</td>
+                      <td data-label="Remaining" className="px-4 py-3.5 font-mono font-bold text-amber-400">₹{r.remaining_amount.toLocaleString()}</td>
+                      <td data-label="Method" className="px-4 py-3.5 uppercase font-mono text-[11px] text-slate-400">{r.payment_method}</td>
+                      <td data-label="Status" className="px-4 py-3.5 text-center">
                         <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase ${
                           r.status === 'fully_paid' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
                         }`}>

@@ -69,7 +69,7 @@ export const AdminSubscriptionsPage: React.FC = () => {
       {activeTab === 'subscriptions' ? (
         <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
+            <table className="responsive-table w-full min-w-[860px] text-xs text-left">
               <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
                 <tr>
                   <th className="px-5 py-3.5">Organization</th>
@@ -83,24 +83,24 @@ export const AdminSubscriptionsPage: React.FC = () => {
               <tbody className="divide-y divide-slate-800">
                 {subscriptions.map(sub => (
                   <tr key={sub.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="px-5 py-4 font-bold text-white text-xs">
+                    <td data-label="Organization" className="rt-full px-5 py-4 font-bold text-white text-xs">
                       {sub.organization_name || sub.organization_id}
                     </td>
-                    <td className="px-4 py-4">
+                    <td data-label="Subscribed Plan" className="px-4 py-4">
                       <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold font-mono text-[11px]">
                         {sub.plan_name || 'Standard Pro'}
                       </span>
                     </td>
-                    <td className="px-4 py-4 font-mono font-bold text-white">
+                    <td data-label="Billing Amount" className="px-4 py-4 font-mono font-bold text-white">
                       ₹{sub.amount_paid.toLocaleString()}
                     </td>
-                    <td className="px-4 py-4 text-slate-400 font-mono">
+                    <td data-label="Start Date" className="px-4 py-4 text-slate-400 font-mono">
                       {new Date(sub.start_date).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-4 text-slate-400 font-mono">
+                    <td data-label="Next Renewal" className="px-4 py-4 text-slate-400 font-mono">
                       {sub.next_billing_date ? new Date(sub.next_billing_date).toLocaleDateString() : 'One-Time'}
                     </td>
-                    <td className="px-4 py-4 text-center">
+                    <td data-label="Status" className="px-4 py-4 text-center">
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
                         {label(sub.status)}
                       </span>
@@ -114,7 +114,7 @@ export const AdminSubscriptionsPage: React.FC = () => {
       ) : (
         <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
+            <table className="responsive-table w-full min-w-[860px] text-xs text-left">
               <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
                 <tr>
                   <th className="px-5 py-3.5">Invoice #</th>
@@ -128,23 +128,23 @@ export const AdminSubscriptionsPage: React.FC = () => {
               <tbody className="divide-y divide-slate-800">
                 {invoices.map(inv => (
                   <tr key={inv.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="px-5 py-4 font-mono font-bold text-white text-xs">
+                    <td data-label="Invoice #" className="px-5 py-4 font-mono font-bold text-white text-xs">
                       {inv.invoice_number}
                     </td>
-                    <td className="px-4 py-4">
+                    <td data-label="Billed To" className="rt-full px-4 py-4">
                       <div className="font-semibold text-white">{inv.billing_name}</div>
                       <div className="text-[11px] text-slate-500">{inv.billing_email}</div>
                     </td>
-                    <td className="px-4 py-4 font-mono font-bold text-emerald-400">
+                    <td data-label="Amount" className="px-4 py-4 font-mono font-bold text-emerald-400">
                       ₹{inv.amount.toLocaleString()}
                     </td>
-                    <td className="px-4 py-4 uppercase text-slate-300 font-mono">
+                    <td data-label="Payment Method" className="px-4 py-4 uppercase text-slate-300 font-mono">
                       {label(inv.payment_method)}
                     </td>
-                    <td className="px-4 py-4 text-slate-400 font-mono">
+                    <td data-label="Date" className="px-4 py-4 text-slate-400 font-mono">
                       {new Date(inv.created_at).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-4 text-center">
+                    <td data-label="Status" className="px-4 py-4 text-center">
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
                         {label(inv.status)}
                       </span>

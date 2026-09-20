@@ -248,7 +248,7 @@ export const AdminOrganizationsPage: React.FC = () => {
       {/* Organizations Table */}
       <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
+          <table className="responsive-table w-full min-w-[860px] text-xs text-left">
             <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
               <tr>
                 <th className="px-5 py-3.5">Organization</th>
@@ -263,7 +263,7 @@ export const AdminOrganizationsPage: React.FC = () => {
             <tbody className="divide-y divide-slate-800">
               {filteredOrganizations.map(org => (
                 <tr key={org.id} className="hover:bg-slate-800/40 transition-colors">
-                  <td className="px-5 py-4">
+                  <td data-label="Organization" className="rt-full px-5 py-4">
                     <div className="flex items-center gap-3">
                       <img src={org.logo} alt={org.name} className="w-9 h-9 rounded-xl object-cover border border-slate-700 bg-slate-900" />
                       <div>
@@ -274,29 +274,29 @@ export const AdminOrganizationsPage: React.FC = () => {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-4 text-slate-300 font-medium">
+                  <td data-label="Type" className="px-4 py-4 text-slate-300 font-medium">
                     {org.type}
                   </td>
-                  <td className="px-4 py-4">
+                  <td data-label="Plan / Tier" className="px-4 py-4">
                     <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold font-mono text-[11px]">
                       {org.plan?.name || 'Standard Pro'}
                     </span>
                   </td>
-                  <td className="px-4 py-4">
+                  <td data-label="Admin Contact" className="rt-full px-4 py-4">
                     <div className="text-white font-medium">{org.contact_person}</div>
                     <div className="text-[11px] text-slate-400 font-mono">{org.phone}</div>
                   </td>
-                  <td className="px-4 py-4 text-center font-mono font-bold text-slate-200">
+                  <td data-label="Tournaments" className="px-4 py-4 text-center font-mono font-bold text-slate-200">
                     {org.tournaments_count || 0}
                   </td>
-                  <td className="px-4 py-4 text-center">
+                  <td data-label="Status" className="px-4 py-4 text-center">
                     <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase ${
                       org.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                     }`}>
                       {label(org.status)}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-right">
+                  <td data-label="Actions" className="rt-full px-4 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => handleImpersonate(org)}

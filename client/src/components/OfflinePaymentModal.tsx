@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { Team } from '../types';
 import { api } from '../services/api';
+import { formatMoney } from '../lib/format';
 import { X, CheckCircle, IndianRupee } from 'lucide-react';
 
 interface OfflinePaymentModalProps {
@@ -101,7 +102,7 @@ export const OfflinePaymentModal: React.FC<OfflinePaymentModalProps> = ({ team, 
                 onClick={() => setAmount(currentRemaining)}
                 className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 font-medium"
               >
-                Clear Full Balance (₹{currentRemaining})
+                Clear Full Balance ({formatMoney(currentRemaining)})
               </button>
               {currentRemaining > 1000 && (
                 <button
@@ -109,7 +110,7 @@ export const OfflinePaymentModal: React.FC<OfflinePaymentModalProps> = ({ team, 
                   onClick={() => setAmount(Math.round(currentRemaining / 2))}
                   className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 font-medium"
                 >
-                  Pay 50% (₹{Math.round(currentRemaining / 2)})
+                  Pay 50% ({formatMoney(Math.round(currentRemaining / 2))})
                 </button>
               )}
             </div>

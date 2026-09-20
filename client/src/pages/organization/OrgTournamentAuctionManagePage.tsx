@@ -17,6 +17,7 @@ import {
   Info, FileText, Search, X
 } from 'lucide-react';
 import { label } from '../../lib/labels';
+import { formatDate, formatMoney } from '../../lib/format';
 
 export const OrgTournamentAuctionManagePage: React.FC = () => {
   const confirm = useConfirm();
@@ -512,7 +513,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
               <div className="text-2xl sm:text-3xl font-black font-mono text-amber-400 mt-1">
                 ₹{auction?.team_purse.toLocaleString() || '1,00,000'}
               </div>
-              <span className="text-[11px] text-slate-500 font-semibold">Min Inc: ₹{auction?.min_bid_increment || 500}</span>
+              <span className="text-[11px] text-slate-500 font-semibold">Min Inc: {formatMoney(auction?.min_bid_increment || 500)}</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center">
@@ -1206,7 +1207,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                                 )}
                                 {sp.paid_at && (
                                   <span className="text-[10px] text-slate-500 block">
-                                    Date: {new Date(sp.paid_at).toLocaleDateString()}
+                                    Date: {formatDate(sp.paid_at)}
                                   </span>
                                 )}
                               </div>

@@ -10,6 +10,7 @@ import { PlanFeatureList, planFeatureLabel } from '../../components/PlanFeatureL
 import { LoadingState, EmptyState } from '../../components/ui/Feedback';
 import { useToast } from '../../components/ui/Toast';
 import { label } from '../../lib/labels';
+import { formatDate } from '../../lib/format';
 
 interface UsageMetric {
   current: number;
@@ -176,7 +177,7 @@ export const OrgBillingPage: React.FC = () => {
                 <p className="text-xs text-slate-400 mt-1">
                   ₹{(subscription?.amount_paid ?? plan.price).toLocaleString()} / {plan.billing_type === 'one_time' ? 'event' : (plan.billing_interval || 'month')}
                   {subscription?.next_billing_date && (
-                    <> • Renews {new Date(subscription.next_billing_date).toLocaleDateString()}</>
+                    <> • Renews {formatDate(subscription.next_billing_date)}</>
                   )}
                 </p>
                 {plan.description && (
@@ -331,7 +332,7 @@ export const OrgBillingPage: React.FC = () => {
         {invoices && invoices.length > 0 ? (
           <div className="rounded-2xl border border-slate-800/80 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="responsive-table w-full min-w-[760px] text-xs">
                 <thead className="bg-slate-900/90 text-slate-400 uppercase text-[10px] tracking-wider">
                   <tr>
                     <th className="text-left px-4 py-3 font-semibold">Invoice #</th>
@@ -345,16 +346,16 @@ export const OrgBillingPage: React.FC = () => {
                 <tbody className="divide-y divide-slate-800/80">
                   {invoices.map(inv => (
                     <tr key={inv.id} className="bg-slate-900/60 hover:bg-slate-900 transition-colors">
-                      <td className="px-4 py-3 font-code text-slate-300">{inv.invoice_number}</td>
-                      <td className="px-4 py-3 text-slate-400">{new Date(inv.created_at).toLocaleDateString()}</td>
-                      <td className="px-4 py-3 font-mono font-bold text-white">₹{inv.amount.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-slate-400 uppercase">{inv.payment_method}</td>
-                      <td className="px-4 py-3">
+                      <td data-label="Invoice #" className="px-4 py-3 font-code text-slate-300">{inv.invoice_number}</td>
+                      <td data-label="Date" className="px-4 py-3 text-slate-400">{formatDate(inv.created_at)}</td>
+                      <td data-label="Amount" className="px-4 py-3 font-mono font-bold text-white">₹{inv.amount.toLocaleString()}</td>
+                      <td data-label="Method" className="px-4 py-3 text-slate-400 uppercase">{inv.payment_method}</td>
+                      <td data-label="Status" className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${STATUS_STYLES[inv.status] || 'bg-slate-800 text-slate-300 border-slate-700'}`}>
                           {label(inv.status)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right rt-full">
                         <button
                           onClick={() => downloadInvoicePdf(inv)}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-semibold text-[11px] transition-colors"

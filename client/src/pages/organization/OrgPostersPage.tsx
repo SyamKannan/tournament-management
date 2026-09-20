@@ -220,8 +220,8 @@ export const OrgPostersPage: React.FC = () => {
         <button
           onClick={handleGenerate}
           disabled={generating || !selectedTournamentId || (selectedTypeMeta.needsMatch && !selectedMatchId)}
-          className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500
-                     disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs shadow-md shadow-amber-600/20
+          className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500
+                     disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs shadow-md shadow-emerald-600/20
                      flex items-center justify-center gap-2"
         >
           {generating ? (

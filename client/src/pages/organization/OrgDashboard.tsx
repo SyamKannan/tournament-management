@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import { ImageUploadModal } from '../../components/ImageUploadModal';
 import { useToast } from '../../components/ui/Toast';
 import { label } from '../../lib/labels';
+import { formatDate, formatMoney } from '../../lib/format';
 
 export const OrgDashboard: React.FC = () => {
   const toast = useToast();
@@ -205,7 +206,7 @@ export const OrgDashboard: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  ₹{subscription?.amount_paid ?? plan.price} / {plan.billing_interval || 'month'} • Renews {subscription?.next_billing_date ? new Date(subscription.next_billing_date).toLocaleDateString() : 'Active'}
+                  ₹{subscription?.amount_paid ?? plan.price} / {plan.billing_interval || 'month'} • Renews {subscription?.next_billing_date ? formatDate(subscription.next_billing_date) : 'Active'}
                 </p>
               </>
             ) : (
@@ -289,7 +290,7 @@ export const OrgDashboard: React.FC = () => {
                   }`}>
                     {t.sport_code === 'football' ? '⚽ 7s Football' : '🏏 T20 Cricket'} • {label(t.status)}
                   </span>
-                  <span className="text-xs font-mono font-bold text-slate-300">Ground Fee: ₹{t.ground_fee}</span>
+                  <span className="text-xs font-mono font-bold text-slate-300">Ground Fee: {formatMoney(t.ground_fee)}</span>
                 </div>
 
                 <h3 className="text-base font-bold text-white font-heading">{t.name}</h3>

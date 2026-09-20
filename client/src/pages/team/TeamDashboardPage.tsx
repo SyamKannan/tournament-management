@@ -89,7 +89,7 @@ export const TeamDashboardPage: React.FC = () => {
         />
       </div>
 
-      <div className="grid lg:grid-cols-5 gap-6">
+      <div className="grid lg:grid-cols-5 gap-6 [&>*]:min-w-0">
         {/* Next matches */}
         <section className="lg:col-span-3 p-5 rounded-2xl glass-card border border-slate-800 space-y-3">
           <div className="flex items-center justify-between">
@@ -139,7 +139,7 @@ export const TeamDashboardPage: React.FC = () => {
                 <span className="block text-sm font-semibold text-white">{text}</span>
                 <span className="block text-[11px] text-slate-400 truncate">{hint}</span>
               </span>
-              <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-emerald-400" />
+              <ArrowRight className="w-4 h-4 shrink-0 text-slate-600 group-hover:text-emerald-400" />
             </Link>
           ))}
         </section>

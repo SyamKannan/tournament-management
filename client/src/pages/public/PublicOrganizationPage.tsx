@@ -6,6 +6,7 @@ import {
   Trophy
 } from 'lucide-react';
 import { label } from '../../lib/labels';
+import { formatMoney } from '../../lib/format';
 
 export const PublicOrganizationPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -91,7 +92,7 @@ export const PublicOrganizationPage: React.FC = () => {
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
                         {t.sport_code.toUpperCase()} • {label(t.format)}
                       </span>
-                      <span className="font-mono text-xs font-bold text-emerald-400">Fee: ₹{t.ground_fee}</span>
+                      <span className="font-mono text-xs font-bold text-emerald-400">Fee: {formatMoney(t.ground_fee)}</span>
                     </div>
                     <h3 className="text-lg font-bold text-white font-heading">{t.name}</h3>
                     <p className="text-xs text-slate-400 mt-1">{t.location || t.district}</p>

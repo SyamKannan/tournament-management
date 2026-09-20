@@ -10,6 +10,7 @@ import {
 import { ImageUploadModal } from '../../components/ImageUploadModal';
 import { PlayerCodeBadge } from '../../components/PlayerCodeBadge';
 import { playerPhoto, stat, overs, highestScore, bestBowling, matchDate, RESULT_STYLES } from '../../lib/playerStats';
+import { formatDate } from '../../lib/format';
 
 export const PlayerDashboardPage: React.FC = () => {
   const toast = useToast();
@@ -184,7 +185,7 @@ export const PlayerDashboardPage: React.FC = () => {
                     <div className="font-code text-[11px] text-cyan-400">Ref: {auction_entry.payment_reference}</div>
                   )}
                   {auction_entry.paid_at && (
-                    <div className="text-[11px] text-slate-500">Paid on {new Date(auction_entry.paid_at).toLocaleDateString()}</div>
+                    <div className="text-[11px] text-slate-500">Paid on {formatDate(auction_entry.paid_at)}</div>
                   )}
                 </div>
               ) : (

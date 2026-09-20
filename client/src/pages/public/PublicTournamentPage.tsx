@@ -10,6 +10,7 @@ import { FEATURE_AUCTION_ENABLED } from '../../config';
 import { periodLabel, tossDecisionPhrase } from '../../lib/football';
 import { playerPhoto, stat } from '../../lib/playerStats';
 import { label } from '../../lib/labels';
+import { formatDate, formatMatchTime, formatMoney } from '../../lib/format';
 
 export const PublicTournamentPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -168,7 +169,7 @@ export const PublicTournamentPage: React.FC = () => {
                   </a>
                   <span className="flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>{new Date(tournament.start_date).toLocaleDateString()} - {new Date(tournament.end_date).toLocaleDateString()}</span>
+                    <span>{formatDate(tournament.start_date)} - {formatDate(tournament.end_date)}</span>
                   </span>
                   <span className="flex items-center gap-1 font-mono text-amber-400 font-bold">
                     <DollarSign className="w-3.5 h-3.5" />
@@ -335,7 +336,7 @@ export const PublicTournamentPage: React.FC = () => {
                     <div key={m.id} className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between text-xs">
                       <div>
                         <div className="font-bold text-white text-sm">{m.team_a?.name || m.team_a_id} vs {m.team_b?.name || m.team_b_id}</div>
-                        <div className="text-slate-400 mt-1">{m.round_name} • {new Date(m.scheduled_at).toLocaleString()}</div>
+                        <div className="text-slate-400 mt-1">{m.round_name} • {formatMatchTime(m.scheduled_at)}</div>
                         {tossWinnerName && m.toss_decision && (
                           <div className="text-amber-400 mt-1 font-semibold">
                             🪙 {tossWinnerName} won the toss and chose to {tossDecisionPhrase(m.toss_decision)}
@@ -575,7 +576,7 @@ export const PublicTournamentPage: React.FC = () => {
                   </div>
                   <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
                     <span className="text-slate-400 uppercase text-[11px] font-bold block">Min Increment</span>
-                    <span className="text-xl font-mono font-black text-slate-300">₹{auctionData.auction.min_bid_increment}</span>
+                    <span className="text-xl font-mono font-black text-slate-300">{formatMoney(auctionData.auction.min_bid_increment)}</span>
                     <span className="text-[10px] text-slate-500 block mt-0.5">Per Bid Raise</span>
                   </div>
                 </div>

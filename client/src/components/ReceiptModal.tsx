@@ -1,5 +1,6 @@
 import React from 'react';
 import type { RegistrationReceipt } from '../types';
+import { formatDateTime } from '../lib/format';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Printer, Download, X, CheckCircle2, QrCode, ShieldCheck } from 'lucide-react';
@@ -203,7 +204,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
         {/* Actions Footer */}
         <div className="px-6 py-4 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between">
           <div className="text-[11px] text-slate-500">
-            Issued on {new Date(receipt.issued_at).toLocaleString()}
+            Issued on {formatDateTime(receipt.issued_at)}
           </div>
           <div className="flex items-center gap-2">
             <button

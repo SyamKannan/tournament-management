@@ -19,6 +19,7 @@ import { FEATURE_AUCTION_ENABLED } from '../../config';
 import type { PaymentMethod } from '../../types';
 import { ALL_PAYMENT_METHODS, PAYMENT_METHOD_META } from '../../lib/paymentMethods';
 import { label } from '../../lib/labels';
+import { formatMoney } from '../../lib/format';
 
 type PosterTemplate = 'auto' | 'arena' | 'split' | 'classic';
 
@@ -399,7 +400,7 @@ export const OrgTournamentsPage: React.FC = () => {
                     )}
                   </div>
 
-                  <span className="shrink-0 px-2 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono font-bold text-emerald-400 whitespace-nowrap">₹{t.ground_fee}</span>
+                  <span className="shrink-0 px-2 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono font-bold text-emerald-400 whitespace-nowrap">{formatMoney(t.ground_fee)}</span>
                 </div>
 
                 <h3 className="text-lg sm:text-xl font-bold text-white font-heading leading-snug">{t.name}</h3>

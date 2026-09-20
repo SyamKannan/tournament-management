@@ -727,8 +727,11 @@ export const OrgLiveScorerPage: React.FC = () => {
       )}
 
       {/* ---------------------------------------------------------- SCORING */}
+      {/* Grid items default to min-width:auto, so the scoring column would
+          otherwise refuse to narrow past its content and push the console
+          sideways on a phone — the screen this is scored from. */}
       {tab === 'scoring' && isFootball && (
-        <div className="grid md:grid-cols-12 gap-4">
+        <div className="grid md:grid-cols-12 gap-4 [&>*]:min-w-0">
           <div className="md:col-span-7 space-y-4">
             {footballFinished && (
               <div className="px-4 py-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

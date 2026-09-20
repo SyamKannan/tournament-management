@@ -62,7 +62,7 @@ export const AdminAuditLogsPage: React.FC = () => {
 
       <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
+          <table className="responsive-table w-full min-w-[860px] text-xs text-left">
             <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
               <tr>
                 <th className="px-5 py-3.5">Timestamp</th>
@@ -77,24 +77,24 @@ export const AdminAuditLogsPage: React.FC = () => {
                 const isViolation = log.action.includes('VIOLATION') || log.action.includes('BLOCKED');
                 return (
                   <tr key={log.id} className={`hover:bg-slate-800/40 transition-colors ${isViolation ? 'bg-rose-500/5' : ''}`}>
-                    <td className="px-5 py-3.5 text-slate-400 whitespace-nowrap text-[11px]">
+                    <td data-label="Timestamp" className="px-5 py-3.5 text-slate-400 whitespace-nowrap text-[11px]">
                       {new Date(log.created_at).toLocaleString()}
                     </td>
-                    <td className="px-4 py-3.5 font-sans">
+                    <td data-label="Actor" className="rt-full px-4 py-3.5 font-sans">
                       <div className="font-semibold text-white">{log.user_name}</div>
                       <span className="text-[11px] text-slate-500 font-mono">{log.user_role}</span>
                     </td>
-                    <td className="px-4 py-3.5">
+                    <td data-label="Action Code" className="px-4 py-3.5">
                       <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase ${
                         isViolation ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/10 text-emerald-400'
                       }`}>
                         {label(log.action)}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5 text-slate-300">
+                    <td data-label="Target Entity" className="px-4 py-3.5 text-slate-300">
                       {log.entity_type} <span className="text-slate-500">({log.entity_id.substring(0, 10)})</span>
                     </td>
-                    <td className="px-5 py-3.5 font-sans text-slate-300 text-xs">
+                    <td data-label="Log Details" className="rt-full px-5 py-3.5 font-sans text-slate-300 text-xs">
                       {log.details}
                     </td>
                   </tr>

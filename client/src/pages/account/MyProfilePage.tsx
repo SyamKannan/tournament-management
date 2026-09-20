@@ -331,7 +331,7 @@ export const MyProfilePage: React.FC = () => {
             <button
               type="submit"
               disabled={savingOrg}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs shadow-lg shadow-amber-600/25 flex items-center gap-1.5 disabled:opacity-60"
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/25 flex items-center gap-1.5 disabled:opacity-60"
             >
               <Save className="w-4 h-4" />
               <span>{savingOrg ? 'Saving...' : 'Save Organization Profile'}</span>

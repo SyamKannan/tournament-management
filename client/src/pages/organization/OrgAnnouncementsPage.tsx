@@ -6,6 +6,7 @@ import { Clock, Radio, Trash2, Tv } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { MatchPicker } from '../../components/MatchPicker';
+import { formatDateTime } from '../../lib/format';
 
 const DURATION_CHOICES = [0, 10, 15, 20, 30, 45, 60, 120, 300, 600];
 
@@ -203,7 +204,7 @@ export const OrgAnnouncementsPage: React.FC = () => {
                       <Clock className="w-3 h-3" />
                       {ann.duration_seconds === 0 ? 'Hold' : `${ann.duration_seconds}s`}
                     </span>
-                    <span>{new Date(ann.created_at).toLocaleString()}</span>
+                    <span>{formatDateTime(ann.created_at)}</span>
                   </div>
                 </div>
               </div>

@@ -46,7 +46,6 @@ export const TournamentPicker: React.FC<TournamentPickerProps> = ({
             </option>
           ))}
         </select>
-        <span className="absolute right-3 text-slate-500 pointer-events-none text-xs" aria-hidden="true">▼</span>
       </div>
     </div>
   );

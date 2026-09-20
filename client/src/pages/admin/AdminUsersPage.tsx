@@ -206,7 +206,7 @@ export const AdminUsersPage: React.FC = () => {
       {/* Users Table */}
       <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
+          <table className="responsive-table w-full min-w-[860px] text-xs text-left">
             <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
               <tr>
                 <th className="px-5 py-3.5">User / Player Persona</th>
@@ -242,7 +242,7 @@ export const AdminUsersPage: React.FC = () => {
                 return (
                   <tr key={u.id} className="hover:bg-slate-800/40 transition-colors">
                     {/* User Info */}
-                    <td className="px-5 py-4">
+                    <td data-label="User / Player Persona" className="rt-full px-5 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 overflow-hidden flex items-center justify-center font-bold text-slate-300 flex-shrink-0">
                           {u.avatar ? (
@@ -266,14 +266,14 @@ export const AdminUsersPage: React.FC = () => {
                     </td>
 
                     {/* Role */}
-                    <td className="px-4 py-4">
+                    <td data-label="Role" className="px-4 py-4">
                       <span className={`px-2.5 py-1 rounded-lg border font-bold text-[10px] tracking-wider uppercase font-mono ${roleBadge}`}>
                         {label(u.role)}
                       </span>
                     </td>
 
                     {/* Organization */}
-                    <td className="px-4 py-4">
+                    <td data-label="Club / Organization" className="px-4 py-4">
                       {u.organization ? (
                         <div className="flex items-center gap-2.5">
                           {u.organization.logo && (
@@ -290,7 +290,7 @@ export const AdminUsersPage: React.FC = () => {
                     </td>
 
                     {/* Contact */}
-                    <td className="px-4 py-4">
+                    <td data-label="Contact Details" className="px-4 py-4">
                       <div className="text-slate-300 font-mono text-[11px] flex items-center gap-1.5">
                         <Phone className="w-3 h-3 text-slate-500" />
                         <span>{u.phone || 'No phone'}</span>
@@ -298,7 +298,7 @@ export const AdminUsersPage: React.FC = () => {
                     </td>
 
                     {/* Action Button */}
-                    <td className="px-4 py-4 text-right">
+                    <td data-label="Impersonation Action" className="rt-full px-4 py-4 text-right">
                       {isCurrent ? (
                         <span className="text-xs text-slate-500 italic pr-2">Active Session</span>
                       ) : (

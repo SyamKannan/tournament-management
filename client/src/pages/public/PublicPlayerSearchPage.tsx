@@ -4,6 +4,7 @@ import { Search, ChevronRight } from 'lucide-react';
 import { api } from '../../services/api';
 import type { PageMeta, SportCode } from '../../types';
 import { playerPhoto } from '../../lib/playerStats';
+import { EmptyState } from '../../components/ui/Feedback';
 
 interface PlayerSearchResult {
   player_id: string;
@@ -200,6 +201,16 @@ export const PublicPlayerSearchPage: React.FC = () => {
           >
             {loading ? 'Loading…' : 'Show more'}
           </button>
+        )}
+
+        {/* Before the first search the page is just a box on an empty screen;
+            this says what can be looked up and where the code comes from. */}
+        {!meta && !loading && results.length === 0 && !error && (
+          <EmptyState
+            icon={Search}
+            title="Look up any player"
+            message="Search your name, or enter the Player Code printed on your squad list — your team manager has it. Profiles show every match, run, wicket, goal and award, with no login."
+          />
         )}
 
         {loading && results.length === 0 && (
