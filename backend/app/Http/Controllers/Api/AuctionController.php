@@ -11,6 +11,8 @@ use App\Models\Player;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Services\AuctionService;
+use App\Services\Notifications\Audience;
+use App\Services\Notifications\NotificationService;
 use App\Services\RealtimeBroadcaster;
 use App\Support\Ids;
 use Illuminate\Http\JsonResponse;
@@ -28,6 +30,7 @@ class AuctionController extends Controller
     public function __construct(
         private readonly AuctionService $auctions,
         private readonly RealtimeBroadcaster $realtime,
+        private readonly NotificationService $notifications,
     ) {}
 
     /* ------------------------------------------------------------- Reading */
@@ -763,6 +766,24 @@ class AuctionController extends Controller
             'sold_price' => $finalPrice,
             'team_purses' => $purses,
         ]);
+
+        // The player is usually not in the room — they registered through a
+        // share link and are waiting to hear. One message per player per
+        // auction, so a corrected sale does not tell them twice.
+        $this->notifications->dispatch(
+            'auction_player_sold',
+            Audience::player($player),
+            [
+                'player' => $player->full_name,
+                'team' => $team?->name ?? '',
+                'price' => number_format((float) $finalPrice, 0),
+                'tournament' => Tournament::find($auction->tournament_id)?->name ?? '',
+            ],
+            $auction->organization_id,
+            'auction_player',
+            $player->id,
+            "auction_player_sold:{$auction->id}:{$player->id}",
+        );
 
         return response()->json([
             'auction' => $auction,

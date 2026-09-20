@@ -11,6 +11,7 @@ use App\Models\Player;
 use App\Models\Subscription;
 use App\Models\Team;
 use App\Models\Tournament;
+use App\Models\Upload;
 use App\Support\Audit;
 use App\Support\Ids;
 use Illuminate\Support\Facades\DB;
@@ -66,6 +67,13 @@ class BillingService
                 $plan->ad_limit,
                 'Advertisement limit reached (%d/%d). Upgrade your plan.',
             ],
+            // Measured in whole megabytes, which is the unit the plan sells it
+            // in and the only one worth showing an organizer.
+            'storage' => [
+                $this->storageUsedMb($organizationId),
+                $plan->storage_limit_mb,
+                'Storage limit reached (%d/%d MB). Delete some images or upgrade your plan.',
+            ],
             default => [0, 999, ''],
         };
 
@@ -97,6 +105,7 @@ class BillingService
             'teams' => $plan->team_limit,
             'players' => $plan->player_limit,
             'ads' => $plan->ad_limit,
+            'storage' => $plan->storage_limit_mb,
             default => null,
         };
     }
@@ -127,6 +136,7 @@ class BillingService
             'teams' => Team::query()->where('organization_id', $organizationId)->where('status', '!=', 'withdrawn')->count(),
             'players' => Player::query()->where('organization_id', $organizationId)->count(),
             'ads' => Advertisement::query()->where('organization_id', $organizationId)->count(),
+            'storage' => $this->storageUsedMb($organizationId),
         ];
 
         $limits = [
@@ -134,6 +144,7 @@ class BillingService
             'teams' => $plan->team_limit ?? 16,
             'players' => $plan->player_limit ?? 250,
             'ads' => $plan->ad_limit ?? 5,
+            'storage' => $plan->storage_limit_mb ?? 1024,
         ];
 
         $usage = [];
@@ -319,6 +330,20 @@ class BillingService
                 'liveMatches' => GameMatch::query()->where('status', 'in_progress')->count(),
             ],
         ];
+    }
+
+    /**
+     * How much an organizer is storing, in whole megabytes.
+     *
+     * Only their own uploads count. Public registration uploads — a team's crest
+     * or a player's photo, sent before anyone signed in — carry no organization
+     * and belong to nobody's quota.
+     */
+    private function storageUsedMb(string $organizationId): int
+    {
+        $bytes = (int) Upload::query()->where('organization_id', $organizationId)->sum('bytes');
+
+        return (int) floor($bytes / 1048576);
     }
 
     private function activeSubscription(string $organizationId): ?Subscription

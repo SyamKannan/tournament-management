@@ -28,6 +28,13 @@ const OVERRIDES: Record<string, string> = {
   no_ball: 'No ball',
   leg_bye: 'Leg bye',
   kick_off: 'Kick-off',
+
+  // Notification events, where the automatic wording reads like a database
+  // column ("Auction player sold", "Subscription expiring").
+  fee_due_reminder: 'Entry fee reminder',
+  auction_player_sold: 'Player sold at auction',
+  subscription_expiring: 'Plan about to expire',
+  subscription_expired: 'Plan expired',
 };
 
 /** Turns a stored code into words a person would write: "registration_open" → "Registration open". */

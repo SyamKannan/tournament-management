@@ -4,13 +4,14 @@ import { api } from '../../services/api';
 import type { Tournament, Organization, Match, Standing, Sponsor, Announcement, Team } from '../../types';
 import {
   Trophy, Calendar, MapPin, DollarSign, Users, Tv,
-  Award, Radio, Gavel, Flame
+  Award, Radio, Gavel, Flame, GitBranch
 } from 'lucide-react';
 import { FEATURE_AUCTION_ENABLED } from '../../config';
 import { periodLabel, tossDecisionPhrase } from '../../lib/football';
 import { playerPhoto, stat } from '../../lib/playerStats';
 import { label } from '../../lib/labels';
 import { formatDate, formatMatchTime, formatMoney } from '../../lib/format';
+import { BracketView, type Bracket } from '../../components/BracketView';
 
 export const PublicTournamentPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -28,7 +29,8 @@ export const PublicTournamentPage: React.FC = () => {
   const [leaderboards, setLeaderboards] = useState<any | null>(null);
   const [auctionData, setAuctionData] = useState<any | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'matches' | 'standings' | 'leaderboards' | 'auction' | 'teams' | 'sponsors'>('matches');
+  const [bracket, setBracket] = useState<Bracket | null>(null);
+  const [activeTab, setActiveTab] = useState<'matches' | 'bracket' | 'standings' | 'leaderboards' | 'auction' | 'teams' | 'sponsors'>('matches');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [logoFailed, setLogoFailed] = useState(false);
@@ -44,6 +46,12 @@ export const PublicTournamentPage: React.FC = () => {
           // Fetch leaderboards
           api.get(`/players/tournament/${res.tournament.id}/leaderboard`)
             .then(l => setLeaderboards(l))
+            .catch(() => {});
+
+          // The bracket, if this tournament has a knockout stage. A league
+          // simply reports none and the tab never appears.
+          api.get(`/matches/bracket/${res.tournament.id}`)
+            .then(b => setBracket(b))
             .catch(() => {});
 
           // Fetch auction
@@ -211,6 +219,7 @@ export const PublicTournamentPage: React.FC = () => {
             {[
               { id: 'matches', label: 'Matches & Fixtures', icon: Calendar, badge: liveMatches.length > 0 ? 'LIVE' : undefined },
               { id: 'leaderboards', label: 'Player Stats & Leaders', icon: Flame },
+              ...(bracket?.has_bracket ? [{ id: 'bracket', label: 'Knockout Bracket', icon: GitBranch }] : []),
               { id: 'standings', label: 'Points Table', icon: Trophy },
               ...(FEATURE_AUCTION_ENABLED ? [{ id: 'auction', label: 'Player Auction', icon: Gavel }] : []),
               { id: 'teams', label: `Teams (${teams.length})`, icon: Users },
@@ -491,6 +500,13 @@ export const PublicTournamentPage: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* The bracket, only when this tournament has a knockout stage */}
+        {activeTab === 'bracket' && bracket && (
+          <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl">
+            <BracketView bracket={bracket} linkMatches />
           </div>
         )}
 

@@ -19,6 +19,8 @@ interface AuthContextType {
   impersonate: (options: { userId?: string; organizationId?: string }) => Promise<{ user: User; organization: Organization | null }>;
   stopImpersonating: () => Promise<void>;
   logout: () => void;
+  logoutEverywhere: () => Promise<void>;
+  adoptToken: (token: string) => void;
   refreshProfile: () => Promise<void>;
 }
 
@@ -148,6 +150,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const originalToken = localStorage.getItem('sports_saas_impersonator_token');
       if (originalToken) {
+        // Kill the impersonation token while it is still the one being sent.
+        // It stood for someone else's account, so it must not outlive the
+        // session that borrowed it; the super admin's own token is a separate
+        // token and is untouched by this.
+        await api.post('/auth/logout').catch(() => {});
+
         localStorage.setItem('sports_saas_token', originalToken);
         localStorage.removeItem('sports_saas_impersonator_token');
         localStorage.removeItem('sports_saas_demo_role');
@@ -168,7 +176,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const logout = () => {
+  /**
+   * Take up a replacement token for the session already signed in.
+   *
+   * Changing a password revokes every token the account holds, including the
+   * one that asked, so the server hands back a fresh one — without adopting
+   * it, the next request would be rejected and the user signed out of the tab
+   * they just used.
+   */
+  const adoptToken = (nextToken: string) => {
+    localStorage.setItem('sports_saas_token', nextToken);
+    setToken(nextToken);
+  };
+
+  /** Forget the signed-in session in this browser. */
+  const clearSession = () => {
     localStorage.removeItem('sports_saas_token');
     localStorage.removeItem('sports_saas_impersonator_token');
     localStorage.removeItem('sports_saas_demo_role');
@@ -178,6 +200,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setOrganization(null);
     setToken(null);
     setRole('PUBLIC_USER');
+  };
+
+  const logout = () => {
+    // Tell the server to stop honouring this token before letting go of it.
+    // Forgetting it here only ends the session in this browser; anyone else
+    // holding a copy could have used it until it expired on its own. Nothing
+    // waits on the call — signing out must not depend on the network.
+    if (localStorage.getItem('sports_saas_token')) {
+      api.post('/auth/logout').catch(() => {});
+    }
+
+    clearSession();
+  };
+
+  /**
+   * End every session on every device, then sign out here — for a lost phone
+   * or a password someone else may have. The token used to ask is revoked
+   * with the rest, so there is nothing left to sign out separately.
+   */
+  const logoutEverywhere = async () => {
+    try {
+      await api.post('/auth/logout-everywhere');
+    } finally {
+      clearSession();
+    }
   };
 
   useEffect(() => {
@@ -250,6 +297,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         impersonate,
         stopImpersonating,
         logout,
+        logoutEverywhere,
+        adoptToken,
         refreshProfile: fetchCurrentUser
       }}
     >

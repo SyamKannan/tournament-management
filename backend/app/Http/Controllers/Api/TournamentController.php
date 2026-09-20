@@ -18,6 +18,8 @@ use App\Models\Tournament;
 use App\Models\Venue;
 use App\Services\AuctionService;
 use App\Services\BillingService;
+use App\Services\Notifications\Audience;
+use App\Services\Notifications\NotificationService;
 use App\Services\PosterService;
 use App\Services\RealtimeBroadcaster;
 use App\Support\Audit;
@@ -33,6 +35,7 @@ class TournamentController extends Controller
         private readonly AuctionService $auctions,
         private readonly PosterService $posters,
         private readonly RealtimeBroadcaster $realtime,
+        private readonly NotificationService $notifications,
     ) {}
 
     /**
@@ -335,6 +338,18 @@ class TournamentController extends Controller
             'settings' => ['sometimes', 'array'],
         ]);
 
+        // `settings` is one JSON column, so assigning it replaces the lot: a PUT
+        // carrying only `total_overs` used to drop the squad sizes, the half
+        // length and the table points with it, and the engine then silently ran
+        // on its own defaults. Merge over what is stored, then re-normalise, so
+        // a partial update changes only the keys it names.
+        if (array_key_exists('settings', $data)) {
+            $data['settings'] = $this->normaliseSettings(
+                [...($tournament->settings ?? []), ...$data['settings']],
+                $tournament->sport_code === 'football'
+            );
+        }
+
         $tournament->fill($data)->save();
 
         $user = $request->user();
@@ -435,6 +450,23 @@ class TournamentController extends Controller
             $this->realtime->toRoom("match:{$match->id}", 'MATCH_STATUS_CHANGED', ['match' => $match]);
             $this->realtime->toRoom("scoreboard:{$match->id}", 'MATCH_STATUS_CHANGED', ['match' => $match]);
         }
+
+        // Everyone who entered, not only the approved teams: a side still
+        // waiting on a decision has usually already paid something, and this is
+        // the message that matters most of any the platform sends.
+        $this->notifications->dispatch(
+            'tournament_cancelled',
+            Audience::tournamentManagers($tournament->id, approvedOnly: false),
+            [
+                'tournament' => $tournament->name,
+                'reason' => $reason,
+                'contact' => $tournament->phone ?: (Organization::find($tournament->organization_id)?->phone ?? ''),
+            ],
+            $tournament->organization_id,
+            'tournament',
+            $tournament->id,
+            "tournament_cancelled:{$tournament->id}",
+        );
 
         $user = $request->user();
         Audit::log([
@@ -671,6 +703,11 @@ class TournamentController extends Controller
     /**
      * Sport-aware squad and format defaults, so a tournament created with a bare
      * payload is still fully playable.
+     *
+     * This is the whole of a tournament's settings: keys missing from here are
+     * dropped, so anything the scoring engine reads has to be listed. The table
+     * points are sport-aware — 3/1/0 is football, cricket runs 2 for a win and
+     * 1 for a tie or no result.
      */
     private function normaliseSettings(array $settings, bool $football): array
     {
@@ -690,6 +727,9 @@ class TournamentController extends Controller
             'max_overs_per_bowler' => (int) ($settings['max_overs_per_bowler'] ?? 4),
             'enable_super_over' => ($settings['enable_super_over'] ?? true) !== false,
             'playing_xi_count' => (int) ($settings['playing_xi_count'] ?? 11),
+            'points_win' => (int) ($settings['points_win'] ?? ($football ? 3 : 2)),
+            'points_draw' => (int) ($settings['points_draw'] ?? 1),
+            'points_loss' => (int) ($settings['points_loss'] ?? 0),
             'venue_name' => $settings['venue_name'] ?? '',
             'venue_address' => $settings['venue_address'] ?? '',
             'google_maps_url' => $settings['google_maps_url'] ?? '',

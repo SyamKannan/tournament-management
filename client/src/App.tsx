@@ -28,6 +28,7 @@ const PageLoader: React.FC = () => (
 const LoginPage = lazyPage(() => import('./pages/auth/LoginPage'), 'LoginPage');
 const RegisterClubPage = lazyPage(() => import('./pages/auth/RegisterClubPage'), 'RegisterClubPage');
 const RegisterPlayerPage = lazyPage(() => import('./pages/auth/RegisterPlayerPage'), 'RegisterPlayerPage');
+const ForgotPasswordPage = lazyPage(() => import('./pages/auth/ForgotPasswordPage'), 'ForgotPasswordPage');
 const NotFoundPage = lazyPage(() => import('./pages/NotFoundPage'), 'NotFoundPage');
 const PublicTournamentPage = lazyPage(() => import('./pages/public/PublicTournamentPage'), 'PublicTournamentPage');
 const PublicOrganizationPage = lazyPage(() => import('./pages/public/PublicOrganizationPage'), 'PublicOrganizationPage');
@@ -61,6 +62,8 @@ const OrgFixturesPage = lazyPage(() => import('./pages/organization/OrgFixturesP
 const OrgLiveScorerPage = lazyPage(() => import('./pages/organization/OrgLiveScorerPage'), 'OrgLiveScorerPage');
 const OrgSponsorsAdsPage = lazyPage(() => import('./pages/organization/OrgSponsorsAdsPage'), 'OrgSponsorsAdsPage');
 const OrgAnnouncementsPage = lazyPage(() => import('./pages/organization/OrgAnnouncementsPage'), 'OrgAnnouncementsPage');
+const OrgNotificationsPage = lazyPage(() => import('./pages/organization/OrgNotificationsPage'), 'OrgNotificationsPage');
+const OrgVenuesPage = lazyPage(() => import('./pages/organization/OrgVenuesPage'), 'OrgVenuesPage');
 const OrgReportsPage = lazyPage(() => import('./pages/organization/OrgReportsPage'), 'OrgReportsPage');
 const OrgBillingPage = lazyPage(() => import('./pages/organization/OrgBillingPage'), 'OrgBillingPage');
 const OrgTournamentAuctionManagePage = lazyPage(() => import('./pages/organization/OrgTournamentAuctionManagePage'), 'OrgTournamentAuctionManagePage');
@@ -150,6 +153,7 @@ export const App: React.FC = () => {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register-club" element={<RegisterClubPage />} />
                 <Route path="/register-player" element={<RegisterPlayerPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/tournaments/:slug" element={<PublicTournamentPage />} />
                 <Route path="/organizations/:slug" element={<PublicOrganizationPage />} />
                 <Route path="/register/team/:token" element={<PublicTeamRegisterPage />} />
@@ -287,6 +291,16 @@ export const App: React.FC = () => {
                 <Route path="/organization/announcements" element={
                   <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
                     <OrgAnnouncementsPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/organization/venues" element={
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                    <OrgVenuesPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/organization/notifications" element={
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                    <OrgNotificationsPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/reports" element={

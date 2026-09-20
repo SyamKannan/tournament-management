@@ -4,8 +4,10 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AssistantController;
 use App\Http\Controllers\Api\AuctionController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\LineupController;
 use App\Http\Controllers\Api\MatchController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PlatformController;
@@ -17,6 +19,7 @@ use App\Http\Controllers\Api\TeamController;
 use App\Http\Controllers\Api\TossController;
 use App\Http\Controllers\Api\TournamentController;
 use App\Http\Controllers\Api\UploadController;
+use App\Http\Controllers\Api\VenueController;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
@@ -68,6 +71,20 @@ Route::prefix('auth')->group(function () {
     Route::post('register-player', [AuthController::class, 'registerPlayer'])->middleware('throttle:10,1');
     Route::get('me', [AuthController::class, 'me']);
     Route::put('me', [AuthController::class, 'updateProfile'])->middleware('auth.required');
+
+    // Getting back in after forgetting a password. Named limiters rather than
+    // an inline `throttle:5,10`, which would share its counter with the global
+    // API throttle and so allow half what it says — see AppServiceProvider.
+    Route::post('forgot-password', [AuthController::class, 'requestPasswordReset'])
+        ->middleware('throttle:password-reset-request');
+    Route::post('reset-password', [AuthController::class, 'resetPassword'])
+        ->middleware('throttle:password-reset-submit');
+
+    // Revoking the token in hand, and every token the account holds. Both need
+    // a real bearer token, so they sit behind `auth.required` — the demo role
+    // switcher has no token to revoke.
+    Route::post('logout', [AuthController::class, 'logout'])->middleware('auth.required');
+    Route::post('logout-everywhere', [AuthController::class, 'logoutEverywhere'])->middleware('auth.required');
 });
 
 /* --------------------------------------------------------------- Super admin */
@@ -116,6 +133,16 @@ Route::prefix('organizations')->group(function () {
         // the organizer. Sharing an organization is not running it.
         Route::middleware('role:ORG_ADMIN,SUPER_ADMIN')->group(function () {
             Route::put('{id}', [OrganizationController::class, 'update']);
+
+            // Outbound WhatsApp/SMS: what this club sends, what it has sent,
+            // and which numbers asked to be left alone. The log carries team
+            // managers' and players' phone numbers, so it stays with the
+            // organizer — `tenant:id` above already refuses another club.
+            Route::get('{id}/notification-settings', [NotificationController::class, 'settings']);
+            Route::put('{id}/notification-settings', [NotificationController::class, 'updateSettings']);
+            Route::get('{id}/notifications', [NotificationController::class, 'index']);
+            Route::post('{id}/notifications/opt-out', [NotificationController::class, 'optOut']);
+            Route::post('{id}/notifications/opt-in', [NotificationController::class, 'optIn']);
             Route::get('{id}/usage', [OrganizationController::class, 'usage']);
             Route::post('{id}/subscribe/order', [OrganizationController::class, 'subscribeOrder']);
             Route::post('{id}/subscribe', [OrganizationController::class, 'subscribe']);
@@ -185,6 +212,9 @@ Route::prefix('matches')->group(function () {
     // The home-page ticker. Declared before `{id}` so "current" isn't read as a match id.
     Route::get('current', [MatchController::class, 'current'])->middleware('throttle:60,1');
     Route::get('scoreboard/match/{id}', [MatchController::class, 'scoreboard']);
+    // Public, like the fixture list and the table: the hub and the stadium
+    // screen both show the bracket without anyone signing in.
+    Route::get('bracket/{tournamentId}', [MatchController::class, 'bracket']);
 
     Route::post('auto-generate-fixtures', [MatchController::class, 'generateFixtures'])
         ->middleware(['auth.required', 'role:ORG_ADMIN,SUPER_ADMIN']);
@@ -225,6 +255,39 @@ Route::prefix('matches')->group(function () {
             Route::put('{id}/lineup', [LineupController::class, 'update']);
             Route::post('{id}/scoreboard/stage', [MatchController::class, 'setScoreboardStage']);
         });
+    });
+});
+
+/* ------------------------------------------------------------------- Exports */
+
+Route::prefix('exports')->group(function () {
+    // The table, the fixture list, the player stats and one match's card are all
+    // already public on the hub — offering them as a file changes nothing about
+    // who may see them.
+    Route::get('tournaments/{tournamentId}/standings.csv', [ExportController::class, 'standings']);
+    Route::get('tournaments/{tournamentId}/fixtures.csv', [ExportController::class, 'fixtures']);
+    Route::get('tournaments/{tournamentId}/player-stats.csv', [ExportController::class, 'leaderboard']);
+    Route::get('matches/{matchId}/scorecard', [ExportController::class, 'scorecard']);
+
+    // Fee collection and squad lists carry managers' and players' phone numbers,
+    // so they stay with the organizer — same rule as `/reports`.
+    Route::middleware(['auth.required', 'role:ORG_ADMIN,SUPER_ADMIN'])->group(function () {
+        Route::get('tournaments/{tournamentId}/fees.csv', [ExportController::class, 'fees']);
+        Route::get('tournaments/{tournamentId}/squads.csv', [ExportController::class, 'roster']);
+    });
+});
+
+/* -------------------------------------------------------------------- Venues */
+
+Route::prefix('venues')->group(function () {
+    // Reading is open — fixtures, the public hub and the big screen all name the
+    // ground. Changing the list is the organizer's.
+    Route::get('/', [VenueController::class, 'index']);
+
+    Route::middleware(['auth.required', 'role:ORG_ADMIN,SUPER_ADMIN'])->group(function () {
+        Route::post('/', [VenueController::class, 'store'])->middleware('tenant');
+        Route::put('{id}', [VenueController::class, 'update']);
+        Route::delete('{id}', [VenueController::class, 'destroy']);
     });
 });
 

@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\PlatformSetting;
 use App\Models\Player;
 use App\Models\User;
+use App\Services\PasswordResetService;
 use App\Services\TokenService;
 use App\Support\Audit;
 use App\Support\Ids;
@@ -92,6 +93,106 @@ class AuthController extends Controller
             'user' => $user->toAuthPayload(),
             'organization' => $user->organization_id ? Organization::find($user->organization_id) : null,
         ]);
+    }
+
+    /**
+     * Ask for a one-time code to reset a password.
+     *
+     * Answers the same way whether or not the number belongs to an account. A
+     * truthful "no such user" would turn this into a way of finding out who is
+     * registered, and on a platform where the username is a mobile number that
+     * is a list worth stealing.
+     */
+    public function requestPasswordReset(Request $request, PasswordResetService $resets): JsonResponse
+    {
+        $data = $request->validate([
+            // A phone number or an email — whichever they remember.
+            'identifier' => ['required', 'string', 'max:255'],
+        ]);
+
+        $resets->request($data['identifier']);
+
+        return response()->json([
+            'message' => 'If that phone number or email belongs to an account, a code is on its way by SMS.',
+        ]);
+    }
+
+    /**
+     * Set a new password using the code.
+     *
+     * A successful reset ends every session the account had open — the point of
+     * resetting is usually that someone else has the old password.
+     */
+    public function resetPassword(Request $request, PasswordResetService $resets): JsonResponse
+    {
+        $data = $request->validate([
+            'identifier' => ['required', 'string', 'max:255'],
+            'code' => ['required', 'string', 'max:12'],
+            'password' => ['required', 'string', 'min:6'],
+        ]);
+
+        ['user' => $user, 'error' => $error] = $resets->complete(
+            $data['identifier'],
+            $data['code'],
+            $data['password'],
+        );
+
+        if (! $user) {
+            return response()->json(['error' => $error], 422);
+        }
+
+        $this->tokens->revokeAllFor($user);
+
+        Audit::log([
+            'organization_id' => $user->organization_id ?? '',
+            'user_id' => $user->id,
+            'user_name' => $user->name,
+            'user_role' => $user->role,
+            'action' => 'RESET_PASSWORD',
+            'entity_type' => 'User',
+            'entity_id' => $user->id,
+            'details' => sprintf('%s reset their password with a one-time code', $user->name),
+            'ip_address' => $request->ip(),
+        ]);
+
+        // Signed in straight away — the token is issued after the revocation, so
+        // it carries the new version and survives it.
+        return response()->json($this->identityPayload($user));
+    }
+
+    /**
+     * End this session: the bearer token used to make the call stops working.
+     *
+     * Dropping the token from localStorage was all signing out ever did, which
+     * left it good for the rest of its seven days if anyone else had a copy.
+     * Other sessions — the organizer's phone, the scorer's tablet — are left
+     * alone; `logoutEverywhere()` is the one that ends those.
+     *
+     * Ending an impersonation comes through here too: the client calls it
+     * while still holding the impersonation token, so that token dies and the
+     * super admin's own, kept aside in the browser, is untouched.
+     */
+    public function logout(Request $request): JsonResponse
+    {
+        if ($token = $request->bearerToken()) {
+            $this->tokens->revoke($token);
+        }
+
+        return response()->json(['message' => 'Signed out']);
+    }
+
+    /**
+     * End every session this account has open, on any device.
+     *
+     * The token making the call goes with them, so the client signs out and
+     * asks for the password again — which is the point when a device has been
+     * lost or a password is thought to be known.
+     */
+    public function logoutEverywhere(Request $request): JsonResponse
+    {
+        $this->tokens->revokeAllFor($request->user());
+
+        return response()->json(['message' => 'Signed out of every device']);
     }
 
     /**
@@ -297,11 +398,19 @@ class AuthController extends Controller
             'new_password' => ['sometimes', 'string', 'min:6'],
         ]);
 
-        if (isset($data['new_password'])) {
+        $passwordChanged = isset($data['new_password']);
+
+        if ($passwordChanged) {
             if (! $this->passwordMatches($user, $data['current_password'])) {
                 return response()->json(['error' => 'Current password is incorrect'], 422);
             }
             $user->password_hash = Hash::make($data['new_password']);
+
+            // Changing a password has to end the sessions opened with the old
+            // one — otherwise whoever the change was meant to shut out keeps
+            // their token for the rest of its week. The caller gets a fresh
+            // token below so the tab they did it in stays signed in.
+            $this->tokens->revokeAllFor($user);
         }
 
         foreach (['name', 'phone', 'avatar', 'email'] as $field) {
@@ -337,10 +446,19 @@ class AuthController extends Controller
             'details' => sprintf('%s updated their account profile', $user->name),
         ]);
 
-        return response()->json([
+        $payload = [
             'user' => $user->fresh()->toAuthPayload(),
             'organization' => $user->organization_id ? Organization::find($user->organization_id) : null,
-        ]);
+        ];
+
+        // Only when the password changed: the token that made this request was
+        // just revoked along with every other, so the client needs a
+        // replacement or it would sign itself out mid-edit.
+        if ($passwordChanged) {
+            $payload['token'] = $this->tokens->issue($user);
+        }
+
+        return response()->json($payload);
     }
 
     private function identityPayload(User $user): array

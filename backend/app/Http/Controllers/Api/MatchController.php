@@ -13,8 +13,12 @@ use App\Models\Tournament;
 use App\Models\Venue;
 use App\Services\BillingService;
 use App\Services\CricketScorecard;
+use App\Services\Fixtures\BracketService;
+use App\Services\Fixtures\FixtureBuilder;
 use App\Services\FootballScorecard;
 use App\Services\LineupService;
+use App\Services\Notifications\Audience;
+use App\Services\Notifications\NotificationService;
 use App\Services\RealtimeBroadcaster;
 use App\Services\ScoreboardDirector;
 use App\Services\ScoringEngine;
@@ -44,6 +48,9 @@ class MatchController extends Controller
         private readonly CricketScorecard $scorecard,
         private readonly FootballScorecard $footballScorecard,
         private readonly ScoreboardDirector $director,
+        private readonly NotificationService $notifications,
+        private readonly FixtureBuilder $fixtures,
+        private readonly BracketService $brackets,
     ) {}
 
     /* ------------------------------------------------------------ Fixtures */
@@ -158,9 +165,16 @@ class MatchController extends Controller
     {
         $data = $request->validate([
             'tournament_id' => ['required', 'string'],
-            'format' => ['nullable', 'string', 'in:round_robin,knockout'],
+            // `round_robin` is what this endpoint used to call a league; kept so
+            // an older client keeps working.
+            'format' => ['nullable', 'string', 'in:round_robin,league,knockout,group_stage,league_knockout'],
             'start_date' => ['nullable', 'string'],
             'replace' => ['nullable', 'boolean'],
+            // A league played twice, home and away.
+            'double_round' => ['nullable', 'boolean'],
+            // How many groups to split into; left out, it is chosen from the
+            // number of teams.
+            'groups' => ['nullable', 'integer', 'min:1', 'max:16'],
         ]);
 
         $tournament = Tournament::find($data['tournament_id']);
@@ -214,57 +228,25 @@ class MatchController extends Controller
             ], 409);
         }
 
-        $knockout = ($data['format'] ?? 'round_robin') === 'knockout';
-        $baseDate = ! empty($data['start_date']) ? Carbon::parse($data['start_date']) : Carbon::now();
-        $venueId = Venue::query()->where('organization_id', $tournament->organization_id)->value('id');
-        $matchNumber = 1;
-
-        $pairings = $knockout
-            ? $this->knockoutPairings($teams)
-            : $this->roundRobinPairings($teams);
-
         $removed = $existing->count();
 
-        $created = DB::transaction(function () use ($pairings, $tournament, $baseDate, $venueId, $knockout, $teams, $existing, &$matchNumber) {
-            $matches = [];
-
+        $created = DB::transaction(function () use ($data, $tournament, $teams, $existing) {
             if ($existing->isNotEmpty()) {
                 // States, event logs and posters hang off the match rows with
                 // cascading foreign keys, so they go with them.
                 GameMatch::query()->whereIn('id', $existing->pluck('id'))->delete();
             }
 
-            foreach ($pairings as $index => [$teamA, $teamB]) {
-                $hoursOffset = $knockout ? $index * 2 : $index * 3;
-
-                $matches[] = GameMatch::create([
-                    'id' => Ids::unique('match'),
-                    'tournament_id' => $tournament->id,
-                    'organization_id' => $tournament->organization_id,
-                    'sport_code' => $tournament->sport_code,
-                    'match_number' => $matchNumber++,
-                    'round_name' => $knockout
-                        ? ($teams->count() <= 4 ? 'Semi-Final' : 'Quarter-Final')
-                        : 'Group Stage - Match '.($index + 1),
-                    'team_a_id' => $teamA->id,
-                    'team_b_id' => $teamB->id,
-                    'venue_id' => $venueId,
-                    'scheduled_at' => $baseDate->copy()->addHours($hoursOffset)->format('Y-m-d\TH:i:s.v\Z'),
-                    'status' => 'scheduled',
-                ]);
-            }
-
-            return $matches;
+            // A group stage also writes each team's group onto the team, so the
+            // tournament table can be read a group at a time.
+            return $this->fixtures->build($tournament, $teams, $data);
         });
 
-        if ($removed > 0) {
-            // The deleted fixtures may have left standing rows behind.
-            if ($tournament->sport_code === 'football') {
-                $this->scoring->recalculateFootballStandings($tournament->id);
-            } else {
-                $this->scoring->recalculateCricketStandings($tournament->id);
-            }
-        }
+        // Byes are written as completed matches, and a group table starts empty,
+        // so the table and the bracket both need settling once before anyone
+        // looks at them.
+        // This also clears standing rows the deleted fixtures left behind.
+        $this->recalculateStandings($tournament);
 
         $user = $request->user();
         Audit::log([
@@ -281,6 +263,8 @@ class MatchController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
+        $this->announceFixtures($tournament, $created);
+
         return response()->json([
             'matches' => $created,
             'replaced_count' => $removed,
@@ -288,6 +272,91 @@ class MatchController extends Controller
                 ? sprintf('Replaced the old schedule with %d new fixtures!', count($created))
                 : sprintf('Successfully generated %d fixtures!', count($created)),
         ], 201);
+    }
+
+    /**
+     * Tell every approved team's manager that the schedule is out, and when
+     * their own first match is.
+     *
+     * Each manager gets their own team's fixtures, not the whole list: what a
+     * village side needs from this message is the date they have to field
+     * eleven players, and a shared list makes them hunt for it.
+     *
+     * @param  array<int, GameMatch>  $matches
+     */
+    private function announceFixtures(Tournament $tournament, array $matches): void
+    {
+        if (! $matches) {
+            return;
+        }
+
+        $teams = Team::query()
+            ->where('tournament_id', $tournament->id)
+            ->where('status', 'approved')
+            ->get();
+
+        $byTeam = [];
+
+        foreach ($matches as $match) {
+            $byTeam[$match->team_a_id][] = $match;
+            $byTeam[$match->team_b_id][] = $match;
+        }
+
+        $names = $teams->pluck('name', 'id');
+
+        foreach ($teams as $team) {
+            $own = $byTeam[$team->id] ?? [];
+
+            if (! $own) {
+                continue;
+            }
+
+            usort($own, fn (GameMatch $a, GameMatch $b) => $a->match_number <=> $b->match_number);
+            $first = $own[0];
+            $opponent = $first->team_a_id === $team->id ? $first->team_b_id : $first->team_a_id;
+
+            $this->notifications->dispatch(
+                'fixtures_published',
+                Audience::teamManager($team),
+                [
+                    'tournament' => $tournament->name,
+                    'team' => $team->name,
+                    'match_count' => (string) count($own),
+                    'first_match' => trim(sprintf(
+                        'vs %s, %s',
+                        $names[$opponent] ?? 'TBC',
+                        $this->kickoffLabel($first->scheduled_at)
+                    ), ' ,'),
+                    'link' => $this->publicHubUrl($tournament),
+                ],
+                $tournament->organization_id,
+                'tournament',
+                $tournament->id,
+                // One announcement per published schedule. Regenerating the
+                // fixtures is a new schedule, so the count keeps it distinct.
+                sprintf('fixtures_published:%s:%d', $tournament->id, count($matches)),
+            );
+        }
+    }
+
+    private function kickoffLabel(?string $scheduledAt): string
+    {
+        if (! $scheduledAt) {
+            return '';
+        }
+
+        try {
+            return Carbon::parse($scheduledAt)->format('D j M, g:ia');
+        } catch (\Throwable) {
+            return '';
+        }
+    }
+
+    private function publicHubUrl(Tournament $tournament): string
+    {
+        $base = rtrim((string) (config('app.frontend_url') ?: config('app.url')), '/');
+
+        return $base ? $base.'/t/'.$tournament->slug : '';
     }
 
     public function update(Request $request, string $id): JsonResponse
@@ -414,12 +483,38 @@ class MatchController extends Controller
         return response()->json($match);
     }
 
-    private function recalculateStandings(GameMatch $match): void
+    /**
+     * The knockout bracket for a tournament, round by round.
+     *
+     * Public, for the same reason the fixture list and the tournament table are:
+     * the hub and the stadium screen both show the bracket, and nobody signs in
+     * to look at one. A draft tournament has nothing to show yet.
+     */
+    public function bracket(string $tournamentId): JsonResponse
     {
-        if ($match->sport_code === 'football') {
-            $this->scoring->recalculateFootballStandings($match->tournament_id);
+        $tournament = Tournament::query()
+            ->where('id', $tournamentId)
+            ->orWhere('slug', $tournamentId)
+            ->first();
+
+        if (! $tournament || $tournament->status === 'draft') {
+            return response()->json(['error' => 'Tournament not found'], 404);
+        }
+
+        return response()->json($this->brackets->forTournament($tournament));
+    }
+
+    /** Takes a fixture or the whole tournament; both know the sport and the id. */
+    private function recalculateStandings(GameMatch|Tournament $subject): void
+    {
+        [$sportCode, $tournamentId] = $subject instanceof Tournament
+            ? [$subject->sport_code, $subject->id]
+            : [$subject->sport_code, $subject->tournament_id];
+
+        if ($sportCode === 'football') {
+            $this->scoring->recalculateFootballStandings($tournamentId);
         } else {
-            $this->scoring->recalculateCricketStandings($match->tournament_id);
+            $this->scoring->recalculateCricketStandings($tournamentId);
         }
     }
 
@@ -760,36 +855,6 @@ class MatchController extends Controller
             'sent_off_player_ids' => $footballState ? $this->scoring->sentOffPlayerIds($footballState) : [],
             'scoreboard' => $this->director->payload($match),
         ];
-    }
-
-    /**
-     * @return array<int, array{0: Team, 1: Team}>
-     */
-    private function roundRobinPairings($teams): array
-    {
-        $pairings = [];
-
-        for ($i = 0; $i < $teams->count(); $i++) {
-            for ($j = $i + 1; $j < $teams->count(); $j++) {
-                $pairings[] = [$teams[$i], $teams[$j]];
-            }
-        }
-
-        return $pairings;
-    }
-
-    /**
-     * @return array<int, array{0: Team, 1: Team}>
-     */
-    private function knockoutPairings($teams): array
-    {
-        $pairings = [];
-
-        for ($i = 0; $i + 1 < $teams->count(); $i += 2) {
-            $pairings[] = [$teams[$i], $teams[$i + 1]];
-        }
-
-        return $pairings;
     }
 
     /**

@@ -17,7 +17,16 @@ class GameMatch extends BaseModel
         'toss_time' => 'datetime',
         'scoreboard_cursor' => 'integer',
         'scoreboard_stage_at' => 'datetime',
+        'bracket_round' => 'integer',
+        'bracket_position' => 'integer',
+        'advance_from' => 'array',
     ];
+
+    /** A bracket fixture whose two sides are not both known yet. */
+    public function awaitsTeams(): bool
+    {
+        return $this->team_a_id === '' || $this->team_b_id === '';
+    }
 
     public function tournament(): BelongsTo
     {

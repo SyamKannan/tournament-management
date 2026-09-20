@@ -25,17 +25,33 @@ class ResolveApiUser
 
     public function handle(Request $request, Closure $next): Response
     {
-        if ($user = $this->resolveDemoUser($request)) {
-            $this->bind($request, $user);
+        $user = $this->resolveDemoUser($request) ?? $this->resolveTokenUser($request);
 
-            return $next($request);
-        }
-
-        if ($user = $this->resolveTokenUser($request)) {
+        if ($user) {
             $this->bind($request, $user);
+        } elseif ($this->presentedCredential($request)) {
+            // A credential was offered and refused — expired, revoked, forged.
+            // That request is anonymous, and must be said so explicitly: the
+            // auth guard outlives a single request wherever the process does,
+            // so without this the caller from the previous request would be
+            // inherited by the one whose token was just revoked.
+            //
+            // Only when something was actually offered. A request carrying no
+            // credential at all is left alone, so a guard set up out of band
+            // still stands.
+            $this->clear($request);
         }
 
         return $next($request);
+    }
+
+    private function presentedCredential(Request $request): bool
+    {
+        if ($request->bearerToken()) {
+            return true;
+        }
+
+        return (bool) config('app.demo_role_switcher') && (bool) $request->header('x-demo-role');
     }
 
     private function resolveDemoUser(Request $request): ?User
@@ -72,17 +88,21 @@ class ResolveApiUser
             return null;
         }
 
-        $claims = $this->tokens->decode($token);
-        if (! $claims) {
-            return null;
-        }
-
-        return User::find($claims['id']);
+        // Signature, expiry, the revocation denylist and the user's own
+        // cut-off all live behind this one call, so a revoked token leaves the
+        // request anonymous exactly as an expired one does.
+        return $this->tokens->authenticate($token);
     }
 
     private function bind(Request $request, User $user): void
     {
         $request->setUserResolver(fn () => $user);
         auth()->setUser($user);
+    }
+
+    private function clear(Request $request): void
+    {
+        $request->setUserResolver(fn () => null);
+        auth()->forgetUser();
     }
 }

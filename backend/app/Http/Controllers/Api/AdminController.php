@@ -374,6 +374,17 @@ class AdminController extends Controller
         $organization->status = $data['status'];
         $organization->save();
 
+        // Suspending an organization turns it away at the login door, which
+        // did nothing about the tokens its people were already carrying — they
+        // would have kept working for the rest of the week. Cut those off too,
+        // or a suspension only takes effect once everyone happens to sign out.
+        if (in_array($data['status'], ['suspended', 'cancelled'], true)) {
+            User::query()
+                ->where('organization_id', $organization->id)
+                ->where('role', '!=', 'SUPER_ADMIN')
+                ->each(fn (User $user) => $this->tokens->revokeAllFor($user));
+        }
+
         $this->audit($request, 'CHANGED_ORGANIZATION_STATUS', 'Organization', $organization->id,
             sprintf('Changed organization [%s] status to [%s]', $organization->name, $data['status']));
 

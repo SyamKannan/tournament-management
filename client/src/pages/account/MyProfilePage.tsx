@@ -5,7 +5,7 @@ import { useToast } from '../../components/ui/Toast';
 import { ImageUploadModal } from '../../components/ImageUploadModal';
 import { PhoneInput } from '../../components/PhoneInput';
 import type { Organization, OrganizationType, Player } from '../../types';
-import { Camera, Save, KeyRound, Building2, UserCircle2, ShieldCheck } from 'lucide-react';
+import { Camera, Save, KeyRound, Building2, UserCircle2, ShieldCheck, LogOut } from 'lucide-react';
 import { label } from '../../lib/labels';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -24,7 +24,7 @@ const ORGANIZATION_TYPES: OrganizationType[] = [
 
 export const MyProfilePage: React.FC = () => {
   const toast = useToast();
-  const { user, organization, role, refreshProfile } = useAuth();
+  const { user, organization, role, refreshProfile, adoptToken, logoutEverywhere } = useAuth();
 
   const [showPhotoModal, setShowPhotoModal] = useState(false);
 
@@ -33,6 +33,7 @@ export const MyProfilePage: React.FC = () => {
 
   const [passwords, setPasswords] = useState({ current_password: '', new_password: '', confirm_password: '' });
   const [savingPassword, setSavingPassword] = useState(false);
+  const [signingOutEverywhere, setSigningOutEverywhere] = useState(false);
 
   const [org, setOrg] = useState<Organization | null>(null);
   const [savingOrg, setSavingOrg] = useState(false);
@@ -85,16 +86,36 @@ export const MyProfilePage: React.FC = () => {
     }
     setSavingPassword(true);
     try {
-      await api.put('/auth/me', {
+      const res = await api.put('/auth/me', {
         current_password: passwords.current_password,
         new_password: passwords.new_password,
       });
+
+      // The change signed every other device out, this one included, so the
+      // server sends a replacement token to carry on with.
+      if (res?.token) {
+        adoptToken(res.token);
+      }
+
       setPasswords({ current_password: '', new_password: '', confirm_password: '' });
-      toast.success('Password changed successfully');
+      toast.success('Password changed. You have been signed out on your other devices.');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Failed to change password');
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const handleSignOutEverywhere = async () => {
+    setSigningOutEverywhere(true);
+    try {
+      // Ends this session too, so the app drops back to the sign-in screen.
+      await logoutEverywhere();
+      toast.success('Signed out on every device. Sign in again to carry on.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to sign out on all devices');
+    } finally {
+      setSigningOutEverywhere(false);
     }
   };
 
@@ -442,6 +463,30 @@ export const MyProfilePage: React.FC = () => {
           </button>
         </div>
       </form>
+
+      {/* Signed-in devices */}
+      <div className="p-6 rounded-3xl glass-card border border-slate-800 space-y-4">
+        <h3 className="text-sm font-bold text-white font-heading flex items-center gap-2">
+          <LogOut className="w-4 h-4 text-amber-400" />
+          Signed-in Devices
+        </h3>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Signing in leaves this account open on that device for up to seven days. If you have signed
+          in on a shared or lost phone, sign out everywhere — every device, including this one, will
+          have to sign in again.
+        </p>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            disabled={signingOutEverywhere}
+            onClick={handleSignOutEverywhere}
+            className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold text-xs flex items-center gap-1.5 disabled:opacity-60"
+          >
+            <LogOut className="w-4 h-4 text-amber-400" />
+            <span>{signingOutEverywhere ? 'Signing out...' : 'Sign Out on All Devices'}</span>
+          </button>
+        </div>
+      </div>
 
 
       {/* Player profile (PLAYER only) */}

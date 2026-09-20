@@ -11,6 +11,7 @@ use App\Models\Player;
 use App\Models\Standing;
 use App\Models\Team;
 use App\Models\Tournament;
+use App\Services\Fixtures\BracketService;
 use App\Support\Ids;
 use Illuminate\Support\Facades\DB;
 
@@ -25,7 +26,10 @@ use Illuminate\Support\Facades\DB;
  */
 class ScoringEngine
 {
-    public function __construct(private readonly LineupService $lineups) {}
+    public function __construct(
+        private readonly LineupService $lineups,
+        private readonly BracketService $brackets,
+    ) {}
 
     /* ---------------------------------------------------------------------
      | Football
@@ -424,8 +428,12 @@ class ScoringEngine
     /**
      * Where the clock stands when a period kicks off, from the tournament's own
      * half length — a 25-minute-half sevens and a 45-minute league both run
-     * through here. Extra-time halves are a third of a half (15 of 45),
-     * unless the tournament sets them.
+     * through here.
+     *
+     * `extra_time_minutes` is the whole extra-time period, matching
+     * `match_duration_minutes` next to it in the settings, so one extra-time
+     * half is half of it. Unset, extra-time halves fall back to a third of a
+     * normal half (15 of 45).
      */
     public function footballPeriodStart(GameMatch $match, string $period): int
     {
@@ -437,8 +445,10 @@ class ScoringEngine
             $half = $full > 0 ? intdiv($full, 2) : 45;
         }
 
-        $extra = (int) ($settings['extra_time_half_minutes'] ?? 0);
-        $extra = $extra > 0 ? $extra : max(1, (int) round($half / 3));
+        $extraTotal = (int) ($settings['extra_time_minutes'] ?? 0);
+        $extra = $extraTotal > 0
+            ? max(1, intdiv($extraTotal, 2))
+            : max(1, (int) round($half / 3));
 
         return 60 * match ($period) {
             '2' => $half,
@@ -487,6 +497,9 @@ class ScoringEngine
             ->get()
             ->keyBy('match_id');
 
+        [$forWin, $forDraw, $forLoss] = $this->tablePoints($tournament, 3);
+        $cards = $this->disciplinaryPoints($matches->pluck('id')->all());
+
         foreach ($teams as $team) {
             $played = $won = $drawn = $lost = $goalsFor = $goalsAgainst = $points = 0;
             $form = [];
@@ -512,14 +525,15 @@ class ScoringEngine
 
                 if ($mine > $theirs) {
                     $won++;
-                    $points += 3;
+                    $points += $forWin;
                     $form[] = 'W';
                 } elseif ($mine === $theirs) {
                     $drawn++;
-                    $points += 1;
+                    $points += $forDraw;
                     $form[] = 'D';
                 } else {
                     $lost++;
+                    $points += $forLoss;
                     $form[] = 'L';
                 }
             }
@@ -535,11 +549,17 @@ class ScoringEngine
                 'goals_against' => $goalsAgainst,
                 'goal_difference' => $goalsFor - $goalsAgainst,
                 'points' => $points,
+                'disciplinary_points' => $cards[$team->id] ?? 0,
                 'form' => array_slice($form, -5),
             ]);
         }
 
-        $this->rankStandings($tournamentId, fn ($a, $b) => [$b->points, $b->goal_difference, $b->goals_for] <=> [$a->points, $a->goal_difference, $a->goals_for]);
+        // Level on points and on the head-to-head mini-table: goal difference,
+        // then goals scored, then the cleaner card record.
+        $this->rankStandings($tournamentId, fn (Standing $s) => [
+            (int) $s->goal_difference,
+            (int) $s->goals_for,
+        ]);
     }
 
     /* ---------------------------------------------------------------------
@@ -1020,6 +1040,8 @@ class ScoringEngine
             ->get()
             ->keyBy('match_id');
 
+        [$forWin, $forNoResult, $forLoss] = $this->tablePoints($tournament, 2);
+
         foreach ($teams as $team) {
             $played = $won = $lost = $noResult = $points = 0;
             $runsScored = $runsConceded = 0;
@@ -1033,7 +1055,12 @@ class ScoringEngine
                     continue;
                 }
 
-                if (! in_array($match->status, ['in_progress', 'completed', 'innings_break'], true)) {
+                // `abandoned` belongs here: the no-result branch below shares a
+                // point out for a match rained off, and it could never be
+                // reached while this filter skipped the only status that gets
+                // there. `cancelled` stays out — a match called off before a
+                // ball was bowled is not a fixture either side played.
+                if (! in_array($match->status, ['in_progress', 'completed', 'innings_break', 'abandoned'], true)) {
                     continue;
                 }
 
@@ -1053,14 +1080,15 @@ class ScoringEngine
 
                 if ($match->winner_team_id === $team->id) {
                     $won++;
-                    $points += 2;
+                    $points += $forWin;
                     $form[] = 'W';
                 } elseif ($match->winner_team_id) {
                     $lost++;
+                    $points += $forLoss;
                     $form[] = 'L';
                 } elseif (in_array($match->status, ['abandoned', 'cancelled'], true)) {
                     $noResult++;
-                    $points += 1;
+                    $points += $forNoResult;
                     $form[] = 'NR';
                 }
             }
@@ -1085,12 +1113,37 @@ class ScoringEngine
             ]);
         }
 
-        $this->rankStandings($tournamentId, fn ($a, $b) => [$b->points, $b->net_run_rate] <=> [$a->points, $a->net_run_rate]);
+        // Net run rate is cricket's separator once the head-to-head is level.
+        // Scaled to an integer because the comparison is done on whole numbers.
+        $this->rankStandings($tournamentId, fn (Standing $s) => [
+            (int) round((float) $s->net_run_rate * 1000),
+        ]);
     }
 
     /* ---------------------------------------------------------------------
      | Shared helpers
      * -------------------------------------------------------------------*/
+
+    /**
+     * What a win, a share and a defeat are worth in this tournament's table.
+     *
+     * Organizers have always been able to save `points_win` / `points_draw` /
+     * `points_loss`; nothing read them, so every table ran on 3/1/0 (football)
+     * and 2/1/0 (cricket) whatever was configured. The middle value is a draw
+     * in football and a tie or no result in cricket.
+     *
+     * @return array{0: int, 1: int, 2: int}
+     */
+    private function tablePoints(Tournament $tournament, int $defaultWin): array
+    {
+        $settings = $tournament->settings ?? [];
+
+        return [
+            (int) ($settings['points_win'] ?? $defaultWin),
+            (int) ($settings['points_draw'] ?? 1),
+            (int) ($settings['points_loss'] ?? 0),
+        ];
+    }
 
     /**
      * Insert or refresh a team's row in the tournament table, keeping the
@@ -1110,15 +1163,235 @@ class ScoringEngine
         $standing->fill($values)->save();
     }
 
-    private function rankStandings(string $tournamentId, callable $comparator): void
+    /**
+     * Order the table, resolving ties the way a competition actually does.
+     *
+     * Points first, and then — for the teams that are level — a mini-table of
+     * only the matches they played against each other, before falling back to
+     * the sport's own separator (goal difference, or net run rate) and finally
+     * the cleaner disciplinary record.
+     *
+     * Head-to-head cannot be a comparator: "A beat B" says nothing about how
+     * either compares to C, so feeding it to `usort` gives an order that depends
+     * on which pairs happen to get compared. It has to be applied to a group of
+     * level teams as a group, which is what this does.
+     *
+     * @param  callable(Standing): array<int, int|float>  $separators  sport-specific, best first
+     */
+    private function rankStandings(string $tournamentId, callable $separators): void
     {
         $standings = Standing::query()->where('tournament_id', $tournamentId)->get()->all();
-        usort($standings, $comparator);
 
-        foreach ($standings as $index => $standing) {
+        if (! $standings) {
+            return;
+        }
+
+        $headToHead = $this->headToHeadRecords($tournamentId);
+
+        // Points decide the groups; everything else only ever reorders within one.
+        usort($standings, fn (Standing $a, Standing $b) => $b->points <=> $a->points);
+
+        $ordered = [];
+
+        foreach ($this->groupBy($standings, fn (Standing $s) => (string) $s->points) as $level) {
+            $ordered = [...$ordered, ...$this->breakTie($level, $headToHead, $separators)];
+        }
+
+        foreach ($ordered as $index => $standing) {
             $standing->rank = $index + 1;
             $standing->save();
         }
+
+        // Every path that changes a result ends up here — scoring, an undo, a
+        // reopened match, a manually corrected winner — which makes this the one
+        // place a bracket can be moved on from without a path being missed. It
+        // recomputes rather than advances, so undoing a semi-final takes the
+        // wrong team back out of the final. After the ranking, because a group's
+        // qualifiers are read off the ranks this just wrote.
+        $this->brackets->sync($tournamentId);
+    }
+
+    /**
+     * Order teams that are level on points.
+     *
+     * @param  array<int, Standing>  $level
+     * @param  array<string, array<string, array{points: int, difference: int, scored: int}>>  $headToHead
+     * @return array<int, Standing>
+     */
+    private function breakTie(array $level, array $headToHead, callable $separators): array
+    {
+        if (count($level) < 2) {
+            return $level;
+        }
+
+        $ids = array_map(fn (Standing $s) => (string) $s->team_id, $level);
+
+        // The mini-table: only results between the teams that are level.
+        $mini = [];
+
+        foreach ($ids as $teamId) {
+            $mini[$teamId] = ['points' => 0, 'difference' => 0, 'scored' => 0];
+
+            foreach ($ids as $opponentId) {
+                $record = $headToHead[$teamId][$opponentId] ?? null;
+
+                if (! $record) {
+                    continue;
+                }
+
+                $mini[$teamId]['points'] += $record['points'];
+                $mini[$teamId]['difference'] += $record['difference'];
+                $mini[$teamId]['scored'] += $record['scored'];
+            }
+        }
+
+        usort($level, function (Standing $a, Standing $b) use ($mini, $separators) {
+            $left = $mini[(string) $a->team_id];
+            $right = $mini[(string) $b->team_id];
+
+            return [
+                $right['points'], $right['difference'], $right['scored'],
+                ...$separators($b),
+                // Fewest cards, so this one is ascending.
+                -1 * (int) $b->disciplinary_points,
+            ] <=> [
+                $left['points'], $left['difference'], $left['scored'],
+                ...$separators($a),
+                -1 * (int) $a->disciplinary_points,
+            ];
+        });
+
+        return $level;
+    }
+
+    /**
+     * Fair-play points per team, off the card log.
+     *
+     * Derived rather than counted as it happens, for the same reason player
+     * statistics are: undoing a card has to undo its effect on the table, and a
+     * stored counter would have to be decremented by hand.
+     *
+     * @param  array<int, string>  $matchIds
+     * @return array<string, int>
+     */
+    private function disciplinaryPoints(array $matchIds): array
+    {
+        if (! $matchIds) {
+            return [];
+        }
+
+        // The two cards a scorer can record. A yellow is one, a sending-off
+        // three — the usual weighting, and it keeps a single red above two
+        // yellows, which is the comparison this exists to settle.
+        $weights = ['yellow_card' => 1, 'red_card' => 3];
+
+        $events = FootballEvent::query()
+            ->whereIn('match_id', $matchIds)
+            ->whereIn('event_type', array_keys($weights))
+            ->get(['team_id', 'event_type']);
+
+        $totals = [];
+
+        foreach ($events as $event) {
+            $totals[$event->team_id] = ($totals[$event->team_id] ?? 0) + $weights[$event->event_type];
+        }
+
+        return $totals;
+    }
+
+    /**
+     * What each team did against each other team: points won, goal or run
+     * difference, and how many they scored.
+     *
+     * Read once per ranking rather than per comparison — a comparator hitting
+     * the database is how a table of sixteen becomes a hundred queries.
+     *
+     * @return array<string, array<string, array{points: int, difference: int, scored: int}>>
+     */
+    private function headToHeadRecords(string $tournamentId): array
+    {
+        $tournament = Tournament::find($tournamentId);
+
+        if (! $tournament) {
+            return [];
+        }
+
+        $football = $tournament->sport_code === 'football';
+        [$forWin, $forDraw, $forLoss] = $this->tablePoints($tournament, $football ? 3 : 2);
+
+        $matches = GameMatch::query()
+            ->where('tournament_id', $tournamentId)
+            ->whereIn('status', ['completed', 'in_progress', 'half_time', 'innings_break'])
+            ->get();
+
+        if ($matches->isEmpty()) {
+            return [];
+        }
+
+        $states = $football
+            ? FootballMatchState::query()->whereIn('match_id', $matches->pluck('id'))->get()->keyBy('match_id')
+            : CricketMatchState::query()->whereIn('match_id', $matches->pluck('id'))->get()->keyBy('match_id');
+
+        $records = [];
+
+        foreach ($matches as $match) {
+            $state = $states->get($match->id);
+
+            if (! $state || $match->team_a_id === '' || $match->team_b_id === '') {
+                continue;
+            }
+
+            [$scoreA, $scoreB] = $football
+                ? [(int) $state->team_a_score, (int) $state->team_b_score]
+                : $this->cricketScoresByTeam($match, $state);
+
+            foreach ([[$match->team_a_id, $match->team_b_id, $scoreA, $scoreB], [$match->team_b_id, $match->team_a_id, $scoreB, $scoreA]] as [$teamId, $opponentId, $mine, $theirs]) {
+                $records[$teamId][$opponentId] ??= ['points' => 0, 'difference' => 0, 'scored' => 0];
+
+                $records[$teamId][$opponentId]['points'] += match (true) {
+                    $mine > $theirs => $forWin,
+                    $mine === $theirs => $forDraw,
+                    default => $forLoss,
+                };
+                $records[$teamId][$opponentId]['difference'] += $mine - $theirs;
+                $records[$teamId][$opponentId]['scored'] += $mine;
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * Runs for and against the *teams*, not the innings.
+     *
+     * The state row's `team_a_*` columns hold the first and second innings, and
+     * which side batted first is decided by the toss — the same trap the net run
+     * rate calculation has to avoid.
+     *
+     * @return array{0: int, 1: int}
+     */
+    private function cricketScoresByTeam(GameMatch $match, CricketMatchState $state): array
+    {
+        $aBattedFirst = ($match->batting_first_team_id ?: $match->team_a_id) === $match->team_a_id;
+
+        return $aBattedFirst
+            ? [(int) $state->team_a_runs, (int) $state->team_b_runs]
+            : [(int) $state->team_b_runs, (int) $state->team_a_runs];
+    }
+
+    /**
+     * @param  array<int, Standing>  $items
+     * @return array<int, array<int, Standing>>
+     */
+    private function groupBy(array $items, callable $key): array
+    {
+        $groups = [];
+
+        foreach ($items as $item) {
+            $groups[$key($item)][] = $item;
+        }
+
+        return array_values($groups);
     }
 
     /**

@@ -45,8 +45,21 @@ npm run build       # tsc -b && vite build
 
 `npm run dev` at the root always starts all four processes together — there is no
 root-level flag to run just one; use the per-package scripts above for that. The queue
-worker (`database` queue connection) exists for `GeneratePoster`; nothing else in the
-app queues jobs, so skipping it only breaks poster generation.
+worker (`database` queue connection) runs `GeneratePoster` and `SendNotification`, so
+skipping it leaves posters ungenerated and messages sitting at `queued`.
+
+**Scheduler.** `routes/console.php` holds the schedule; deployment needs one cron entry
+(`* * * * * php artisan schedule:run`). Every task is safe to run twice — the sweeps
+dedupe on `notifications.dedupe_key` and act only on rows whose dates say so, so a missed
+hour catches up and a double run sends nothing twice.
+
+| Command | When | Does |
+| --- | --- | --- |
+| `notifications:reminders` | every 15 min | match reminders (24h, 2h) and weekly unpaid-fee reminders |
+| `notifications:retry` | every 10 min | re-queues failed sends still under `max_attempts` |
+| `subscriptions:sweep` | 06:30 daily | expires subscriptions past `end_date` + `grace_period_days`, warns before |
+
+Both sweeps take `--dry-run`.
 
 ## Architecture
 
@@ -60,7 +73,82 @@ and bypass tenant checks.
 
 **Auth.** Two accepted credentials: `Authorization: Bearer <jwt>` (HS256, 7-day expiry,
 `JWT_SECRET`) and the `x-demo-role` / `x-demo-org-id` header pair used by the client's
-role switcher (no login needed in dev). `TokenService` issues/verifies JWTs.
+role switcher (no login needed in dev). `TokenService` issues/verifies JWTs, and
+`authenticate()` is the only way in — it applies both revocation paths, so don't check a
+token with bare `decode()`:
+- one token, by its `jti`, denylisted in `revoked_tokens` (`POST /api/auth/logout`, and
+  ending an impersonation — the client calls logout while still holding the borrowed
+  token). Spent rows are pruned on write; there is no scheduler to sweep them.
+- every token an account holds, by `users.token_version` (`POST /api/auth/logout-everywhere`,
+  a password change, and suspending an organization). A counter, not a timestamp, because
+  `iat` is second-accurate and can't separate the token revoked from the replacement issued
+  right after. A password change returns a fresh `token` — the client must adopt it.
+
+Tokens predating this carry no `jti`/`tv`; they read as version 0 and stay valid until
+something revokes them.
+
+**Notifications (WhatsApp / SMS).** `NotificationService` is the only way out.
+`dispatch()` runs inside the web request and does nothing slow: it renders the template,
+writes a `notifications` row and queues `SendNotification`. `deliver()` runs on the queue
+and hands the row to a driver. Nothing throws into the caller — a gateway outage must not
+fail a team approval, same rule as `RealtimeBroadcaster`.
+- Message wording lives in `NotificationCatalog` (one place, SMS-length aware). Recipients
+  come from `Audience` — never re-derive which of a team's four contact columns to use.
+- Drivers implement `Channels\ChannelDriver` and are registered in `ChannelManager`.
+  `log` is the default and records instead of sending, so everything works with no gateway
+  account; a real provider is one class plus `config/notifications.php`.
+- Scheduled messages pass a `dedupeKey`; the unique index turns at-least-once scheduling
+  into exactly-once delivery. Always pass one from a command.
+- Per-org switches live in `organizations.notification_settings`; `config('notifications.defaults')`
+  applies until an organizer changes them. `notification_opt_outs` is checked at dispatch
+  *and* at delivery, so opting out after queueing still stops the send.
+- Phone numbers go through `Support\Phone::normalize()` (E.164, India assumed for bare
+  10-digit) — that is what makes opt-out matching work regardless of how it was typed.
+
+**Fixtures and brackets.** `Fixtures\FixtureBuilder` builds the whole schedule for four
+formats — `league` (optionally home and away), `knockout`, `group_stage`, `league_knockout`.
+It hands work to `Fixtures\Slotter` as *rounds* (sets of fixtures in which no team appears
+twice), which is what lets a matchday spread across every `venues` row without clashing a
+team or double-booking a ground. Keep that contract: a builder that emits a flat list
+breaks both guarantees.
+- A knockout creates **every round up front**, later ones with empty `team_a_id`/`team_b_id`
+  and an `advance_from` saying what fills them (`winner` of a match, or a `group` position).
+  Seeds go in in *seeding order* and the bracket pairs them — pre-pairing the list gets
+  re-permuted into same-group ties. Byes are real rows, already `completed`.
+- `Fixtures\BracketService::sync()` **recomputes** progression from `advance_from` rather
+  than tracking it, so undoing a semi-final takes the wrong finalist back out. It is called
+  from `ScoringEngine::rankStandings()` — the one place every result change passes through.
+  It will not touch a match that has already started.
+- Group qualifiers are read off `standings.rank` only once every fixture in that group is
+  finished, so a half-played group never seeds a semi-final.
+- `FixtureBuilder` also writes `teams.group_name`; the tournament table is grouped by it.
+- `GET /api/matches/bracket/{idOrSlug}` is public (hub + stadium screen); a league returns
+  `has_bracket: false`.
+
+**Account recovery.** `POST /api/auth/forgot-password` then `/reset-password`, with a
+six-digit code sent by **SMS** through the notification engine — most of these users have
+no email. `PasswordResetService` answers identically whether or not the account exists (the
+endpoint would otherwise enumerate which phone numbers are registered); the code is stored
+hashed, expires in 15 minutes and burns after `PasswordReset::MAX_ATTEMPTS` wrong guesses.
+A successful reset revokes every session and returns a working token.
+
+**Rate limiting.** Use a **named** limiter from `AppServiceProvider::registerRateLimiters()`
+for anything that needs a real budget. An inline `throttle:5,10` keys on route+IP — the same
+key the global `throttleApi` uses — so both middlewares increment one counter and a request
+costs two attempts. `throttle:5,10` actually allows about 2.
+
+**Storage quota.** `plans.storage_limit_mb` is measured off the `uploads` table
+(`BillingService::storageUsedMb`), enforced in `UploadController` and reported by
+`usage()`. Only uploads with an `organization_id` count: uploading is public (registration
+sends a photo before anyone has an account), and a team must never be turned away from
+registering because the club is near its limit.
+
+**Exports.** `ExportController` + `CsvWriter`. Public files (table, fixtures, player stats,
+one match's card) match what the hub already shows; fee collection and squad lists carry
+phone numbers and stay with the organizer. `CsvWriter` writes a UTF-8 BOM and prefixes
+anything Excel would reinterpret — a leading `=` (CSV injection) or an 11+ digit number
+(scientific notation). The scorecard is printable HTML, not a rendered PDF, to keep headless
+Chrome off a download path.
 
 **Two separate money flows — don't conflate them.**
 - `BillingService` — what organizers pay the platform (plans, limits, subscriptions,
@@ -137,6 +225,8 @@ routes/api.php               the entire route table, single file
 | `WEBSOCKET_BRIDGE_PORT` | `4100` | loopback only, never expose |
 | `CORS_ALLOWED_ORIGINS` | `*` | narrow before deploying |
 | `FRONTEND_URL` | request `Origin`, then `APP_URL` | client origin for the registration QR on posters |
+| `NOTIFICATIONS_ENABLED` | `true` | off queues nothing at all — set it on any copy of production data |
+| `WHATSAPP_DRIVER` / `SMS_DRIVER` | `log` | `log` records instead of sending; no gateway account needed |
 
 Demo login for any seeded account: password `12345678` (see root README for the account
 list). `POST /api/dev/reset-seed` wipes and reseeds the DB and must 404 in production
@@ -148,7 +238,13 @@ list). `POST /api/dev/reset-seed` wipes and reseeds the DB and must 404 in produ
 `GroundFeePaymentTest`, `FootballScoringTest`, `CricketScoringTest`, `AuctionTest`,
 `AuctionAuthorizationTest`, `AuctionPaymentReportTest`, `ApiContractTest` (JSON shape
 every client screen depends on — update this when changing response shapes),
-`RealtimeResilienceTest` (behavior with gateway down), `WebSocketHubTest`.
+`RealtimeResilienceTest` (behavior with gateway down), `WebSocketHubTest`,
+`ExportAndRecoveryTest` (CSV escaping, password-reset flow and its limits, storage quota,
+standings tie-breakers),
+`TokenRevocationTest` (both revocation paths), `TournamentSettingsTest` (settings actually
+reaching the scoring engine), `NotificationEngineTest` (templates, opt-outs, per-org
+switches, both scheduled sweeps and their dedupe), `BracketTest` (seeding, byes,
+progression and its undo, groups feeding a bracket, ground clashes, venue CRUD).
 
 No client-side test suite exists — `npm run typecheck` is the only automated client
 check.

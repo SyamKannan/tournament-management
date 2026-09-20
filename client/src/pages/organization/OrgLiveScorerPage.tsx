@@ -16,6 +16,7 @@ import { TossPanel } from '../../components/TossPanel';
 import { BigScreenDirector } from '../../components/BigScreenDirector';
 import { MatchLineupEditor } from '../../components/MatchLineupEditor';
 import { CreasePanel } from '../../components/CreasePanel';
+import { VoiceScoring, type VoiceCall } from '../../components/VoiceScoring';
 import { WicketDialog, type WicketDetails } from '../../components/WicketDialog';
 import { CricketScorecardTables } from '../../components/CricketScorecardTables';
 import { SelectPlayerDialog } from '../../components/SelectPlayerDialog';
@@ -308,6 +309,34 @@ export const OrgLiveScorerPage: React.FC = () => {
     } catch (err: any) {
       toast.error(err.message || 'Failed to record delivery');
     }
+  };
+
+  /**
+   * A spoken call, turned into the same actions the buttons take.
+   *
+   * A wicket goes through `postDelivery` directly with the striker as the
+   * dismissed player, which is right for the bowled/caught/lbw calls this
+   * recognises. Anything needing a fielder or a different batter is still a
+   * dialog — voice is for the common ball, not for every edge case.
+   */
+  const handleVoiceCall = async (call: VoiceCall) => {
+    if (call.kind === 'undo') {
+      await handleCricketUndo();
+      return;
+    }
+
+    if (call.kind === 'wicket') {
+      await postDelivery(0, 'none', {
+        runs_scored: 0,
+        wicket_type: call.wicketType,
+        dismissed_player_id: crease.striker,
+        fielder_id: undefined,
+        next_striker_id: undefined,
+      });
+      return;
+    }
+
+    await postDelivery(call.runs, call.extra);
   };
 
   const handleCricketUndo = async () => {
@@ -1088,6 +1117,11 @@ export const OrgLiveScorerPage: React.FC = () => {
               nonStriker: previous.striker,
             }))}
           />
+
+          {/* Hands-free scoring: the same postDelivery path the buttons use, so
+              a spoken ball is indistinguishable from a tapped one — undo and
+              the event log included. */}
+          <VoiceScoring onCall={handleVoiceCall} disabled={!crease.striker || !effectiveBowlerId} />
 
           <div className="p-5 sm:p-6 rounded-3xl glass-panel border border-slate-800 space-y-5">
             <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-800">

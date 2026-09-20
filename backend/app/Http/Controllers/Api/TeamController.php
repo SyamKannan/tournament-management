@@ -12,6 +12,8 @@ use App\Models\RegistrationReceipt;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Services\BillingService;
+use App\Services\Notifications\Audience;
+use App\Services\Notifications\NotificationService;
 use App\Services\PaymentGatewayService;
 use App\Services\TournamentPaymentService;
 use App\Support\Audit;
@@ -28,6 +30,7 @@ class TeamController extends Controller
         private readonly TournamentPaymentService $payments,
         private readonly BillingService $billing,
         private readonly PaymentGatewayService $gateway,
+        private readonly NotificationService $notifications,
     ) {}
 
     /* ------------------------------------------- Public registration wizard */
@@ -408,6 +411,23 @@ class TeamController extends Controller
 
             return ['team' => $team, ...$payment];
         });
+
+        // After the transaction, not inside it: a queued notification must not
+        // be rolled back into existence or lost with a retry, and the organizer
+        // hearing about a registration is not worth failing one over.
+        $this->notifications->dispatch(
+            'team_registered',
+            Audience::organizers($result['team']->organization_id),
+            [
+                'team' => $result['team']->name,
+                'tournament' => Tournament::find($result['team']->tournament_id)?->name ?? '',
+                'manager' => $result['team']->manager_name,
+                'fee' => $this->currency((float) ($result['payment']->paid_amount ?? 0)),
+            ],
+            $result['team']->organization_id,
+            'team',
+            $result['team']->id,
+        );
 
         return response()->json([
             'team' => $result['team'],
@@ -887,7 +907,14 @@ class TeamController extends Controller
             'group_name' => ['sometimes', 'nullable', 'string', 'max:64'],
         ]);
 
+        $previousStatus = $team->status;
         $team->fill($data)->save();
+
+        // Only on the change, so re-saving an approved team to set its group
+        // does not tell the manager they are in all over again.
+        if ($team->status !== $previousStatus) {
+            $this->announceTeamDecision($team);
+        }
 
         $user = $request->user();
         Audit::log([
@@ -930,7 +957,7 @@ class TeamController extends Controller
         ]);
 
         try {
-            return response()->json($this->payments->processPayment([
+            $result = $this->payments->processPayment([
                 'teamId' => $team->id,
                 'tournamentId' => $team->tournament_id,
                 'organizationId' => $team->organization_id,
@@ -941,10 +968,91 @@ class TeamController extends Controller
                 'notes' => $data['notes'] ?? 'Recorded by tournament administrator',
                 'recordedByAdmin' => true,
                 'adminUserId' => $request->user()->id,
-            ]));
+            ]);
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 400);
         }
+
+        $this->announcePayment($team, $result);
+
+        return response()->json($result);
+    }
+
+    /**
+     * Confirm a collected instalment to the manager who paid it.
+     *
+     * This is the receipt a village team keeps: cash handed over at the ground
+     * leaves no other trace, and "what did we already pay?" is the argument this
+     * prevents.
+     *
+     * @param  array<string, mixed>  $result
+     */
+    private function announcePayment(Team $team, array $result): void
+    {
+        $payment = $result['payment'] ?? null;
+
+        if (! $payment) {
+            return;
+        }
+
+        $this->notifications->dispatch(
+            'payment_received',
+            Audience::teamManager($team),
+            [
+                'team' => $team->name,
+                'tournament' => Tournament::find($team->tournament_id)?->name ?? '',
+                'amount' => $this->currency((float) ($result['amount_paid_now'] ?? $payment->paid_amount ?? 0)),
+                'paid' => $this->currency((float) ($payment->paid_amount ?? 0)),
+                'fee' => $this->currency((float) ($payment->total_fee ?? 0)),
+                'balance' => $this->currency((float) ($payment->remaining_amount ?? 0)),
+                'receipt' => (string) ($result['receipt']->receipt_number ?? $payment->receipt_number ?? ''),
+            ],
+            $team->organization_id,
+            'team',
+            $team->id,
+        );
+    }
+
+    /**
+     * Tell a team's manager that their entry was accepted or turned down.
+     *
+     * Being approved carries what they now owe and when to turn up, because
+     * that is the next thing they need — a bare "approved" makes them log in to
+     * find out.
+     */
+    private function announceTeamDecision(Team $team): void
+    {
+        if (! in_array($team->status, ['approved', 'rejected'], true)) {
+            return;
+        }
+
+        $tournament = Tournament::find($team->tournament_id);
+        $payment = RegistrationPayment::query()->where('team_id', $team->id)->first();
+        $organization = Organization::find($team->organization_id);
+
+        $this->notifications->dispatch(
+            $team->status === 'approved' ? 'team_approved' : 'team_rejected',
+            Audience::teamManager($team),
+            [
+                'team' => $team->name,
+                'tournament' => $tournament?->name ?? '',
+                'start_date' => $tournament?->start_date ?? '',
+                'venue_line' => $tournament?->location ? ' at '.$tournament->location : '',
+                'balance' => $this->currency((float) ($payment->remaining_amount ?? 0)),
+                'reason' => (string) ($team->approval_notes ?? ''),
+                'contact' => $organization?->phone ?: ($tournament?->phone ?? ''),
+            ],
+            $team->organization_id,
+            'team',
+            $team->id,
+        );
+    }
+
+    private function currency(float $amount): string
+    {
+        $symbol = \App\Models\PlatformSetting::query()->value('currency_symbol') ?: '₹';
+
+        return $symbol.number_format($amount, 0);
     }
 
     public function receipt(string $id): JsonResponse

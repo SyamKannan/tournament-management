@@ -20,6 +20,7 @@ class Organization extends BaseModel
 
     protected $casts = [
         'social_media' => 'array',
+        'notification_settings' => 'array',
     ];
 
     public function tournaments(): HasMany

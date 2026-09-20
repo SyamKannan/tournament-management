@@ -5,6 +5,7 @@ import { FileText, Download } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { TournamentPicker } from '../../components/ui/TournamentPicker';
+import { ExportPanel } from '../../components/ExportPanel';
 import { EmptyState, Skeleton, SkeletonStats, SkeletonTable } from '../../components/ui/Feedback';
 import { label } from '../../lib/labels';
 
@@ -168,6 +169,9 @@ export const OrgReportsPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* The rest of the tournament as files — table, fixtures, stats, squads. */}
+      {selectedTourneyId && <ExportPanel tournamentId={selectedTourneyId} />}
 
       {!reportData ? (
         <EmptyState

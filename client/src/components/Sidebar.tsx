@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, CreditCard, Building2, Trophy, Users, Calendar,
   Radio, Megaphone, FileText, Settings, History, X, Gamepad2, Image as ImageIcon,
-  Receipt, PlusCircle
+  Receipt, PlusCircle, BellRing, MapPin
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -30,9 +30,11 @@ const ORG_LINKS = [
   { to: '/organization/tournaments', label: 'Tournaments', icon: Trophy },
   { to: '/organization/teams', label: 'Teams & Approvals', icon: Users },
   { to: '/organization/fixtures', label: 'Fixtures & Brackets', icon: Calendar },
+  { to: '/organization/venues', label: 'Grounds', icon: MapPin },
   { to: '/organization/posters', label: 'Posters', icon: ImageIcon },
   { to: '/organization/sponsors', label: 'Sponsors & Ads', icon: Megaphone },
   { to: '/organization/announcements', label: 'Announcements', icon: Radio },
+  { to: '/organization/notifications', label: 'WhatsApp & SMS', icon: BellRing },
   { to: '/organization/reports', label: 'Financials & Reports', icon: FileText },
   { to: '/organization/billing', label: 'Billing & Plan', icon: CreditCard },
 ];

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Upload;
+use App\Services\BillingService;
 use App\Support\Ids;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,6 +35,8 @@ class UploadController extends Controller
 
     private const MAX_BYTES = 10 * 1024 * 1024;
 
+    public function __construct(private readonly BillingService $billing) {}
+
     public function upload(Request $request): JsonResponse
     {
         $request->validate([
@@ -49,6 +53,24 @@ class UploadController extends Controller
             File::makeDirectory($targetDir, 0755, true, true);
         }
 
+        // An organizer uploading against their own account is charged for the
+        // space. A public registration upload has no account behind it and no
+        // quota to charge, so it is recorded but never refused — turning a team
+        // away from registering because the club is near its storage limit
+        // would punish the wrong person.
+        $organizationId = $request->user()?->organization_id;
+
+        if ($organizationId) {
+            $quota = $this->billing->checkLimit($organizationId, 'storage');
+
+            if (! $quota['allowed']) {
+                return response()->json([
+                    'error' => $quota['reason'] ?? 'Storage limit reached for your plan.',
+                    'limit' => $quota,
+                ], 403);
+            }
+        }
+
         if ($uploaded = $request->file('image') ?? $request->file('file')) {
             // guessExtension() reads the file's own bytes; the client's name
             // does not come near the stored file.
@@ -59,9 +81,11 @@ class UploadController extends Controller
             }
 
             $filename = Ids::token(12).'_'.time().'.'.$extension;
+            // Read before the move: the uploaded temp file is gone afterwards.
+            $bytes = (int) $uploaded->getSize();
             $uploaded->move($targetDir, $filename);
 
-            return $this->stored($folder, $filename);
+            return $this->stored($request, $folder, $filename, $bytes);
         }
 
         if ($base64 = $request->input('base64')) {
@@ -93,14 +117,26 @@ class UploadController extends Controller
             $filename = Ids::token(12).'_'.time().'.'.$extension;
             File::put("{$targetDir}/{$filename}", $data);
 
-            return $this->stored($folder, $filename);
+            return $this->stored($request, $folder, $filename, strlen($data));
         }
 
         return response()->json(['error' => 'No image file or base64 data provided'], 422);
     }
 
-    private function stored(string $folder, string $filename): JsonResponse
+    private function stored(Request $request, string $folder, string $filename, int $bytes): JsonResponse
     {
+        // Recorded whether or not anybody owns it, so what is on disk is always
+        // accounted for even when it counts against no quota.
+        Upload::create([
+            'id' => Ids::unique('upl'),
+            'organization_id' => $request->user()?->organization_id,
+            'uploaded_by' => $request->user()?->id,
+            'folder' => $folder,
+            'filename' => $filename,
+            'bytes' => $bytes,
+            'created_at' => now(),
+        ]);
+
         return response()->json([
             'url' => url("uploads/{$folder}/{$filename}"),
             'path' => "uploads/{$folder}/{$filename}",

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { roleHome } from '../../lib/roleHome';
@@ -194,8 +194,13 @@ export const LoginPage: React.FC = () => {
             />
           </AuthField>
 
-          <div className="pt-2">
+          <div className="pt-2 space-y-3">
             <AuthSubmit accent={accent} loading={isLoading}>Sign in</AuthSubmit>
+            <div className="text-center">
+              <Link to="/forgot-password" className="text-xs font-semibold text-slate-400 hover:text-white">
+                Forgotten your password?
+              </Link>
+            </div>
           </div>
         </form>
 

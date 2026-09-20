@@ -21,6 +21,7 @@ class Standing extends BaseModel
         'overs_bowled' => 'float',
         'net_run_rate' => 'float',
         'points' => 'integer',
+        'disciplinary_points' => 'integer',
         'form' => 'array',
         'rank' => 'integer',
     ];
