@@ -23,6 +23,7 @@ use App\Services\Notifications\NotificationService;
 use App\Services\PosterService;
 use App\Services\RealtimeBroadcaster;
 use App\Support\Audit;
+use App\Support\Cached;
 use App\Support\Ids;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -50,13 +51,21 @@ class TournamentController extends Controller
             return response()->json(['error' => 'Tournament not found'], 404);
         }
 
+        $scopes = [Cached::tournament($tournament->id), Cached::org($tournament->organization_id)];
+
+        return Cached::json($scopes, 'hub', 'hub', fn () => $this->hubPayload($tournament));
+    }
+
+    /** @return array<string, mixed> */
+    private function hubPayload(Tournament $tournament): array
+    {
         $matches = GameMatch::query()->where('tournament_id', $tournament->id)->get();
         $link = RegistrationLink::query()
             ->where('tournament_id', $tournament->id)
             ->where('status', 'active')
             ->first();
 
-        return response()->json([
+        return [
             'tournament' => $tournament,
             'organization' => Organization::find($tournament->organization_id),
             'teams' => $this->withoutTeamContacts(
@@ -77,7 +86,7 @@ class TournamentController extends Controller
                 'current_registrations' => $link->current_registrations,
                 'deadline' => $link->deadline,
             ] : null,
-        ]);
+        ];
     }
 
     public function index(Request $request): JsonResponse

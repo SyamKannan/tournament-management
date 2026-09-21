@@ -19,6 +19,7 @@ use App\Services\PaymentGatewayService;
 use App\Services\TemporaryPasswordService;
 use App\Services\TokenService;
 use App\Support\Audit;
+use App\Support\Cached;
 use App\Support\Ids;
 use App\Support\Paginate;
 use Illuminate\Http\JsonResponse;
@@ -76,6 +77,9 @@ class AdminController extends Controller
                 Plan::query()->whereKey($id)->update(['sort_order' => $position]);
             }
         });
+
+        // A mass update fires no model events.
+        Cached::flush('platform');
 
         $this->audit($request, 'REORDERED_PLANS', 'Plan', '*', 'Changed the display order of plans');
 

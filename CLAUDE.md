@@ -164,6 +164,17 @@ costs two attempts. `throttle:5,10` actually allows about 2.
 sends a photo before anyone has an account), and a team must never be turned away from
 registering because the club is near its limit.
 
+**Caching (Redis).** `Support\Cached` is a read-through cache for the public, computed-on-request
+reads: the tournament hub, fixture list, bracket, platform catalogue (plans/sports/footer) and every
+`PlayerStatsService` entry point (block, match log, roster stats, career). Entries live in *scopes*
+(`tournament:<id>`, `org:<id>`, `platform`), each with a version number in its key; invalidating is one
+increment. `CacheServiceProvider` does it off Eloquent's `saved`/`deleted` events, after commit, reading
+the scope off the record (`tournament_id`, its match's tournament, `organization_id`) — so a new write
+path is covered automatically. The one thing it can't see is a mass `query()->update()`/`->delete()`:
+follow one with `Cached::flush()` (see plan reorder). Off unless `CACHE_STORE=redis` (or
+`RESPONSE_CACHE_ENABLED=true`); a Redis outage degrades to uncached reads, never an error. The fixture
+list is keyed by staff/public so team contacts never cross over.
+
 **Exports.** `ExportController` + `CsvWriter`. Public files (table, fixtures, player stats,
 one match's card) match what the hub already shows; fee collection and squad lists carry
 phone numbers and stay with the organizer. `CsvWriter` writes a UTF-8 BOM and prefixes
@@ -265,6 +276,9 @@ routes/api.php               the entire route table, single file
 | `NOTIFICATIONS_ENABLED` | `true` | off queues nothing at all — set it on any copy of production data |
 | `WHATSAPP_DRIVER` / `SMS_DRIVER` | `log` | `log`, `twilio` or `meta_whatsapp`; `log` in production means reset codes never arrive |
 | `TWILIO_*`, `META_WHATSAPP_*` | — | gateway credentials, see `backend/.env.example` |
+| `CACHE_STORE` | `database` | `redis` turns on the public read cache (needs `REDIS_*`, client `predis`) |
+| `RESPONSE_CACHE_ENABLED` | on iff store is redis | force the public read cache on/off |
+| `CACHE_TTL_HUB` / `_STATS` / `_PLATFORM` | 300 / 600 / 3600 s | ceiling only — writes invalidate at once |
 
 Demo login for any seeded account: password `12345678` (see root README for the account
 list). `POST /api/dev/reset-seed` wipes and reseeds the DB and must 404 in production
@@ -284,8 +298,9 @@ reaching the scoring engine), `NotificationEngineTest` (templates, opt-outs, per
 switches, both scheduled sweeps and their dedupe), `BracketTest` (seeding, byes,
 progression and its undo, groups feeding a bracket, ground clashes, venue CRUD),
 `HumanFacingFixesTest` (error envelope, delivery honesty and drivers, temporary passwords,
-paging and search, auction undo, pay-then-register safety, poster job status).
-
+paging and search, auction undo, pay-then-register safety, poster job status),
+`CachingTest` (hits, invalidation by scoring/edits/reorder, staff/public separation, after-commit
+flush, Redis outage; one test runs against a live Redis if `REDIS_TEST_HOST`:`REDIS_TEST_PORT` answers).
 
 No client-side test suite exists — `npm run typecheck` is the only automated client
 check.

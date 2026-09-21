@@ -12,6 +12,7 @@
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
         "league/color-extractor": "*",
+        "predis/predis": "^3.6",
         "spatie/browsershot": "*",
         "workerman/workerman": "^5.2"
     },

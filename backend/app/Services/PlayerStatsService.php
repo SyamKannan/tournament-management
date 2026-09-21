@@ -10,6 +10,8 @@ use App\Models\MatchLineup;
 use App\Models\Player;
 use App\Models\Team;
 use App\Models\Tournament;
+use App\Models\User;
+use App\Support\Cached;
 use Illuminate\Support\Collection;
 
 /**
@@ -59,9 +61,13 @@ class PlayerStatsService
     public function forPlayer(Player $player): array
     {
         $tournament = Tournament::find($player->tournament_id);
-        $data = $tournament ? $this->tournamentLines($tournament) : null;
 
-        return $this->block($player, $tournament, $data);
+        if (! $tournament) {
+            return $this->block($player, null, null);
+        }
+
+        return Cached::remember(Cached::tournament($tournament->id), 'block:'.$player->id, 'stats',
+            fn () => $this->block($player, $tournament, $this->tournamentLines($tournament)));
     }
 
     /**
@@ -72,6 +78,12 @@ class PlayerStatsService
      * @return Collection<int, array{player: Player, stats: array<string, mixed>}>
      */
     public function forTournament(Tournament $tournament): Collection
+    {
+        return Cached::remember(Cached::tournament($tournament->id), 'roster-stats', 'stats',
+            fn () => $this->computeForTournament($tournament));
+    }
+
+    private function computeForTournament(Tournament $tournament): Collection
     {
         $data = $this->tournamentLines($tournament);
 
@@ -131,7 +143,8 @@ class PlayerStatsService
             return [];
         }
 
-        return $this->logEntries($player, $tournament, $this->tournamentLines($tournament));
+        return Cached::remember(Cached::tournament($tournament->id), 'log:'.$player->id, 'stats',
+            fn () => $this->logEntries($player, $tournament, $this->tournamentLines($tournament)));
     }
 
     /**
@@ -150,6 +163,22 @@ class PlayerStatsService
     {
         ['account' => $account, 'entries' => $entries] = $this->identity->linkedEntries($player);
 
+        // Built from every tournament the person played in, so a change to any
+        // of them — or a new squad entry, which adds a scope — misses.
+        $scopes = $entries->pluck('tournament_id')->filter()->unique()->sort()
+            ->map(Cached::tournament(...))->values()->all();
+
+        if ($scopes === []) {
+            return $this->computeCareer($account, $entries);
+        }
+
+        return Cached::remember($scopes, 'career:'.$player->id.':'.$entries->pluck('id')->sort()->implode(','), 'stats',
+            fn () => $this->computeCareer($account, $entries));
+    }
+
+    /** @param  Collection<int, Player>  $entries */
+    private function computeCareer(?User $account, Collection $entries): array
+    {
         $tournaments = Tournament::query()
             ->whereIn('id', $entries->pluck('tournament_id')->unique()->all())
             ->where('status', '!=', 'draft')

@@ -11,6 +11,7 @@ use App\Models\Player;
 use App\Models\Sport;
 use App\Models\Team;
 use App\Models\Tournament;
+use App\Support\Cached;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 
@@ -26,7 +27,7 @@ class PlatformController extends Controller
      */
     public function plans(): JsonResponse
     {
-        return response()->json(Plan::query()->where('status', 'active')->ordered()->get());
+        return Cached::json('platform', 'plans', 'platform', fn () => Plan::query()->where('status', 'active')->ordered()->get());
     }
 
     /**
@@ -36,7 +37,7 @@ class PlatformController extends Controller
      */
     public function sports(): JsonResponse
     {
-        return response()->json(Sport::query()->where('is_active', true)->get());
+        return Cached::json('platform', 'sports', 'platform', fn () => Sport::query()->where('is_active', true)->get());
     }
 
     /**
@@ -47,21 +48,23 @@ class PlatformController extends Controller
      */
     public function paymentMethods(): JsonResponse
     {
-        return response()->json(PlatformSetting::current()->enabled_payment_methods ?? []);
+        return Cached::json('platform', 'payment-methods', 'platform', fn () => PlatformSetting::current()->enabled_payment_methods ?? []);
     }
 
     /** Landing-page footer: admin-edited content plus the public support contact. */
     public function footer(): JsonResponse
     {
-        $settings = PlatformSetting::current();
-        $footer = $settings->footerContent();
+        return Cached::json('platform', 'footer', 'platform', function () {
+            $settings = PlatformSetting::current();
+            $footer = $settings->footerContent();
 
-        return response()->json([
-            ...$footer,
-            'platform_name' => $settings->platform_name,
-            'support_email' => $footer['show_contact'] ? $settings->support_email : null,
-            'support_phone' => $footer['show_contact'] ? $settings->support_phone : null,
-        ]);
+            return [
+                ...$footer,
+                'platform_name' => $settings->platform_name,
+                'support_email' => $footer['show_contact'] ? $settings->support_email : null,
+                'support_phone' => $footer['show_contact'] ? $settings->support_phone : null,
+            ];
+        });
     }
 
     /**

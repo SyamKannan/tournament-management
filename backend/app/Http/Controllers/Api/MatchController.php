@@ -23,10 +23,12 @@ use App\Services\RealtimeBroadcaster;
 use App\Services\ScoreboardDirector;
 use App\Services\ScoringEngine;
 use App\Support\Audit;
+use App\Support\Cached;
 use App\Support\Ids;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -57,27 +59,36 @@ class MatchController extends Controller
 
     public function forTournament(Request $request, string $tournamentId): JsonResponse
     {
+        // Staff see the teams' contacts; everyone else shares one entry.
+        $staff = $this->isOrganizationStaff($request, Tournament::query()->whereKey($tournamentId)->value('organization_id'));
+
+        return Cached::json(Cached::tournament($tournamentId), $staff ? 'fixtures:staff' : 'fixtures', 'hub',
+            fn () => $this->fixtureList($tournamentId, $staff));
+    }
+
+    private function fixtureList(string $tournamentId, bool $staff): Collection
+    {
         $matches = GameMatch::query()->where('tournament_id', $tournamentId)->get();
 
         $teams = Team::query()
             ->whereIn('id', $matches->pluck('team_a_id')->merge($matches->pluck('team_b_id')))
             ->get()->keyBy('id');
 
-        if (! $this->isOrganizationStaff($request, Tournament::query()->whereKey($tournamentId)->value('organization_id'))) {
+        if (! $staff) {
             $this->withoutTeamContacts($teams);
         }
         $venues = Venue::query()->whereIn('id', $matches->pluck('venue_id')->filter())->get()->keyBy('id');
         $footballStates = FootballMatchState::query()->whereIn('match_id', $matches->pluck('id'))->get()->keyBy('match_id');
         $cricketStates = CricketMatchState::query()->whereIn('match_id', $matches->pluck('id'))->get()->keyBy('match_id');
 
-        return response()->json($matches->map(fn (GameMatch $match) => [
+        return $matches->map(fn (GameMatch $match) => [
             ...$match->toArray(),
             'team_a' => $teams->get($match->team_a_id),
             'team_b' => $teams->get($match->team_b_id),
             'venue' => $match->venue_id ? $venues->get($match->venue_id) : null,
             'football_state' => $match->sport_code === 'football' ? $footballStates->get($match->id) : null,
             'cricket_state' => $match->sport_code === 'cricket' ? $cricketStates->get($match->id) : null,
-        ])->values());
+        ])->values();
     }
 
     /**
@@ -501,7 +512,8 @@ class MatchController extends Controller
             return response()->json(['error' => 'Tournament not found'], 404);
         }
 
-        return response()->json($this->brackets->forTournament($tournament));
+        return Cached::json(Cached::tournament($tournament->id), 'bracket', 'hub',
+            fn () => $this->brackets->forTournament($tournament));
     }
 
     /** Takes a fixture or the whole tournament; both know the sport and the id. */

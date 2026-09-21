@@ -246,7 +246,7 @@ class PlayerStatsTest extends TestCase
         $this->assertSame(1, $career['football']['clean_sheets']);
         $this->assertNull($career['cricket']);
 
-        Tournament::query()->whereKey('tourney-highland-7s')->update(['status' => 'draft']);
+        Tournament::findOrFail('tourney-highland-7s')->update(['status' => 'draft']);
 
         $this->assertSame(1, $this->stats->career(Player::findOrFail('pl-mb-1'))['tournaments_count'], 'drafts stay private');
     }
