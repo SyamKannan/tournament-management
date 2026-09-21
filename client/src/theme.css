@@ -1,0 +1,339 @@
+/* ===========================================================================
+   Light theme and dark islands.
+
+   Why a light theme at all: this app is used on open grounds at midday. A
+   dark UI at phone brightness in direct sun is close to unreadable, and the
+   scorer, the gate collecting fees and the captain registering a team are all
+   standing in it.
+
+   How it works without touching the screens:
+   - Neutrals: every surface, border and body text is a `slate-*` utility, and
+     `text-white` is the primary ink. Both are CSS variables in Tailwind v4, so
+     redefining them on <html data-theme="light"> inverts the whole app.
+   - Accents: lime, amber, sky... used as *text* are too light on white. They
+     are darkened only on elements that use them as text (by redefining the
+     variable on that element), so gradients, pills and buttons keep the brand
+     colour.
+   - Dark islands: photo heroes and stadium/TV screens stay dark in any theme.
+     Mark the container `data-theme="dark"`.
+   =========================================================================== */
+
+:root {
+  /* Ink for text on a bright fill (volt lime, amber). Constant in both themes —
+     it is chosen for the fill, not the page. */
+  --ink-on-accent: #070b1d;
+
+  --surface-page: #070b1d;
+  --surface-text: #f1f5f9;
+  --focus-ring: #c8f535;
+  --selection-bg: rgba(200, 245, 53, 0.35);
+  --selection-text: #ffffff;
+  --option-bg: #111834;
+  --option-text: #f1f5f9;
+  --scrollbar-track: #070b1d;
+  --scrollbar-thumb: #1d2546;
+  --scrollbar-thumb-hover: #2f385e;
+  --table-label: #636f9e;
+
+  --glass-panel-bg: linear-gradient(135deg, rgba(17, 24, 52, 0.82) 0%, rgba(11, 16, 38, 0.75) 100%);
+  --glass-panel-border: rgba(255, 255, 255, 0.08);
+  --glass-panel-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+  --glass-card-bg: linear-gradient(180deg, rgba(29, 37, 70, 0.55) 0%, rgba(17, 24, 52, 0.72) 100%);
+  --glass-card-border: rgba(142, 155, 200, 0.12);
+  --glass-card-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.05) inset, 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+  --glass-input-bg: rgba(11, 16, 38, 0.7);
+  --glass-input-bg-focus: rgba(17, 24, 52, 0.85);
+  --glass-input-border: rgba(255, 255, 255, 0.12);
+  --glass-input-text: #ffffff;
+  --glass-input-ring: rgba(200, 245, 53, 0.25);
+  --auth-card-bg: linear-gradient(180deg, rgba(17, 24, 52, 0.78), rgba(9, 13, 32, 0.86));
+  --auth-field-bg: rgba(7, 11, 29, 0.6);
+  --auth-field-bg-focus: rgba(7, 11, 29, 0.85);
+  --auth-field-text: #ffffff;
+  --shell-glow-a: rgba(200, 245, 53, 0.08);
+  --shell-glow-b: rgba(56, 189, 248, 0.08);
+  --shell-glow-c: rgba(99, 102, 241, 0.07);
+  --shell-stripe: rgba(142, 155, 200, 0.022);
+  --gradient-brand-text: linear-gradient(135deg, #d6f95a 0%, #38bdf8 100%);
+}
+
+:root[data-theme="light"] {
+  --color-slate-50: #0b1026;
+  --color-slate-100: #151b36;
+  --color-slate-200: #232b4a;
+  --color-slate-300: #323b5e;
+  --color-slate-400: #434d73;
+  --color-slate-500: #56618a;
+  --color-slate-600: #8a94b3;
+  --color-slate-700: #c9d0e2;
+  --color-slate-800: #e3e8f2;
+  --color-slate-900: #ffffff;
+  --color-slate-950: #f4f6fb;
+  /* Primary ink. `text-white` is used for headings and body across the app. */
+  --color-white: #0b1026;
+
+  --surface-page: #f4f6fb;
+  --surface-text: #151b36;
+  --focus-ring: #3f5a00;
+  --selection-bg: rgba(74, 102, 0, 0.22);
+  --selection-text: #0b1026;
+  --option-bg: #ffffff;
+  --option-text: #151b36;
+  --scrollbar-track: #eef1f8;
+  --scrollbar-thumb: #c9d0e2;
+  --scrollbar-thumb-hover: #a9b3cc;
+  --table-label: #56618a;
+
+  --glass-panel-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(250, 251, 255, 0.94) 100%);
+  --glass-panel-border: rgba(15, 23, 42, 0.09);
+  --glass-panel-shadow: 0 16px 36px -18px rgba(15, 23, 42, 0.22);
+  --glass-card-bg: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+  --glass-card-border: rgba(15, 23, 42, 0.1);
+  --glass-card-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.9) inset, 0 10px 26px -16px rgba(15, 23, 42, 0.22);
+  --glass-input-bg: #ffffff;
+  --glass-input-bg-focus: #ffffff;
+  --glass-input-border: rgba(15, 23, 42, 0.18);
+  --glass-input-text: #0b1026;
+  --glass-input-ring: rgba(74, 102, 0, 0.22);
+  --auth-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(248, 250, 255, 0.97));
+  --auth-field-bg: #ffffff;
+  --auth-field-bg-focus: #ffffff;
+  --auth-field-text: #0b1026;
+  --shell-glow-a: rgba(132, 170, 20, 0.10);
+  --shell-glow-b: rgba(14, 165, 233, 0.08);
+  --shell-glow-c: rgba(99, 102, 241, 0.05);
+  --shell-stripe: rgba(15, 23, 42, 0.018);
+  --gradient-brand-text: linear-gradient(135deg, #4a6600 0%, #0369a1 100%);
+}
+
+/* Dark islands — restore the dark neutrals under any `data-theme="dark"`. */
+[data-theme="dark"] {
+  --color-slate-50: #f5f7ff;
+  --color-slate-100: #eceffd;
+  --color-slate-200: #dbe1f7;
+  --color-slate-300: #bfc8ea;
+  --color-slate-400: #8e9bc8;
+  --color-slate-500: #636f9e;
+  --color-slate-600: #444f7a;
+  --color-slate-700: #2f385e;
+  --color-slate-800: #1d2546;
+  --color-slate-900: #111834;
+  --color-slate-950: #070b1d;
+  --color-white: #ffffff;
+  --surface-text: #f1f5f9;
+  --glass-input-bg: rgba(11, 16, 38, 0.7);
+  --glass-input-text: #ffffff;
+  --glass-input-border: rgba(255, 255, 255, 0.12);
+  --glass-panel-bg: linear-gradient(135deg, rgba(17, 24, 52, 0.82) 0%, rgba(11, 16, 38, 0.75) 100%);
+  --glass-panel-border: rgba(255, 255, 255, 0.08);
+  --glass-card-bg: linear-gradient(180deg, rgba(29, 37, 70, 0.55) 0%, rgba(17, 24, 52, 0.72) 100%);
+  --glass-card-border: rgba(142, 155, 200, 0.12);
+  --auth-card-bg: linear-gradient(180deg, rgba(17, 24, 52, 0.78), rgba(9, 13, 32, 0.86));
+  --auth-field-bg: rgba(7, 11, 29, 0.6);
+  --auth-field-text: #ffffff;
+  --gradient-brand-text: linear-gradient(135deg, #d6f95a 0%, #38bdf8 100%);
+  --focus-ring: #c8f535;
+  color-scheme: dark;
+}
+
+/* Things that must stay what they are in either theme. */
+:root[data-theme="light"] .bg-white:not([data-theme="dark"] *) {
+  /* QR codes and printable receipts need real white behind them. */
+  background-color: #ffffff;
+}
+
+:root[data-theme="light"] .text-slate-950:not([data-theme="dark"] *),
+:root[data-theme="light"] .text-slate-900:not([data-theme="dark"] *) {
+  /* Written as dark ink on bright buttons; stays dark ink. */
+  color: var(--ink-on-accent);
+}
+
+/* Saturated solid fills keep white text — dark ink on rose or blue reads worse
+   than the white the button was designed with. Translucent tints (`/20`) are
+   separate classes and correctly take the dark ink. */
+:root[data-theme="light"] :is(.bg-rose-500, .bg-rose-600, .bg-rose-700, .bg-red-500, .bg-red-600, .bg-red-700, .bg-blue-500, .bg-blue-600, .bg-blue-700, .bg-indigo-500, .bg-indigo-600, .bg-indigo-700, .bg-violet-500, .bg-violet-600, .bg-violet-700, .bg-purple-500, .bg-purple-600, .bg-purple-700, .bg-fuchsia-600, .bg-pink-600, .bg-cyan-600, .bg-cyan-700, .bg-teal-600, .bg-teal-700, .bg-sky-600, .bg-sky-700, .bg-green-600, .bg-green-700, .bg-orange-600, .bg-orange-700, .from-rose-500, .from-rose-600, .from-red-600, .from-blue-600, .from-indigo-600, .from-violet-600, .from-purple-600, .from-cyan-600, .from-teal-600, .from-sky-600, .from-fuchsia-600, .from-pink-600).text-white,
+:root[data-theme="light"] :is(.bg-rose-500, .bg-rose-600, .bg-rose-700, .bg-red-500, .bg-red-600, .bg-red-700, .bg-blue-500, .bg-blue-600, .bg-blue-700, .bg-indigo-500, .bg-indigo-600, .bg-indigo-700, .bg-violet-500, .bg-violet-600, .bg-violet-700, .bg-purple-500, .bg-purple-600, .bg-purple-700, .bg-fuchsia-600, .bg-pink-600, .bg-cyan-600, .bg-cyan-700, .bg-teal-600, .bg-teal-700, .bg-sky-600, .bg-sky-700, .bg-green-600, .bg-green-700, .bg-orange-600, .bg-orange-700, .from-rose-500, .from-rose-600, .from-red-600, .from-blue-600, .from-indigo-600, .from-violet-600, .from-purple-600, .from-cyan-600, .from-teal-600, .from-sky-600, .from-fuchsia-600, .from-pink-600) .text-white {
+  color: #ffffff;
+}
+
+/* Accent text, darkened where it is used as text. One rule per shade in use;
+   a screen that starts using a new accent text shade needs its class added. */
+:root[data-theme="light"] :is(
+  .text-amber-100
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-amber-100: #a34a04;
+}
+:root[data-theme="light"] :is(
+  .text-amber-200,
+  .hover\:text-amber-200:hover
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-amber-200: #a34a04;
+}
+:root[data-theme="light"] :is(
+  .text-amber-300,
+  .hover\:text-amber-300:hover
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-amber-300: #a34a04;
+}
+:root[data-theme="light"] :is(
+  .text-amber-400
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-amber-400: #a34a04;
+}
+:root[data-theme="light"] :is(
+  .text-blue-300
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-blue-300: #1d4ed8;
+}
+:root[data-theme="light"] :is(
+  .text-cyan-200,
+  .hover\:text-cyan-200:hover
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-cyan-200: #0369a1;
+}
+:root[data-theme="light"] :is(
+  .text-cyan-300,
+  .hover\:text-cyan-300:hover
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-cyan-300: #0369a1;
+}
+:root[data-theme="light"] :is(
+  .text-cyan-400,
+  .group:hover .group-hover\:text-cyan-400
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-cyan-400: #0369a1;
+}
+:root[data-theme="light"] :is(
+  .text-emerald-200
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-emerald-200: #4a6600;
+}
+:root[data-theme="light"] :is(
+  .text-emerald-300,
+  .hover\:text-emerald-300:hover
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-emerald-300: #4a6600;
+}
+:root[data-theme="light"] :is(
+  .text-emerald-400,
+  .group:hover .group-hover\:text-emerald-400,
+  .hover\:text-emerald-400:hover
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-emerald-400: #4a6600;
+}
+:root[data-theme="light"] :is(
+  .text-emerald-500
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-emerald-500: #4a6600;
+}
+:root[data-theme="light"] :is(
+  .text-fuchsia-100
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-fuchsia-100: #a21caf;
+}
+:root[data-theme="light"] :is(
+  .text-fuchsia-200
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-fuchsia-200: #a21caf;
+}
+:root[data-theme="light"] :is(
+  .text-fuchsia-300
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-fuchsia-300: #a21caf;
+}
+:root[data-theme="light"] :is(
+  .text-fuchsia-400
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-fuchsia-400: #a21caf;
+}
+:root[data-theme="light"] :is(
+  .text-indigo-300
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-indigo-300: #4338ca;
+}
+:root[data-theme="light"] :is(
+  .text-indigo-400
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-indigo-400: #4338ca;
+}
+:root[data-theme="light"] :is(
+  .text-orange-400
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-orange-400: #c2410c;
+}
+:root[data-theme="light"] :is(
+  .text-purple-300
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-purple-300: #7e22ce;
+}
+:root[data-theme="light"] :is(
+  .text-purple-400,
+  .group:hover .group-hover\:text-purple-400
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-purple-400: #7e22ce;
+}
+:root[data-theme="light"] :is(
+  .text-red-400
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-red-400: #b91c1c;
+}
+:root[data-theme="light"] :is(
+  .text-rose-100
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-rose-100: #be123c;
+}
+:root[data-theme="light"] :is(
+  .text-rose-200
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-rose-200: #be123c;
+}
+:root[data-theme="light"] :is(
+  .text-rose-300,
+  .hover\:text-rose-300:hover
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-rose-300: #be123c;
+}
+:root[data-theme="light"] :is(
+  .text-rose-400,
+  .hover\:text-rose-400:hover
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-rose-400: #be123c;
+}
+:root[data-theme="light"] :is(
+  .text-sky-400
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-sky-400: #0369a1;
+}
+:root[data-theme="light"] :is(
+  .text-teal-300
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-teal-300: #0e7490;
+}
+:root[data-theme="light"] :is(
+  .text-violet-300
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-violet-300: #6d28d9;
+}
+:root[data-theme="light"] :is(
+  .text-violet-400,
+  .group:hover .group-hover\:text-violet-400
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-violet-400: #6d28d9;
+}
+:root[data-theme="light"] :is(
+  .text-yellow-300
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-yellow-300: #8a5a00;
+}
+:root[data-theme="light"] :is(
+  .text-yellow-400
+):not([data-theme="dark"], [data-theme="dark"] *) {
+  --color-yellow-400: #8a5a00;
+}
+
+/* Brand gradient text is lime-to-sky: invisible on white. */
+:root[data-theme="light"] .text-gradient-emerald:not([data-theme="dark"] *) {
+  background: var(--gradient-brand-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+}

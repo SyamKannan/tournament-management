@@ -8,6 +8,8 @@ use App\Models\GameMatch;
 use App\Models\Poster;
 use App\Models\Tournament;
 use App\Services\BillingService;
+use App\Support\Ids;
+use App\Support\PosterJobStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
@@ -62,18 +64,65 @@ class PosterController extends Controller
             ], 403);
         }
 
+        $jobId = Ids::unique('pjob');
+
+        PosterJobStatus::put($jobId, [
+            'status' => 'queued',
+            'tournament_id' => $tournament->id,
+            'poster_type' => $data['poster_type'],
+            'attempt' => 0,
+            'max_attempts' => 3,
+            'created_by' => $request->user()->id,
+            'started_at' => now()->toIso8601String(),
+        ]);
+
         GeneratePoster::dispatch(
             $tournament->id,
             $needsMatch ? $match->id : null,
             $data['poster_type'],
             $request->user()->id,
             $request->headers->get('origin'),
+            $jobId,
         );
 
         return response()->json([
             'message' => 'Poster generation started.',
             'poster_type' => $data['poster_type'],
+            'job_id' => $jobId,
         ], 202);
+    }
+
+    /**
+     * Progress of one "Generate" click: queued, rendering (with the attempt
+     * number), done (with the poster) or failed (with a sentence to show).
+     */
+    public function jobStatus(Request $request, string $jobId): JsonResponse
+    {
+        $status = PosterJobStatus::get($jobId);
+
+        if (! $status) {
+            return response()->json([
+                'error' => 'That poster request has expired. Generate it again.',
+            ], 404);
+        }
+
+        $tournament = Tournament::find($status['tournament_id'] ?? '');
+
+        if ($tournament && ($denied = $this->denyForeignTenant($request, $tournament->organization_id))) {
+            return $denied;
+        }
+
+        // `queued` for a long time means nothing is picking jobs up. That is
+        // an operator's problem, but the organizer still deserves an answer
+        // rather than an endless spinner.
+        $stalled = ($status['status'] ?? '') === 'queued'
+            && isset($status['started_at'])
+            && \Illuminate\Support\Carbon::parse($status['started_at'])->diffInSeconds(now()) > 180;
+
+        return response()->json([
+            ...collect($status)->except('created_by')->all(),
+            'stalled' => $stalled,
+        ]);
     }
 
     /**

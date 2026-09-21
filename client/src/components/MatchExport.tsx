@@ -209,7 +209,7 @@ export const MatchExport: React.FC<MatchExportProps> = ({
         <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Export Match Data</span>
       </div>
 
-      <p className="text-[11px] text-slate-500 leading-relaxed">
+      <p className="text-xs text-slate-500 leading-relaxed">
         The PDF is the scorecard to file or share. The CSV is every
         {isFootball ? ' event' : ' ball'} as a row, for your own records.
       </p>

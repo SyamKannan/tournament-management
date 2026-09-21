@@ -162,8 +162,10 @@ export const RegisterClubPage: React.FC = () => {
               <AuthField label="Password *" htmlFor="club-password" icon={Lock} trailing={passwordToggle}>
                 {text('password', { type: showPassword ? 'text' : 'password', placeholder: 'Create a password', required: true, autoComplete: 'new-password', className: 'pr-12' })}
               </AuthField>
-              <AuthField label="Phone *">
+              <AuthField label="Phone *" htmlFor="club-phone">
                 <PhoneInput
+                  id="club-phone"
+                  autoComplete="tel-national"
                   value={formData.phone}
                   onChange={(phone) => handleChange('phone', phone)}
                   placeholder="98470 12345"
@@ -171,8 +173,9 @@ export const RegisterClubPage: React.FC = () => {
                   className="auth-field no-icon"
                 />
               </AuthField>
-              <AuthField label="WhatsApp">
+              <AuthField label="WhatsApp" htmlFor="club-whatsapp">
                 <PhoneInput
+                  id="club-whatsapp"
                   value={formData.whatsapp}
                   onChange={(whatsapp) => handleChange('whatsapp', whatsapp)}
                   placeholder="98470 12345"

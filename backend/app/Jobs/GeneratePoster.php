@@ -18,6 +18,7 @@ use App\Services\PosterService;
 use App\Services\RealtimeBroadcaster;
 use App\Services\TossService;
 use App\Support\Ids;
+use App\Support\PosterJobStatus;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -34,16 +35,29 @@ use Illuminate\Support\Facades\Log;
  * click, or the toss/match-completed automation hooks).
  *
  * Unlike the AI copy/artwork steps, there is no fallback for the render
- * step itself — Chrome is required infrastructure. A missing/broken Chrome
- * throws and the job lands in `failed_jobs`, rather than silently no-op'ing.
+ * step itself — Chrome is required infrastructure. A render that throws is
+ * retried (a slow image host or a Chrome that took too long to start is
+ * usually fine a minute later); only after the last attempt does the job land
+ * in `failed_jobs`. Retrying is safe because the `posters` row is written only
+ * after a render succeeds.
+ *
+ * When started from the Posters page the job carries a `$jobId` and reports
+ * its progress through PosterJobStatus, so the organizer sees "retrying" or
+ * "failed" instead of a spinner that times out.
  */
 class GeneratePoster implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, SerializesModels;
 
-    public int $tries = 1;
+    public int $tries = 3;
 
     public int $timeout = 180;
+
+    /** Seconds to wait before the 2nd and 3rd attempts. */
+    public function backoff(): array
+    {
+        return [15, 45];
+    }
 
     public function __construct(
         private readonly string $tournamentId,
@@ -51,6 +65,7 @@ class GeneratePoster implements ShouldQueue
         private readonly string $posterType,
         private readonly ?string $createdBy = null,
         private readonly ?string $origin = null,
+        private readonly ?string $jobId = null,
     ) {}
 
     public function handle(
@@ -61,10 +76,20 @@ class GeneratePoster implements ShouldQueue
         PosterRenderer $renderer,
         PosterService $posters,
     ): void {
+        $this->report([
+            'status' => 'rendering',
+            'attempt' => $this->attempts(),
+            'max_attempts' => $this->tries,
+        ]);
+
         $tournament = Tournament::find($this->tournamentId);
 
         if (! $tournament) {
             Log::warning('GeneratePoster: tournament not found', ['tournament_id' => $this->tournamentId]);
+            $this->report([
+                'status' => 'failed',
+                'message' => 'The tournament for this poster no longer exists.',
+            ]);
 
             return;
         }
@@ -120,7 +145,47 @@ class GeneratePoster implements ShouldQueue
             'created_by' => $this->createdBy,
         ]);
 
+        $this->report(['status' => 'done', 'poster' => $poster->toArray()]);
+
         $realtime->toRoom("tournament:{$tournament->id}", 'POSTER_CREATED', ['poster' => $poster]);
+    }
+
+    /**
+     * Every attempt has failed. The organizer is told in words they can act
+     * on — the technical reason goes to the log, where whoever can fix
+     * Chrome or the queue will look.
+     */
+    public function failed(?\Throwable $e): void
+    {
+        Log::error('GeneratePoster: gave up after '.$this->tries.' attempts', [
+            'tournament_id' => $this->tournamentId,
+            'match_id' => $this->matchId,
+            'poster_type' => $this->posterType,
+            'error' => $e?->getMessage(),
+        ]);
+
+        $this->report([
+            'status' => 'failed',
+            'message' => 'This poster could not be created after '.$this->tries.' tries. '
+                .'Please try again in a few minutes. If it keeps failing, contact support.',
+        ]);
+
+        try {
+            app(RealtimeBroadcaster::class)->toRoom("tournament:{$this->tournamentId}", 'POSTER_FAILED', [
+                'job_id' => $this->jobId,
+                'poster_type' => $this->posterType,
+            ]);
+        } catch (\Throwable) {
+            // The status record above is what the page relies on.
+        }
+    }
+
+    /** @param  array<string, mixed>  $fields */
+    private function report(array $fields): void
+    {
+        if ($this->jobId) {
+            PosterJobStatus::put($this->jobId, $fields);
+        }
     }
 
     /**

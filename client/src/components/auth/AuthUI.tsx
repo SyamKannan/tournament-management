@@ -81,7 +81,7 @@ export const AuthHeader: React.FC<{
       <span className="font-heading font-black text-lg text-white tracking-tight">KickWick</span>
     </Link>
     {eyebrow && (
-      <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${TEXT_ACCENT[accent]}`}>{eyebrow}</p>
+      <p className={`text-xs font-bold uppercase tracking-[0.14em] mb-2 ${TEXT_ACCENT[accent]}`}>{eyebrow}</p>
     )}
     <h1 className="text-[1.75rem] sm:text-3xl leading-tight font-black font-heading text-white tracking-tight">
       {title}
@@ -112,7 +112,7 @@ export const AuthField: React.FC<{
   children: React.ReactNode;
 }> = ({ label, htmlFor, icon: Icon, hint, trailing, children }) => (
   <div className="min-w-0">
-    <label htmlFor={htmlFor} className="block text-[13px] font-semibold text-slate-300 mb-1.5">
+    <label htmlFor={htmlFor} className="block text-sm font-semibold text-slate-300 mb-1.5">
       {label}
     </label>
     <div className="relative">

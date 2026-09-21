@@ -276,7 +276,7 @@ export const AdminPlansPage: React.FC = () => {
             >
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
                     isRecurring ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                   }`}>
                     {isRecurring ? `${plan.billing_interval} Recurring` : 'One-Time Payment'}
@@ -334,19 +334,19 @@ export const AdminPlansPage: React.FC = () => {
                 {/* Limits Summary */}
                 <div className="mt-4 p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <span className="text-slate-500 block text-[11px] uppercase font-bold">Tournaments</span>
+                    <span className="text-slate-500 block text-xs uppercase font-bold">Tournaments</span>
                     <span className="font-bold text-white font-mono">{plan.tournament_limit} Max</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[11px] uppercase font-bold">Teams Limit</span>
+                    <span className="text-slate-500 block text-xs uppercase font-bold">Teams Limit</span>
                     <span className="font-bold text-white font-mono">{plan.team_limit} Max</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[11px] uppercase font-bold">Players Limit</span>
+                    <span className="text-slate-500 block text-xs uppercase font-bold">Players Limit</span>
                     <span className="font-bold text-white font-mono">{plan.player_limit} Max</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[11px] uppercase font-bold">Ads Limit</span>
+                    <span className="text-slate-500 block text-xs uppercase font-bold">Ads Limit</span>
                     <span className="font-bold text-white font-mono">{plan.ad_limit} Ads</span>
                   </div>
                 </div>
@@ -357,7 +357,7 @@ export const AdminPlansPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-800/80 text-[11px] text-slate-500 flex justify-between">
+              <div className="mt-6 pt-4 border-t border-slate-800/80 text-xs text-slate-500 flex justify-between">
                 <span>{plan.price === 0 ? 'Free Tournament' : 'Instant Activation'}</span>
                 <span className={`font-semibold uppercase ${isActive ? 'text-emerald-400' : 'text-rose-400'}`}>{plan.status}</span>
               </div>
@@ -382,8 +382,8 @@ export const AdminPlansPage: React.FC = () => {
             <form onSubmit={handleSavePlan} className="p-6 overflow-y-auto space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Plan Name *</label>
-                  <input
+                  <label htmlFor="adminplans-plan-name" className="block text-slate-300 font-semibold mb-1">Plan Name *</label>
+                  <input id="adminplans-plan-name"
                     type="text"
                     placeholder="e.g. Standard Pro"
                     value={name}
@@ -393,8 +393,8 @@ export const AdminPlansPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Price (₹) *</label>
-                  <input
+                  <label htmlFor="adminplans-price" className="block text-slate-300 font-semibold mb-1">Price (₹) *</label>
+                  <input id="adminplans-price"
                     type="number"
                     min="0"
                     placeholder="2499"
@@ -407,8 +407,8 @@ export const AdminPlansPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Description</label>
-                <input
+                <label htmlFor="adminplans-description" className="block text-slate-300 font-semibold mb-1">Description</label>
+                <input id="adminplans-description"
                   type="text"
                   placeholder="Target audience and highlight"
                   value={description}
@@ -419,8 +419,8 @@ export const AdminPlansPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Billing Type</label>
-                  <select
+                  <label htmlFor="adminplans-billing-type" className="block text-slate-300 font-semibold mb-1">Billing Type</label>
+                  <select id="adminplans-billing-type"
                     value={billingType}
                     onChange={(e) => setBillingType(e.target.value as any)}
                     className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900"
@@ -432,8 +432,8 @@ export const AdminPlansPage: React.FC = () => {
 
                 {billingType === 'recurring' && (
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Interval</label>
-                    <select
+                    <label htmlFor="adminplans-interval" className="block text-slate-300 font-semibold mb-1">Interval</label>
+                    <select id="adminplans-interval"
                       value={billingInterval}
                       onChange={(e) => setBillingInterval(e.target.value as any)}
                       className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900"
@@ -448,13 +448,13 @@ export const AdminPlansPage: React.FC = () => {
 
               {/* Resource Limits */}
               <div className="pt-2 border-t border-slate-800">
-                <label className="block text-slate-300 font-bold uppercase tracking-wider text-[11px] mb-2">
+                <label className="block text-slate-300 font-bold uppercase tracking-wider text-xs mb-2">
                   Plan Resource Limits
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-slate-400 text-[11px] mb-1">Tournaments</label>
-                    <input
+                    <label htmlFor="adminplans-tournaments" className="block text-slate-400 text-xs mb-1">Tournaments</label>
+                    <input id="adminplans-tournaments"
                       type="number"
                       min="1"
                       value={tournamentLimit}
@@ -463,8 +463,8 @@ export const AdminPlansPage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-400 text-[11px] mb-1">Teams Limit</label>
-                    <input
+                    <label htmlFor="adminplans-teams-limit" className="block text-slate-400 text-xs mb-1">Teams Limit</label>
+                    <input id="adminplans-teams-limit"
                       type="number"
                       min="1"
                       value={teamLimit}
@@ -473,8 +473,8 @@ export const AdminPlansPage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-400 text-[11px] mb-1">Players Limit</label>
-                    <input
+                    <label htmlFor="adminplans-players-limit" className="block text-slate-400 text-xs mb-1">Players Limit</label>
+                    <input id="adminplans-players-limit"
                       type="number"
                       min="1"
                       value={playerLimit}
@@ -483,8 +483,8 @@ export const AdminPlansPage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-400 text-[11px] mb-1">Ads Limit</label>
-                    <input
+                    <label htmlFor="adminplans-ads-limit" className="block text-slate-400 text-xs mb-1">Ads Limit</label>
+                    <input id="adminplans-ads-limit"
                       type="number"
                       min="0"
                       value={adLimit}
@@ -497,7 +497,7 @@ export const AdminPlansPage: React.FC = () => {
 
               {/* Feature Flags */}
               <div className="pt-2 border-t border-slate-800">
-                <label className="block text-slate-300 font-bold uppercase tracking-wider text-[11px] mb-2">
+                <label className="block text-slate-300 font-bold uppercase tracking-wider text-xs mb-2">
                   Enabled Features
                 </label>
                 <div className="grid sm:grid-cols-2 gap-2">

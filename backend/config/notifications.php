@@ -23,6 +23,53 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Gateway credentials
+    |--------------------------------------------------------------------------
+    |
+    | Only the driver named above is ever contacted; the rest of this block is
+    | inert. Twilio covers both channels from one account, and the WhatsApp
+    | Cloud API is the cheaper WhatsApp route once a business account and
+    | approved templates exist.
+    |
+    */
+
+    'twilio' => [
+        'sid' => env('TWILIO_SID'),
+        'token' => env('TWILIO_TOKEN'),
+        'sms_from' => env('TWILIO_SMS_FROM'),
+        'whatsapp_from' => env('TWILIO_WHATSAPP_FROM'),
+    ],
+
+    'meta' => [
+        'phone_number_id' => env('META_WHATSAPP_PHONE_NUMBER_ID'),
+        'token' => env('META_WHATSAPP_TOKEN'),
+        'version' => env('META_WHATSAPP_VERSION', 'v21.0'),
+        'template_language' => env('META_WHATSAPP_TEMPLATE_LANGUAGE', 'en'),
+    ],
+
+    // Seconds to wait on a gateway before calling the attempt failed. Short,
+    // because `deliver()` runs on the queue but `retry` sweeps behind it.
+    'timeout' => (int) env('NOTIFICATIONS_TIMEOUT', 15),
+
+    /*
+    |--------------------------------------------------------------------------
+    | WhatsApp template names
+    |--------------------------------------------------------------------------
+    |
+    | Outside a 24-hour service window WhatsApp only accepts an approved
+    | template. Map each event to the template registered with Meta; the body
+    | NotificationCatalog rendered is passed as its single body parameter. An
+    | event with no mapping is sent as free text, which only lands inside an
+    | open window.
+    |
+    */
+
+    'whatsapp_templates' => [
+        // 'match_reminder' => 'kickwick_match_reminder',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Master switch
     |--------------------------------------------------------------------------
     |

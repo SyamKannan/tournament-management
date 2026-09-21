@@ -185,7 +185,7 @@ export const VoiceScoring: React.FC<{
 
   if (!supported) {
     return (
-      <div className="p-3 rounded-2xl bg-slate-900/50 border border-slate-800 text-[11px] text-slate-400 flex items-start gap-2">
+      <div className="p-3 rounded-2xl bg-slate-900/50 border border-slate-800 text-xs text-slate-400 flex items-start gap-2">
         <MicOff className="w-3.5 h-3.5 shrink-0 mt-px" />
         <span>Voice scoring needs Chrome or Edge. Everything still works by tapping.</span>
       </div>
@@ -200,7 +200,7 @@ export const VoiceScoring: React.FC<{
             <Ear className="w-3.5 h-3.5 text-violet-400" />
             Voice scoring
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-400 mt-0.5">
             Say “four”, “dot ball”, “wide two”, “bowled”, or “undo”.
           </p>
         </div>
@@ -221,14 +221,14 @@ export const VoiceScoring: React.FC<{
       </div>
 
       {listening && (
-        <div className="flex items-center gap-2 text-[11px] text-violet-300">
+        <div className="flex items-center gap-2 text-xs text-violet-300">
           <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
           <span>Listening{heard ? ` — heard “${heard}”` : '…'}</span>
         </div>
       )}
 
       {rejected && (
-        <div className="text-[11px] text-amber-400 flex items-start gap-1.5">
+        <div className="text-xs text-amber-400 flex items-start gap-1.5">
           <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-px" />
           <span>Did not catch “{rejected}”. Say it again, or tap it in.</span>
         </div>
@@ -236,21 +236,21 @@ export const VoiceScoring: React.FC<{
 
       {pending && (
         <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
-          <p className="text-[11px] text-amber-200">
+          <p className="text-xs text-amber-200">
             Heard “{pending.phrase}” — give it out?
           </p>
           <div className="flex gap-1.5">
             <button
               type="button"
               onClick={() => { onCall(pending.call); setPending(null); }}
-              className="px-3 py-1.5 rounded-lg bg-amber-600/30 border border-amber-500/40 text-amber-100 text-[11px] font-bold"
+              className="px-3 py-1.5 rounded-lg bg-amber-600/30 border border-amber-500/40 text-amber-100 text-xs font-bold"
             >
               Yes, wicket
             </button>
             <button
               type="button"
               onClick={() => setPending(null)}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-[11px] font-bold"
+              className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold"
             >
               No
             </button>

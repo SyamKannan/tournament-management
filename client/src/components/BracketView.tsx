@@ -51,7 +51,7 @@ export const BracketView: React.FC<{ bracket: Bracket; linkMatches?: boolean }> 
         <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 to-yellow-500/10 border border-amber-500/30 flex items-center gap-3">
           <Trophy className="w-6 h-6 text-amber-400 shrink-0" />
           <div className="min-w-0">
-            <div className="text-[10px] font-bold uppercase tracking-wide text-amber-400/90">Champions</div>
+            <div className="text-xs font-bold uppercase tracking-wide text-amber-400/90">Champions</div>
             <div className="text-lg font-black text-white truncate">{bracket.champion.name}</div>
           </div>
           {bracket.champion.logo && (
@@ -65,7 +65,7 @@ export const BracketView: React.FC<{ bracket: Bracket; linkMatches?: boolean }> 
         <div className="flex gap-3 min-w-max">
           {bracket.rounds.map(round => (
             <div key={round.round} className="w-60 shrink-0 space-y-2">
-              <h4 className="text-[11px] font-bold uppercase tracking-wide text-slate-400 px-1">
+              <h4 className="text-xs font-bold uppercase tracking-wide text-slate-400 px-1">
                 {round.name}
               </h4>
 
@@ -102,10 +102,10 @@ const BracketCell: React.FC<{ match: BracketMatch; linkMatches: boolean }> = ({ 
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-bold text-slate-500">
+        <span className="text-xs font-bold text-slate-500">
           {isBye ? 'Bye' : `Match ${match.match_number}`}
         </span>
-        <span className="text-[10px] text-slate-500 truncate">
+        <span className="text-xs text-slate-500 truncate">
           {decided ? 'Final score' : formatMatchTime(match.scheduled_at, 'To be scheduled')}
         </span>
       </div>
@@ -114,7 +114,7 @@ const BracketCell: React.FC<{ match: BracketMatch; linkMatches: boolean }> = ({ 
       {!isBye && <Side side={match.side_b} />}
 
       {match.result_summary && (
-        <p className="text-[10px] text-slate-400 pt-0.5 truncate">{match.result_summary}</p>
+        <p className="text-xs text-slate-400 pt-0.5 truncate">{match.result_summary}</p>
       )}
     </div>
   );
@@ -132,7 +132,7 @@ const Side: React.FC<{ side: BracketSide }> = ({ side }) => {
     return (
       <div className="flex items-center gap-2 px-1.5 py-1 rounded-xl bg-slate-950/40">
         <span className="w-5 h-5 rounded-lg bg-slate-800 shrink-0" />
-        <span className="text-[11px] text-slate-500 italic truncate">
+        <span className="text-xs text-slate-500 italic truncate">
           {side.source_label || 'To be decided'}
         </span>
       </div>
@@ -151,7 +151,7 @@ const Side: React.FC<{ side: BracketSide }> = ({ side }) => {
         <span className="w-5 h-5 rounded-lg bg-slate-800 shrink-0" />
       )}
       <span
-        className={`text-[11px] truncate ${
+        className={`text-xs truncate ${
           side.is_winner ? 'font-bold text-emerald-300' : 'font-semibold text-slate-200'
         }`}
       >

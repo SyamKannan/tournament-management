@@ -40,8 +40,38 @@ export interface CheckoutOptions {
 
 const RAZORPAY_BLOCKS = ['card', 'upi', 'netbanking', 'wallet', 'emi', 'paylater', 'cardless_emi'];
 
+const CHECKOUT_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
+let loading: Promise<void> | null = null;
+
+/**
+ * Fetch Razorpay's script the first time a checkout is opened.
+ *
+ * It used to be a blocking <script> in index.html, so every page — a
+ * scoreboard, a fixture list — waited on a third-party payment script before
+ * it could render, and on a weak ground-side connection that wait was long.
+ * Only the pages that take money need it, and only at the moment they do.
+ */
+function loadRazorpay(): Promise<void> {
+  if (window.Razorpay) return Promise.resolve();
+  if (loading) return loading;
+  loading = new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = CHECKOUT_SRC;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      loading = null;
+      script.remove();
+      reject(new Error('Payment gateway failed to load. Please check your connection and try again.'));
+    };
+    document.head.appendChild(script);
+  });
+  return loading;
+}
+
 /** Opens Razorpay's Checkout popup and resolves with the verified payment fields on success. */
-export function openRazorpayCheckout(opts: CheckoutOptions): Promise<RazorpayVerifiedPayment> {
+export async function openRazorpayCheckout(opts: CheckoutOptions): Promise<RazorpayVerifiedPayment> {
+  await loadRazorpay();
   return new Promise((resolve, reject) => {
     if (!window.Razorpay) {
       reject(new Error('Payment gateway failed to load. Please check your connection and try again.'));

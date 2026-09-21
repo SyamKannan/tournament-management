@@ -70,7 +70,7 @@ export const AdminSubscriptionsPage: React.FC = () => {
         <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
           <div className="overflow-x-auto">
             <table className="responsive-table w-full min-w-[860px] text-xs text-left">
-              <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
+              <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-xs font-bold tracking-wider">
                 <tr>
                   <th className="px-5 py-3.5">Organization</th>
                   <th className="px-4 py-3.5">Subscribed Plan</th>
@@ -87,7 +87,7 @@ export const AdminSubscriptionsPage: React.FC = () => {
                       {sub.organization_name || sub.organization_id}
                     </td>
                     <td data-label="Subscribed Plan" className="px-4 py-4">
-                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold font-mono text-[11px]">
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold font-mono text-xs">
                         {sub.plan_name || 'Standard Pro'}
                       </span>
                     </td>
@@ -101,7 +101,7 @@ export const AdminSubscriptionsPage: React.FC = () => {
                       {sub.next_billing_date ? new Date(sub.next_billing_date).toLocaleDateString() : 'One-Time'}
                     </td>
                     <td data-label="Status" className="px-4 py-4 text-center">
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold uppercase">
                         {label(sub.status)}
                       </span>
                     </td>
@@ -115,7 +115,7 @@ export const AdminSubscriptionsPage: React.FC = () => {
         <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
           <div className="overflow-x-auto">
             <table className="responsive-table w-full min-w-[860px] text-xs text-left">
-              <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
+              <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-xs font-bold tracking-wider">
                 <tr>
                   <th className="px-5 py-3.5">Invoice #</th>
                   <th className="px-4 py-3.5">Billed To</th>
@@ -133,7 +133,7 @@ export const AdminSubscriptionsPage: React.FC = () => {
                     </td>
                     <td data-label="Billed To" className="rt-full px-4 py-4">
                       <div className="font-semibold text-white">{inv.billing_name}</div>
-                      <div className="text-[11px] text-slate-500">{inv.billing_email}</div>
+                      <div className="text-xs text-slate-500">{inv.billing_email}</div>
                     </td>
                     <td data-label="Amount" className="px-4 py-4 font-mono font-bold text-emerald-400">
                       ₹{inv.amount.toLocaleString()}
@@ -145,7 +145,7 @@ export const AdminSubscriptionsPage: React.FC = () => {
                       {new Date(inv.created_at).toLocaleDateString()}
                     </td>
                     <td data-label="Status" className="px-4 py-4 text-center">
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold uppercase">
                         {label(inv.status)}
                       </span>
                     </td>

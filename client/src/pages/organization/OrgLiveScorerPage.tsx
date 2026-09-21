@@ -10,6 +10,8 @@ import {
 } from '../../lib/football';
 import { SubstitutionDialog } from '../../components/SubstitutionDialog';
 import { useRoomSocket } from '../../lib/useRoomSocket';
+import { useSingleFlight } from '../../lib/useSingleFlight';
+import { useWakeLock } from '../../lib/useWakeLock';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { TossPanel } from '../../components/TossPanel';
@@ -96,7 +98,14 @@ export const OrgLiveScorerPage: React.FC = () => {
   const [minuteOverride, setMinuteOverride] = useState<string>('');
   const [clockCorrection, setClockCorrection] = useState<string>('');
   const [substitutionOpen, setSubstitutionOpen] = useState(false);
-  const [footballBusy, setFootballBusy] = useState(false);
+  // One scoring action at a time, football or cricket. A ref-backed guard, not
+  // just a disabled button: a double tap on a laggy phone lands both taps
+  // before React re-renders, and each would have been recorded — two goals,
+  // two deliveries, or two undos for one press.
+  const flight = useSingleFlight();
+  const footballBusy = flight.busy;
+  // The scorer's phone sits untouched between balls; it must not lock.
+  const wakeLock = useWakeLock(true);
   // Every hook runs before the loading return below.
   const footballClock = useFootballClock(matchData?.football_state);
 
@@ -195,7 +204,7 @@ export const OrgLiveScorerPage: React.FC = () => {
       return;
     }
 
-    setFootballBusy(true);
+    await flight.run(async () => {
     try {
       await api.post(`/matches/${matchData.match.id}/football/event`, {
         team_id: targetTeam.id,
@@ -211,9 +220,8 @@ export const OrgLiveScorerPage: React.FC = () => {
       await fetchMatch();
     } catch (err: any) {
       toast.error(err.message || `Failed to record the ${FOOTBALL_EVENT_LABELS[eventType].toLowerCase()}`);
-    } finally {
-      setFootballBusy(false);
     }
+    });
   };
 
   const handleFootballTimer = async (action: FootballTimerAction, payload: { half?: FootballPeriod; minute?: number } = {}) => {
@@ -238,29 +246,27 @@ export const OrgLiveScorerPage: React.FC = () => {
       if (!proceed) return;
     }
 
-    setFootballBusy(true);
-    try {
-      await api.post(`/matches/${matchData.match.id}/football/timer`, { action, ...payload });
-      if (action === 'set_minute') setClockCorrection('');
-      await fetchMatch();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update the match clock');
-    } finally {
-      setFootballBusy(false);
-    }
+    await flight.run(async () => {
+      try {
+        await api.post(`/matches/${matchData.match.id}/football/timer`, { action, ...payload });
+        if (action === 'set_minute') setClockCorrection('');
+        await fetchMatch();
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to update the match clock');
+      }
+    });
   };
 
   const handleFootballUndo = async () => {
-    if (!matchData || footballBusy) return;
-    setFootballBusy(true);
-    try {
-      await api.post(`/matches/${matchData.match.id}/football/undo`);
-      await fetchMatch();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to undo event');
-    } finally {
-      setFootballBusy(false);
-    }
+    if (!matchData) return;
+    await flight.run(async () => {
+      try {
+        await api.post(`/matches/${matchData.match.id}/football/undo`);
+        await fetchMatch();
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to undo event');
+      }
+    });
   };
 
   /* =========================================================================
@@ -288,6 +294,10 @@ export const OrgLiveScorerPage: React.FC = () => {
     if (!matchData?.cricket_state) return;
     const split = splitRuns(wicket ? wicket.runs_scored : runs, extra);
 
+    // Held until the refetch lands, not just the POST: the next ball must be
+    // recorded against the crease this one produced (strike rotated, over
+    // ended), not the one still on screen.
+    await flight.run(async () => {
     try {
       await api.post(`/matches/${matchData.match.id}/cricket/ball`, {
         innings: matchData.cricket_state.current_innings,
@@ -305,10 +315,11 @@ export const OrgLiveScorerPage: React.FC = () => {
       });
       setCommentary('');
       setArmedExtra('none');
-      fetchMatch();
+      await fetchMatch();
     } catch (err: any) {
       toast.error(err.message || 'Failed to record delivery');
     }
+    });
   };
 
   /**
@@ -341,12 +352,14 @@ export const OrgLiveScorerPage: React.FC = () => {
 
   const handleCricketUndo = async () => {
     if (!matchData) return;
-    try {
-      await api.post(`/matches/${matchData.match.id}/cricket/undo`);
-      fetchMatch();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to undo ball');
-    }
+    await flight.run(async () => {
+      try {
+        await api.post(`/matches/${matchData.match.id}/cricket/undo`);
+        await fetchMatch();
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to undo ball');
+      }
+    });
   };
 
   const handleSwitchInnings = async () => {
@@ -357,13 +370,15 @@ export const OrgLiveScorerPage: React.FC = () => {
       confirmLabel: 'Start second innings',
     });
     if (!proceed) return;
-    try {
-      await api.post(`/matches/${matchData.match.id}/cricket/switch-innings`);
-      setCrease({ striker: '', nonStriker: '', bowler: '' });
-      fetchMatch();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to switch innings');
-    }
+    await flight.run(async () => {
+      try {
+        await api.post(`/matches/${matchData.match.id}/cricket/switch-innings`);
+        setCrease({ striker: '', nonStriker: '', bowler: '' });
+        await fetchMatch();
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to switch innings');
+      }
+    });
   };
 
   const handleFinishMatch = async () => {
@@ -375,12 +390,14 @@ export const OrgLiveScorerPage: React.FC = () => {
       tone: 'danger',
     });
     if (!proceed) return;
-    try {
-      await api.post(`/matches/${matchData.match.id}/cricket/finish`);
-      fetchMatch();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to finish the match');
-    }
+    await flight.run(async () => {
+      try {
+        await api.post(`/matches/${matchData.match.id}/cricket/finish`);
+        await fetchMatch();
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to finish the match');
+      }
+    });
   };
 
   const openTab = (next: ConsoleTab) => {
@@ -493,7 +510,7 @@ export const OrgLiveScorerPage: React.FC = () => {
   const matchFinished = match.status === 'completed';
   const firstInningsOver = innings === 1 && (legalBalls >= totalOvers * 6 || inningsWickets >= allOutAt);
   const scoringLocked = matchFinished || firstInningsOver;
-  const canScore = creaseReady && !scoringLocked;
+  const canScore = creaseReady && !scoringLocked && !flight.busy;
 
   const currentCard = (matchData.scorecard || []).find(card => card.innings === innings);
 
@@ -622,7 +639,7 @@ export const OrgLiveScorerPage: React.FC = () => {
       <div className="sticky top-2 z-20 p-4 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border-2 border-slate-800 shadow-2xl">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold text-slate-400 uppercase truncate">
+            <div className="text-xs font-semibold text-slate-400 uppercase truncate">
               {isFootball ? team_a.name : `${battingTeam.name} batting`}
             </div>
             <div className="font-mono text-3xl sm:text-4xl font-black text-amber-400 leading-none mt-0.5">
@@ -633,7 +650,7 @@ export const OrgLiveScorerPage: React.FC = () => {
           </div>
 
           <div className="text-center shrink-0">
-            <div className="text-[11px] font-semibold text-slate-400 uppercase">
+            <div className="text-xs font-semibold text-slate-400 uppercase">
               {isFootball ? (footballFinished ? 'Full Time' : periodLabel(currentPeriod)) : `Over ${inningsOvers}`}
             </div>
             <div className="font-mono text-lg font-bold text-white flex items-center justify-center gap-1.5">
@@ -647,7 +664,7 @@ export const OrgLiveScorerPage: React.FC = () => {
           </div>
 
           <div className="min-w-0 text-right">
-            <div className="text-[11px] font-semibold text-slate-400 uppercase truncate">
+            <div className="text-xs font-semibold text-slate-400 uppercase truncate">
               {isFootball ? team_b.name : `${bowlingTeam.name} bowling`}
             </div>
             {!isFootball && (
@@ -663,7 +680,7 @@ export const OrgLiveScorerPage: React.FC = () => {
         {/* This over, always visible */}
         {!isFootball && match.toss_decision && (
           <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-800/80">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0">This over</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 shrink-0">This over</span>
             <div className="flex flex-wrap items-center gap-1.5">
               {thisOver.length === 0 && <span className="text-xs text-slate-600">—</span>}
               {thisOver.map(ball => (
@@ -685,6 +702,25 @@ export const OrgLiveScorerPage: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Console status: whether the last action is still being saved, and
+          whether this phone will stay awake between balls. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm" aria-live="polite">
+        <span className={`inline-flex items-center gap-1.5 font-semibold ${flight.busy ? 'text-amber-400' : 'text-slate-500'}`}>
+          <span className={`w-2 h-2 rounded-full ${flight.busy ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'}`} aria-hidden="true" />
+          {flight.busy ? 'Saving…' : 'All changes saved'}
+        </span>
+        <span
+          className={`inline-flex items-center gap-1.5 ${wakeLock.held ? 'text-slate-500' : 'text-amber-400'}`}
+          title={wakeLock.supported ? undefined : 'This browser cannot keep the screen on — turn off auto-lock in your device settings.'}
+        >
+          {wakeLock.held
+            ? 'Screen will stay on'
+            : wakeLock.supported
+              ? 'Tap anywhere to keep the screen on'
+              : 'Turn off auto-lock so the screen stays on'}
+        </span>
       </div>
 
       {/* Tabs */}
@@ -808,8 +844,8 @@ export const OrgLiveScorerPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">Player</label>
-                  <select
+                  <label htmlFor="orglivescorer-player" className="block text-slate-400 mb-1 font-semibold">Player</label>
+                  <select id="orglivescorer-player"
                     value={pickedPlayerId}
                     onChange={(e) => setSelectedPlayerId(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl glass-input bg-slate-900 text-white"
@@ -821,8 +857,8 @@ export const OrgLiveScorerPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">Assist (goals only)</label>
-                  <select
+                  <label htmlFor="orglivescorer-assist-goals-only" className="block text-slate-400 mb-1 font-semibold">Assist (goals only)</label>
+                  <select id="orglivescorer-assist-goals-only"
                     value={pickedAssistId}
                     onChange={(e) => setSelectedAssistId(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl glass-input bg-slate-900 text-white"
@@ -835,8 +871,8 @@ export const OrgLiveScorerPage: React.FC = () => {
                   </select>
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-slate-400 mb-1 font-semibold">Minute</label>
-                  <input
+                  <label htmlFor="orglivescorer-minute" className="block text-slate-400 mb-1 font-semibold">Minute</label>
+                  <input id="orglivescorer-minute"
                     type="number"
                     min="0"
                     max="200"
@@ -923,7 +959,7 @@ export const OrgLiveScorerPage: React.FC = () => {
               </div>
 
               {!pickedPlayerId && canRecordFootball && (
-                <p className="text-[11px] text-slate-500">Pick a player to record a card or an injury.</p>
+                <p className="text-xs text-slate-500">Pick a player to record a card or an injury.</p>
               )}
             </div>
 
@@ -958,12 +994,12 @@ export const OrgLiveScorerPage: React.FC = () => {
                         <span className="block font-bold text-white truncate">
                           {FOOTBALL_EVENT_LABELS[event.event_type]} — {describeEvent(event)}
                         </span>
-                        <span className="block text-[11px] text-slate-500 truncate">
+                        <span className="block text-xs text-slate-500 truncate">
                           {event.team_id === team_a.id ? team_a.name : team_b.name}
                           {event.event_type === 'own_goal' && ` (counts for ${event.team_id === team_a.id ? team_b.name : team_a.name})`}
                         </span>
                       </span>
-                      {index === 0 && <span className="shrink-0 text-[10px] font-bold uppercase text-slate-500">Last</span>}
+                      {index === 0 && <span className="shrink-0 text-xs font-bold uppercase text-slate-500">Last</span>}
                     </li>
                   ))}
                 </ol>
@@ -978,7 +1014,7 @@ export const OrgLiveScorerPage: React.FC = () => {
               </h3>
 
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center">
-                <div className="text-[11px] font-black uppercase tracking-wider text-emerald-400">
+                <div className="text-xs font-black uppercase tracking-wider text-emerald-400">
                   {footballFinished ? 'Full Time' : periodLabel(currentPeriod)}
                 </div>
                 <div className="text-4xl font-black font-mono text-white tracking-tight mt-1">
@@ -1034,7 +1070,7 @@ export const OrgLiveScorerPage: React.FC = () => {
                     <summary className="cursor-pointer font-bold text-slate-400 select-none">Correct the clock or period</summary>
                     <div className="mt-3 space-y-3">
                       <div className="flex gap-2">
-                        <input
+                        <input aria-label="Minute"
                           type="number"
                           min="0"
                           max="200"
@@ -1060,6 +1096,7 @@ export const OrgLiveScorerPage: React.FC = () => {
                         </button>
                       </div>
                       <select
+                        aria-label="Jump to period"
                         value=""
                         onChange={(e) => {
                           const half = e.target.value as FootballPeriod;
@@ -1074,7 +1111,7 @@ export const OrgLiveScorerPage: React.FC = () => {
                           .filter(half => half !== currentPeriod)
                           .map(half => <option key={half} value={half}>{PERIOD_LABELS[half]}</option>)}
                       </select>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-xs text-slate-500">
                         Kicking off a period sets the clock to where that period starts, from the tournament's half length.
                       </p>
                     </div>
@@ -1198,7 +1235,7 @@ export const OrgLiveScorerPage: React.FC = () => {
               <div className="grid grid-cols-5 gap-2">
                 <button
                   onClick={() => setArmedExtra('none')}
-                  className={`py-3 px-1 rounded-xl border text-[11px] font-bold uppercase ${
+                  className={`py-3 px-1 rounded-xl border text-xs font-bold uppercase ${
                     armedExtra === 'none'
                       ? 'bg-emerald-500/20 border-emerald-500 text-white'
                       : 'bg-slate-900 border-slate-800 text-slate-400'
@@ -1210,7 +1247,7 @@ export const OrgLiveScorerPage: React.FC = () => {
                   <button
                     key={extra}
                     onClick={() => setArmedExtra(armedExtra === extra ? 'none' : extra)}
-                    className={`py-3 px-1 rounded-xl border text-[11px] font-bold uppercase ${
+                    className={`py-3 px-1 rounded-xl border text-xs font-bold uppercase ${
                       armedExtra === extra
                         ? 'bg-cyan-500/20 border-cyan-500 text-white'
                         : 'bg-slate-900 border-slate-800 text-cyan-400'
@@ -1259,10 +1296,10 @@ export const OrgLiveScorerPage: React.FC = () => {
             </button>
 
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              <label htmlFor="orglivescorer-commentary-optional" className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 Commentary (optional)
               </label>
-              <input
+              <input id="orglivescorer-commentary-optional"
                 value={commentary}
                 onChange={event => setCommentary(event.target.value)}
                 placeholder="Edged past slip for four…"

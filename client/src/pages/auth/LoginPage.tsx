@@ -207,7 +207,7 @@ export const LoginPage: React.FC = () => {
         {/* Seeded demo logins — only rendered when VITE_SHOW_DEMO_ACCOUNTS=true. */}
         {SHOW_DEMO_ACCOUNTS && (
           <div className="mt-6">
-            <div className="flex items-center gap-3 mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+            <div className="flex items-center gap-3 mb-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
               <span className="h-px flex-1 bg-white/10" />
               Demo accounts
               <span className="h-px flex-1 bg-white/10" />

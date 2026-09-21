@@ -64,6 +64,9 @@ interface PhoneInputProps {
   disabled?: boolean;
   id?: string;
   autoComplete?: string;
+  /** Marks the number invalid (a rejected submit) and links it to its message. */
+  invalid?: boolean;
+  describedBy?: string;
 }
 
 export const PhoneInput: React.FC<PhoneInputProps> = ({
@@ -76,6 +79,8 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
   disabled,
   id,
   autoComplete,
+  invalid,
+  describedBy,
 }) => {
   const { dial, number } = splitPhoneValue(value);
   // Callers pass input-style classes like "w-full px-4"; width would override
@@ -106,6 +111,8 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
         required={required}
         disabled={disabled}
         autoComplete={autoComplete}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
         placeholder={placeholder}
         value={number}
         onChange={(e) => onChange(`${dial} ${e.target.value}`.trim())}

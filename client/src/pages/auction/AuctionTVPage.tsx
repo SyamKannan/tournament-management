@@ -3,12 +3,15 @@ import { useParams } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Auction, AuctionPlayer, Tournament, TeamAuctionPurse } from '../../types';
 import { useRoomSocket } from '../../lib/useRoomSocket';
+import { useWakeLock } from '../../lib/useWakeLock';
 import { 
   Gavel, Maximize2, Minimize2, MapPin, Flame
 } from 'lucide-react';
 
 export const AuctionTVPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  // A display nobody touches for the length of an auction: it must not sleep.
+  useWakeLock(true);
   const [data, setData] = useState<{
     auction: Auction;
     tournament?: Tournament;
@@ -65,7 +68,7 @@ export const AuctionTVPage: React.FC = () => {
 
   if (loading || !data || !data.auction) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-white">
+      <div data-theme="dark" className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-white">
         <div className="flex flex-col items-center gap-3">
           <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
           <span className="text-lg font-bold font-heading tracking-wider">CONNECTING TO STADIUM AUCTION FEED...</span>
@@ -78,7 +81,7 @@ export const AuctionTVPage: React.FC = () => {
   const currentBid = auction.current_bid_amount || (current_player ? current_player.base_price : 0);
 
   return (
-    <div className="min-h-screen w-screen bg-[#060918] text-white flex flex-col justify-between select-none p-6 sm:p-8 lg:p-10 font-sans overflow-y-auto relative">
+    <div data-theme="dark" className="min-h-screen w-screen bg-[#060918] text-white flex flex-col justify-between select-none p-6 sm:p-8 lg:p-10 font-sans overflow-y-auto relative">
       {/* Top Broadcast Header Bar */}
       <header className="flex items-center justify-between pb-4 border-b border-slate-800/80">
         <div className="flex items-center gap-4">
@@ -90,7 +93,7 @@ export const AuctionTVPage: React.FC = () => {
 
           <div>
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] font-black uppercase tracking-widest">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-black uppercase tracking-widest">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
                 <span>OFFICIAL PLAYER AUCTION</span>
               </span>
@@ -183,7 +186,7 @@ export const AuctionTVPage: React.FC = () => {
 
               {/* Giant Highest Bid Box */}
               <div className="text-center md:text-right shrink-0 p-6 rounded-3xl bg-slate-950 border-2 border-slate-800 shadow-2xl w-full md:w-auto md:min-w-[280px]">
-                <span className="text-[11px] font-bold text-amber-400 uppercase tracking-widest block">
+                <span className="text-xs font-bold text-amber-400 uppercase tracking-widest block">
                   CURRENT HIGHEST BID
                 </span>
                 <div className="text-5xl sm:text-6xl font-black font-mono text-amber-400 tracking-tight my-1">
@@ -213,12 +216,12 @@ export const AuctionTVPage: React.FC = () => {
       {/* Bottom Team Purses Ticker */}
       <footer className="pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
         <div className="flex items-center gap-3 overflow-x-auto py-1 scrollbar-none">
-          <span className="font-bold uppercase tracking-wider text-slate-500 text-[11px] shrink-0">Team Purses:</span>
+          <span className="font-bold uppercase tracking-wider text-slate-500 text-xs shrink-0">Team Purses:</span>
           {team_purses.map(tp => (
             <div key={tp.team_id} className="px-3 py-1 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 font-bold shrink-0 flex items-center gap-2">
               <span>{tp.team_name}:</span>
               <span className="font-mono text-emerald-400">₹{tp.remaining_purse.toLocaleString()}</span>
-              <span className="text-slate-500 text-[11px]">({tp.players_bought_count} bought)</span>
+              <span className="text-slate-500 text-xs">({tp.players_bought_count} bought)</span>
             </div>
           ))}
         </div>

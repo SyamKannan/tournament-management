@@ -83,7 +83,7 @@ export const OrgDashboard: React.FC = () => {
               type="button"
               onClick={() => setShowLogoModal(true)}
               title="Upload Club Crest / Logo"
-              className="absolute inset-0 bg-black/60 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-bold gap-0.5 cursor-pointer"
+              className="absolute inset-0 bg-black/60 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-bold gap-0.5 cursor-pointer"
             >
               <Camera className="w-4 h-4 text-cyan-400" />
               <span>Logo</span>
@@ -92,7 +92,7 @@ export const OrgDashboard: React.FC = () => {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <h1 className="text-lg sm:text-2xl font-black font-heading text-white tracking-tight leading-tight">{organization?.name}</h1>
-              <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 text-[11px] font-bold uppercase border border-cyan-500/20">
+              <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 text-xs font-bold uppercase border border-cyan-500/20">
                 {organization?.type || 'Sports Club'}
               </span>
             </div>
@@ -126,7 +126,7 @@ export const OrgDashboard: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Collected */}
         <div className="relative overflow-hidden p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition-colors shadow-sm">
-          <div className="flex items-center justify-between gap-2 text-[11px] sm:text-xs text-slate-400 font-semibold mb-2">
+          <div className="flex items-center justify-between gap-2 text-xs text-slate-400 font-semibold mb-2">
             <span>Registration Revenue</span>
             <div className="shrink-0 w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
               <DollarSign className="w-4 h-4 text-emerald-400" />
@@ -135,7 +135,7 @@ export const OrgDashboard: React.FC = () => {
           <div className="text-xl sm:text-2xl font-black text-white font-heading tabular-nums">
             ₹{financials ? financials.summary.total_collected.toLocaleString() : '0'}
           </div>
-          <div className="text-[11px] text-emerald-400 font-medium mt-1 flex flex-wrap items-center gap-x-1">
+          <div className="text-xs text-emerald-400 font-medium mt-1 flex flex-wrap items-center gap-x-1">
             <span>{financials ? `${financials.summary.collection_percentage}% collected` : '0%'}</span>
             <span className="text-slate-500 font-normal">of ₹{financials?.summary?.total_expected?.toLocaleString() || 0}</span>
           </div>
@@ -143,7 +143,7 @@ export const OrgDashboard: React.FC = () => {
 
         {/* Due Balance */}
         <div className="relative overflow-hidden p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition-colors shadow-sm">
-          <div className="flex items-center justify-between gap-2 text-[11px] sm:text-xs text-slate-400 font-semibold mb-2">
+          <div className="flex items-center justify-between gap-2 text-xs text-slate-400 font-semibold mb-2">
             <span>Pending Balance</span>
             <div className="shrink-0 w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
               <CreditCard className="w-4 h-4 text-amber-400" />
@@ -152,14 +152,14 @@ export const OrgDashboard: React.FC = () => {
           <div className="text-xl sm:text-2xl font-black text-amber-400 font-heading tabular-nums">
             ₹{financials ? financials.summary.total_pending.toLocaleString() : '0'}
           </div>
-          <div className="hidden sm:block text-[11px] text-slate-400 font-medium mt-1">
+          <div className="hidden sm:block text-xs text-slate-400 font-medium mt-1">
             Advance collections awaiting ground settlement
           </div>
         </div>
 
         {/* Registered Teams */}
         <div className="relative overflow-hidden p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition-colors shadow-sm">
-          <div className="flex items-center justify-between gap-2 text-[11px] sm:text-xs text-slate-400 font-semibold mb-2">
+          <div className="flex items-center justify-between gap-2 text-xs text-slate-400 font-semibold mb-2">
             <span>Registered Teams</span>
             <div className="shrink-0 w-7 h-7 rounded-lg bg-cyan-500/10 flex items-center justify-center">
               <Users className="w-4 h-4 text-cyan-400" />
@@ -168,14 +168,14 @@ export const OrgDashboard: React.FC = () => {
           <div className="text-xl sm:text-2xl font-black text-white font-heading tabular-nums">
             {financials?.summary?.total_teams || 0} Teams
           </div>
-          <div className="hidden sm:block text-[11px] text-slate-400 font-medium mt-1">
+          <div className="hidden sm:block text-xs text-slate-400 font-medium mt-1">
             Squad rosters & managers verified
           </div>
         </div>
 
         {/* Active Tournaments */}
         <div className="relative overflow-hidden p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition-colors shadow-sm">
-          <div className="flex items-center justify-between gap-2 text-[11px] sm:text-xs text-slate-400 font-semibold mb-2">
+          <div className="flex items-center justify-between gap-2 text-xs text-slate-400 font-semibold mb-2">
             <span>Tournaments</span>
             <div className="shrink-0 w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center">
               <Trophy className="w-4 h-4 text-indigo-400" />
@@ -184,7 +184,7 @@ export const OrgDashboard: React.FC = () => {
           <div className="text-xl sm:text-2xl font-black text-white font-heading tabular-nums">
             {tournaments.length} Active
           </div>
-          <div className="hidden sm:block text-[11px] text-slate-400 font-medium mt-1">
+          <div className="hidden sm:block text-xs text-slate-400 font-medium mt-1">
             Across every sport you host
           </div>
         </div>
@@ -201,7 +201,7 @@ export const OrgDashboard: React.FC = () => {
               <>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-white">{plan.name}</span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold uppercase border border-emerald-500/20">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold uppercase border border-emerald-500/20">
                     {label(subscription?.status) || 'Active'}
                   </span>
                 </div>
@@ -213,7 +213,7 @@ export const OrgDashboard: React.FC = () => {
               <>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-white">No Active Plan</span>
-                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[11px] font-bold uppercase border border-slate-700">
+                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-xs font-bold uppercase border border-slate-700">
                     Free Account
                   </span>
                 </div>
@@ -236,7 +236,7 @@ export const OrgDashboard: React.FC = () => {
         {/* Quota Progress */}
         <div className="flex-1 lg:max-w-md grid grid-cols-3 gap-3 sm:gap-4">
           <div>
-            <div className="flex justify-between text-[11px] mb-1">
+            <div className="flex justify-between text-xs mb-1">
               <span className="text-slate-400">Tournaments</span>
               <span className="font-bold text-white font-mono">{usage.tournaments.current}/{usage.tournaments.max}</span>
             </div>
@@ -246,7 +246,7 @@ export const OrgDashboard: React.FC = () => {
           </div>
 
           <div>
-            <div className="flex justify-between text-[11px] mb-1">
+            <div className="flex justify-between text-xs mb-1">
               <span className="text-slate-400">Teams</span>
               <span className="font-bold text-white font-mono">{usage.teams.current}/{usage.teams.max}</span>
             </div>
@@ -256,7 +256,7 @@ export const OrgDashboard: React.FC = () => {
           </div>
 
           <div>
-            <div className="flex justify-between text-[11px] mb-1">
+            <div className="flex justify-between text-xs mb-1">
               <span className="text-slate-400">Sponsor Ads</span>
               <span className="font-bold text-white font-mono">{usage.ads.current}/{usage.ads.max}</span>
             </div>
@@ -283,7 +283,7 @@ export const OrgDashboard: React.FC = () => {
             <div key={t.id} className="p-4 sm:p-5 rounded-2xl bg-slate-900/90 border border-slate-800/80 hover:border-slate-700 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/30 transition-all flex flex-col justify-between shadow-sm">
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase border ${
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase border ${
                     t.sport_code === 'football' 
                       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
                       : 'bg-amber-500/10 text-amber-400 border-amber-500/20'

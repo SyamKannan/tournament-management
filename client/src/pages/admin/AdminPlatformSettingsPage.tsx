@@ -162,8 +162,8 @@ export const AdminPlatformSettingsPage: React.FC = () => {
           <h3 className="text-sm font-bold text-white font-heading">General</h3>
           <div className="grid sm:grid-cols-2 gap-3 text-xs">
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Platform Name</label>
-              <input
+              <label htmlFor="adminplatformsettings-platform-name" className="block text-slate-300 font-semibold mb-1">Platform Name</label>
+              <input id="adminplatformsettings-platform-name"
                 type="text"
                 value={settings.platform_name}
                 onChange={(e) => setSettings({ ...settings, platform_name: e.target.value })}
@@ -171,8 +171,8 @@ export const AdminPlatformSettingsPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Country</label>
-              <select
+              <label htmlFor="adminplatformsettings-country" className="block text-slate-300 font-semibold mb-1">Country</label>
+              <select id="adminplatformsettings-country"
                 value={settings.country}
                 onChange={(e) => setSettings({ ...settings, country: e.target.value })}
                 className="w-full px-3.5 py-2 rounded-xl glass-input bg-slate-900"
@@ -186,8 +186,8 @@ export const AdminPlatformSettingsPage: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Currency</label>
-              <select
+              <label htmlFor="adminplatformsettings-currency" className="block text-slate-300 font-semibold mb-1">Currency</label>
+              <select id="adminplatformsettings-currency"
                 value={settings.currency_code}
                 onChange={(e) => handleCurrencyChange(e.target.value)}
                 className="w-full px-3.5 py-2 rounded-xl glass-input bg-slate-900"
@@ -201,8 +201,8 @@ export const AdminPlatformSettingsPage: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Support Email</label>
-              <input
+              <label htmlFor="adminplatformsettings-support-email" className="block text-slate-300 font-semibold mb-1">Support Email</label>
+              <input id="adminplatformsettings-support-email"
                 type="email"
                 value={settings.support_email}
                 onChange={(e) => setSettings({ ...settings, support_email: e.target.value })}
@@ -210,8 +210,8 @@ export const AdminPlatformSettingsPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Support Phone</label>
-              <PhoneInput
+              <label htmlFor="adminplatformsettings-support-phone" className="block text-slate-300 font-semibold mb-1">Support Phone</label>
+              <PhoneInput id="adminplatformsettings-support-phone"
                 value={settings.support_phone}
                 onChange={(support_phone) => setSettings({ ...settings, support_phone })}
                 className="w-full px-3.5 py-2 rounded-xl glass-input"
@@ -242,8 +242,8 @@ export const AdminPlatformSettingsPage: React.FC = () => {
               <span>Require admin approval for new organizations</span>
             </label>
             <div>
-              <label className="block text-slate-400 mb-1">Grace Period Days</label>
-              <input
+              <label htmlFor="adminplatformsettings-grace-period-days" className="block text-slate-400 mb-1">Grace Period Days</label>
+              <input id="adminplatformsettings-grace-period-days"
                 type="number"
                 min="0"
                 value={settings.grace_period_days}
@@ -257,15 +257,15 @@ export const AdminPlatformSettingsPage: React.FC = () => {
         <div className="p-6 rounded-3xl glass-card border border-slate-800 space-y-5 text-xs">
           <div>
             <h3 className="text-sm font-bold text-white font-heading">Landing Page Footer</h3>
-            <p className="text-[11px] text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5">
               Shown at the bottom of the public home page. Contact details come from Support Email and Support Phone above.
             </p>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Tagline</label>
-              <input
+              <label htmlFor="adminplatformsettings-tagline" className="block text-slate-300 font-semibold mb-1">Tagline</label>
+              <input id="adminplatformsettings-tagline"
                 type="text"
                 maxLength={160}
                 value={settings.footer.tagline}
@@ -274,8 +274,8 @@ export const AdminPlatformSettingsPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Copyright Line</label>
-              <input
+              <label htmlFor="adminplatformsettings-copyright-line" className="block text-slate-300 font-semibold mb-1">Copyright Line</label>
+              <input id="adminplatformsettings-copyright-line"
                 type="text"
                 maxLength={160}
                 value={settings.footer.copyright}
@@ -308,11 +308,11 @@ export const AdminPlatformSettingsPage: React.FC = () => {
                 <Plus className="w-3.5 h-3.5" /> Add link
               </button>
             </div>
-            <p className="text-[10px] text-slate-500 mb-2">Use a page path like /players, or a full https:// address. Up to {MAX_FOOTER_LINKS} links.</p>
+            <p className="text-xs text-slate-500 mb-2">Use a page path like /players, or a full https:// address. Up to {MAX_FOOTER_LINKS} links.</p>
             <div className="space-y-2">
               {settings.footer.links.map((link, i) => (
                 <div key={i} className="grid grid-cols-[1fr_1.4fr_auto] gap-2">
-                  <input
+                  <input aria-label="Label"
                     type="text"
                     required
                     maxLength={40}
@@ -321,7 +321,7 @@ export const AdminPlatformSettingsPage: React.FC = () => {
                     onChange={(e) => updateFooterLink(i, { label: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl glass-input"
                   />
-                  <input
+                  <input aria-label="/players or https://"
                     type="text"
                     required
                     pattern="^(/(?!/)|https?://).*"
@@ -346,12 +346,13 @@ export const AdminPlatformSettingsPage: React.FC = () => {
 
           <div>
             <span className="block text-slate-300 font-semibold mb-1">Social Profiles</span>
-            <p className="text-[10px] text-slate-500 mb-2">Leave blank to hide. Full https:// links only.</p>
+            <p className="text-xs text-slate-500 mb-2">Leave blank to hide. Full https:// links only.</p>
             <div className="grid sm:grid-cols-2 gap-3">
               {SOCIAL_FIELDS.map(({ id, label, placeholder }) => (
                 <div key={id}>
-                  <label className="block text-slate-400 mb-1">{label}</label>
+                  <label htmlFor={`social-${id}`} className="block text-slate-400 mb-1">{label}</label>
                   <input
+                    id={`social-${id}`}
                     type="url"
                     placeholder={placeholder}
                     value={settings.footer.social[id]}
@@ -367,7 +368,7 @@ export const AdminPlatformSettingsPage: React.FC = () => {
         <div className="space-y-4">
           <div>
             <h3 className="text-sm font-bold text-white font-heading">Payments</h3>
-            <p className="text-[11px] text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5">
               Each payment flow has its own gateway. Use <b className="text-slate-300">Demo checkout</b> to try the full flow with test cards,
               or <b className="text-slate-300">Razorpay</b> with your API keys (rzp_test_… for testing, rzp_live_… for real charges).
             </p>
@@ -392,16 +393,16 @@ export const AdminPlatformSettingsPage: React.FC = () => {
                       <div className="flex flex-wrap items-center gap-2">
                         <h4 className="text-sm font-bold text-white">{flow.title}</h4>
                         {gateway.ready ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold uppercase">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold uppercase">
                             <CheckCircle2 className="w-3 h-3" /> Ready
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-bold uppercase">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold uppercase">
                             <AlertTriangle className="w-3 h-3" /> Not ready — save keys
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">{flow.blurb}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{flow.blurb}</p>
                     </div>
                   </div>
 
@@ -423,7 +424,7 @@ export const AdminPlatformSettingsPage: React.FC = () => {
                             <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${active ? 'text-emerald-400' : 'text-slate-500'}`} />
                             <span>
                               <span className="block font-semibold">{p.label}</span>
-                              <span className="block text-[10px] text-slate-500">{p.sub}</span>
+                              <span className="block text-xs text-slate-500">{p.sub}</span>
                             </span>
                           </button>
                         );
@@ -437,12 +438,12 @@ export const AdminPlatformSettingsPage: React.FC = () => {
                         <label className="flex items-center justify-between text-slate-300 font-semibold mb-1">
                           <span>Key ID</span>
                           {keyMode && (
-                            <span className={`text-[10px] font-bold uppercase ${keyMode === 'live' ? 'text-rose-300' : 'text-cyan-300'}`}>
+                            <span className={`text-xs font-bold uppercase ${keyMode === 'live' ? 'text-rose-300' : 'text-cyan-300'}`}>
                               {keyMode === 'live' ? 'Live — real charges' : 'Test mode'}
                             </span>
                           )}
                         </label>
-                        <input
+                        <input aria-label="Key ID"
                           type="text"
                           value={gateway.key_id}
                           placeholder="rzp_test_xxxxxxxxxxxx"
@@ -452,7 +453,7 @@ export const AdminPlatformSettingsPage: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-slate-300 font-semibold mb-1">Key Secret</label>
-                        <input
+                        <input aria-label="Key Secret"
                           type="password"
                           autoComplete="new-password"
                           value={gateway.key_secret ?? ''}
@@ -460,7 +461,7 @@ export const AdminPlatformSettingsPage: React.FC = () => {
                           onChange={(e) => updateGateway(flow.id, { key_secret: e.target.value })}
                           className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
                         />
-                        <p className="text-[10px] text-slate-500 mt-1">Stored encrypted and never shown again. Find keys in Razorpay Dashboard → Account &amp; Settings → API Keys.</p>
+                        <p className="text-xs text-slate-500 mt-1">Stored encrypted and never shown again. Find keys in Razorpay Dashboard → Account &amp; Settings → API Keys.</p>
                       </div>
                     </div>
                   )}
@@ -470,7 +471,7 @@ export const AdminPlatformSettingsPage: React.FC = () => {
                       {flow.id === 'subscription' ? 'Methods offered at checkout' : 'Methods clubs can offer teams'}
                     </span>
                     {flow.id === 'registration' && (
-                      <p className="text-[10px] text-slate-500 mb-1.5">Turning one off hides it from clubs' pickers; tournaments already using it keep it.</p>
+                      <p className="text-xs text-slate-500 mb-1.5">Turning one off hides it from clubs' pickers; tournaments already using it keep it.</p>
                     )}
                     <div className="grid grid-cols-2 gap-2">
                       {methodOptions.map(id => {

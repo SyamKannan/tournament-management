@@ -1,16 +1,46 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import { SHOW_DEMO_ACCOUNTS } from '../../config';
 import type { Auction, Tournament, Organization, AuctionCategory, FootballPosition, CricketRole, CricketBattingStyle, CricketBowlingStyle } from '../../types';
-import { 
-  Gavel, CheckCircle2,
-  Share2, ArrowRight, Check
-} from 'lucide-react';
+import { Gavel, CheckCircle2, Share2, ArrowRight, Check, Info, RotateCcw } from 'lucide-react';
 import { PhoneInput } from '../../components/PhoneInput';
+import { FieldError, fieldErrorId, useFieldErrors } from '../../components/ui/FieldError';
+import { useDraft, useLeaveWarning } from '../../lib/useDraft';
+import { usePreferences } from '../../i18n';
+
+/** Everything typed so far, kept on the device until the player is registered. */
+interface Draft {
+  fullName: string;
+  mobile: string;
+  email: string;
+  photo: string;
+  age: number;
+  village: string;
+  district: string;
+  category: AuctionCategory;
+  pastAchievements: string;
+  footballPosition: FootballPosition;
+  footballFoot: 'left' | 'right' | 'both';
+  cricketRole: CricketRole;
+  cricketBattingStyle: CricketBattingStyle;
+  cricketBowlingStyle: CricketBowlingStyle;
+}
+
+const inputClass = 'w-full px-4 py-3 rounded-xl glass-input text-base';
+const labelClass = 'block text-sm font-semibold text-slate-200 mb-1.5';
+
+const DEFAULT_PHOTO = {
+  football: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=200&auto=format&fit=crop&q=80',
+  cricket: 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=200&auto=format&fit=crop&q=80',
+};
 
 export const PublicPlayerAuctionRegisterPage: React.FC = () => {
+  const { t, money } = usePreferences();
   const { token } = useParams<{ token: string }>();
+  const linkToken = token || 'malappuram-7s-auction-2026';
+  const fields = useFieldErrors();
+
   const [data, setData] = useState<{
     auction: Auction;
     tournament: Tournament;
@@ -24,52 +54,64 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
   const [successData, setSuccessData] = useState<any | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Form State
-  const [fullName, setFullName] = useState('');
-  const [mobile, setMobile] = useState('');
-  const [email, setEmail] = useState('');
-  const [photo, setPhoto] = useState('');
-  const [age, setAge] = useState<number>(22);
-  const [village, setVillage] = useState('');
-  const [district, setDistrict] = useState('Malappuram');
+  const draft = useDraft<Draft>(`player-auction:${linkToken}`);
+  const saved = draft.initial;
+
+  const [fullName, setFullName] = useState(saved?.fullName ?? '');
+  const [mobile, setMobile] = useState(saved?.mobile ?? '');
+  const [email, setEmail] = useState(saved?.email ?? '');
+  const [photo, setPhoto] = useState(saved?.photo ?? '');
+  const [age, setAge] = useState<number>(saved?.age ?? 22);
+  const [village, setVillage] = useState(saved?.village ?? '');
+  const [district, setDistrict] = useState(saved?.district ?? 'Malappuram');
   const [sportCode, setSportCode] = useState<'football' | 'cricket'>('football');
-  const [category, setCategory] = useState<AuctionCategory>('Category B');
-  const [pastAchievements, setPastAchievements] = useState('');
+  const [category, setCategory] = useState<AuctionCategory>(saved?.category ?? 'Category B');
+  const [pastAchievements, setPastAchievements] = useState(saved?.pastAchievements ?? '');
 
-  // Football fields
-  const [footballPosition, setFootballPosition] = useState<FootballPosition>('Striker');
-  const [footballFoot, setFootballFoot] = useState<'left' | 'right' | 'both'>('right');
+  const [footballPosition, setFootballPosition] = useState<FootballPosition>(saved?.footballPosition ?? 'Striker');
+  const [footballFoot, setFootballFoot] = useState<'left' | 'right' | 'both'>(saved?.footballFoot ?? 'right');
 
-  // Cricket fields
-  const [cricketRole, setCricketRole] = useState<CricketRole>('All-rounder');
-  const [cricketBattingStyle, setCricketBattingStyle] = useState<CricketBattingStyle>('Right Hand');
-  const [cricketBowlingStyle, setCricketBowlingStyle] = useState<CricketBowlingStyle>('Medium Fast');
+  const [cricketRole, setCricketRole] = useState<CricketRole>(saved?.cricketRole ?? 'All-rounder');
+  const [cricketBattingStyle, setCricketBattingStyle] = useState<CricketBattingStyle>(saved?.cricketBattingStyle ?? 'Right Hand');
+  const [cricketBowlingStyle, setCricketBowlingStyle] = useState<CricketBowlingStyle>(saved?.cricketBowlingStyle ?? 'Medium Fast');
 
   useEffect(() => {
     const fetchAuctionInfo = async () => {
       try {
         setIsLoading(true);
-        const res = await api.get(`/auctions/public/registration/${token || 'malappuram-7s-auction-2026'}`);
+        const res = await api.get(`/auctions/public/registration/${linkToken}`);
         setData(res);
-        if (res.tournament?.sport_code) {
-          setSportCode(res.tournament.sport_code);
-        }
+        if (res.tournament?.sport_code) setSportCode(res.tournament.sport_code);
       } catch (err: any) {
         setError(err.message || 'Auction registration link not found');
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchAuctionInfo();
-  }, [token]);
+  }, [linkToken]);
+
+  const snapshot: Draft = useMemo(() => ({
+    fullName, mobile, email, photo, age, village, district, category, pastAchievements,
+    footballPosition, footballFoot, cricketRole, cricketBattingStyle, cricketBowlingStyle,
+  }), [fullName, mobile, email, photo, age, village, district, category, pastAchievements,
+    footballPosition, footballFoot, cricketRole, cricketBattingStyle, cricketBowlingStyle]);
+
+  const hasTyped = fullName.trim() !== '' || mobile.trim() !== '' || village.trim() !== '';
+  const { save: saveDraft, clear: clearDraft } = draft;
+
+  useEffect(() => {
+    if (!successData && hasTyped) saveDraft(snapshot);
+  }, [snapshot, successData, hasTyped, saveDraft]);
+
+  useLeaveWarning(hasTyped && !successData);
 
   const handleSampleFill = () => {
     if (sportCode === 'football') {
       setFullName('Nahas K.P.');
       setMobile('+91 98471 66778');
       setEmail('nahas.player@gmail.com');
-      setPhoto('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=200&auto=format&fit=crop&q=80');
+      setPhoto(DEFAULT_PHOTO.football);
       setAge(23);
       setVillage('Nilambur');
       setDistrict('Malappuram');
@@ -81,7 +123,7 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
       setFullName('Vishnu Das');
       setMobile('+91 94470 55443');
       setEmail('vishnu.player@gmail.com');
-      setPhoto('https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=200&auto=format&fit=crop&q=80');
+      setPhoto(DEFAULT_PHOTO.cricket);
       setAge(24);
       setVillage('Kozhikode Town');
       setDistrict('Kozhikode');
@@ -95,17 +137,16 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setError(null);
 
     try {
-      const res = await api.post(`/auctions/public/registration/${token || 'malappuram-7s-auction-2026'}`, {
+      const res = await api.post(`/auctions/public/registration/${linkToken}`, {
         full_name: fullName,
         mobile,
         email,
-        photo: photo || (sportCode === 'football' 
-          ? 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=200&auto=format&fit=crop&q=80'
-          : 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=200&auto=format&fit=crop&q=80'),
+        photo: photo || DEFAULT_PHOTO[sportCode],
         age,
         village,
         district,
@@ -116,284 +157,259 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
         cricket_bowling_style: sportCode === 'cricket' ? cricketBowlingStyle : undefined,
         football_position: sportCode === 'football' ? footballPosition : undefined,
         football_preferred_foot: sportCode === 'football' ? footballFoot : undefined,
-        past_achievements: pastAchievements
+        past_achievements: pastAchievements,
       });
 
+      clearDraft();
       setSuccessData(res);
     } catch (err: any) {
+      // Field problems are shown under the field; the banner carries the rest.
+      fields.capture(err);
       setError(err.message || 'Failed to submit auction registration');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const copyShareLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+  const copyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Clipboard blocked: the address bar still has the link.
+    }
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-white">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6" role="status">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm font-semibold text-slate-400">Loading Player Auction Registration...</span>
+          <span className="text-base font-semibold text-slate-400">{t('pa.loading')}</span>
         </div>
       </div>
     );
   }
 
-  if (error && !data) {
+  if (!data) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-center text-white">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-center">
         <div className="max-w-md p-8 rounded-3xl bg-slate-900 border border-slate-800 space-y-4">
-          <h2 className="text-xl font-black font-heading text-rose-400">Auction Link Not Found</h2>
-          <p className="text-xs text-slate-400">{error}</p>
-          <Link to="/" className="inline-block px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold">
-            Return to Home
+          <h1 className="text-xl font-black font-heading text-rose-400">{t('pa.notFound.title')}</h1>
+          <p className="text-base text-slate-400">{error}</p>
+          <Link to="/" className="inline-block px-5 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold">
+            {t('pa.home')}
           </Link>
         </div>
       </div>
     );
   }
 
-  const { auction, tournament, organization, registered_players_count } = data!;
+  const { auction, tournament, organization, registered_players_count } = data;
   const isFootball = tournament.sport_code === 'football';
-
-  // Find selected category base price
   const activeBasePrice = auction.base_prices?.find(c => c.category === category)?.price || 2500;
 
+  const field = (path: string) => ({
+    ...fields.inputProps(path),
+  });
+
   return (
-    <div className="min-h-screen bg-[#070b1d] text-slate-100 py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto space-y-6">
-        {/* Top Header Card */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-2xl relative overflow-hidden">
+        {/* Header */}
+        <div className="p-5 sm:p-8 rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-2xl">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 p-0.5 shadow-lg shadow-amber-500/20 flex items-center justify-center">
-                <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-                  <Gavel className="w-6 h-6 text-amber-400" />
-                </div>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                <Gavel className="w-6 h-6 text-amber-400" aria-hidden="true" />
               </div>
-              <div>
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-black uppercase tracking-widest">
-                  PLAYER AUCTION REGISTRATION
-                </span>
-                <h1 className="text-xl sm:text-2xl font-black font-heading text-white mt-1">
-                  {auction.title}
-                </h1>
+              <div className="min-w-0">
+                <span className="text-xs font-black uppercase tracking-wider text-amber-400">{t('pa.badge')}</span>
+                <h1 className="text-xl sm:text-2xl font-black font-heading text-white mt-0.5">{auction.title}</h1>
               </div>
             </div>
 
             <button
               type="button"
               onClick={copyShareLink}
-              className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-colors shrink-0"
+              className="min-h-11 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-bold inline-flex items-center gap-1.5 border border-slate-700 shrink-0"
             >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-cyan-400" />}
-              <span>{copied ? 'Link Copied!' : 'Share Form'}</span>
+              {copied ? <Check className="w-4 h-4 text-emerald-400" aria-hidden="true" /> : <Share2 className="w-4 h-4 text-cyan-400" aria-hidden="true" />}
+              <span>{copied ? t('pa.copied') : t('pa.share')}</span>
             </button>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-400">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-400">
             <div>
-              Organized by: <strong className="text-white">{organization.name}</strong> • {tournament.village}, {tournament.district}
+              {t('pa.organizedBy', { org: organization.name })}
+              {(tournament.village || tournament.district) && ` · ${[tournament.village, tournament.district].filter(Boolean).join(', ')}`}
             </div>
             <div className="flex items-center gap-4 font-semibold text-slate-300">
-              <span>Pool Size: <strong className="text-emerald-400">{registered_players_count} Registered</strong></span>
-              <span>Team Purse: <strong className="text-amber-400">₹{auction.team_purse.toLocaleString()}</strong></span>
+              <span className="text-emerald-400">{t('pa.pool', { count: registered_players_count })}</span>
+              <span className="text-amber-400">{t('pa.purse', { amount: money(auction.team_purse) })}</span>
             </div>
           </div>
         </div>
 
-        {/* Success Confirmation Card */}
         {successData ? (
-          <div className="p-8 rounded-3xl bg-slate-900 border-2 border-emerald-500/50 shadow-2xl text-center space-y-5 animate-in zoom-in-95">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto shadow-lg">
-              <CheckCircle2 className="w-8 h-8" />
+          <div className="p-6 sm:p-8 rounded-3xl bg-slate-900 border-2 border-emerald-500/50 shadow-2xl text-center space-y-5" role="status">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-8 h-8" aria-hidden="true" />
             </div>
 
             <div>
-              <h2 className="text-2xl font-black font-heading text-white">Registration Submitted Successfully!</h2>
-              <p className="text-xs text-slate-300 mt-2 max-w-md mx-auto">
-                {successData.message}
-              </p>
+              <h2 className="text-2xl font-black font-heading text-white">{t('pa.done.title')}</h2>
+              <p className="text-base text-slate-300 mt-2 max-w-md mx-auto">{successData.message}</p>
             </div>
 
-            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 text-left max-w-md mx-auto text-xs space-y-2">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Player Name:</span>
-                <strong className="text-white">{successData.player?.full_name}</strong>
+            <dl className="p-5 rounded-2xl bg-slate-950 border border-slate-800 text-left max-w-md mx-auto text-base space-y-2">
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-400">{t('pa.done.player')}</dt>
+                <dd className="font-bold text-white">{successData.player?.full_name}</dd>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Base Price Category:</span>
-                <strong className="text-amber-400">{successData.player?.category} (₹{successData.player?.base_price?.toLocaleString()})</strong>
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-400">{t('pa.done.category')}</dt>
+                <dd className="font-bold text-amber-400">{successData.player?.category} ({money(successData.player?.base_price ?? 0)})</dd>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Role / Position:</span>
-                <strong className="text-white">{successData.player?.football_position || successData.player?.cricket_role}</strong>
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-400">{t('pa.done.role')}</dt>
+                <dd className="font-bold text-white">{successData.player?.football_position || successData.player?.cricket_role}</dd>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Status:</span>
-                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold uppercase text-[11px]">Under Review</span>
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-400">{t('pa.done.status')}</dt>
+                <dd><span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold text-sm">{t('pa.done.review')}</span></dd>
               </div>
-            </div>
+            </dl>
 
-            <div className="flex justify-center gap-3 pt-2">
-              <Link
-                to={`/auction/${auction.id}`}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 flex items-center gap-1.5"
-              >
-                <span>View Live Auction Arena</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
+            <Link
+              to={`/auction/${auction.id}`}
+              className="inline-flex min-h-12 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-base items-center gap-2"
+            >
+              <span>{t('pa.done.arena')}</span>
+              <ArrowRight className="w-5 h-5" aria-hidden="true" />
+            </Link>
           </div>
         ) : (
-          /* Registration Form */
-          <form onSubmit={handleSubmit} className="p-6 sm:p-8 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-6">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h2 className="text-base font-bold text-white font-heading">
-                Player Details & Base Price Category
-              </h2>
+          <form onSubmit={handleSubmit} className="p-5 sm:p-8 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-6" noValidate={false}>
+            <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-800">
+              <h2 className="text-lg font-bold text-white font-heading">{t('pa.form.title')}</h2>
               {SHOW_DEMO_ACCOUNTS && (
-                <button
-                  type="button"
-                  onClick={handleSampleFill}
-                  className="px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-bold border border-slate-700 transition-colors"
-                >
-                  Fill Sample Data
+                <button type="button" onClick={handleSampleFill} className="min-h-10 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 text-sm font-bold border border-slate-700">
+                  {t('pa.sample')}
                 </button>
               )}
             </div>
 
+            {draft.restored && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/30">
+                <p className="flex items-start gap-2 text-base text-cyan-200">
+                  <Info className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
+                  {t('draft.restored')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { clearDraft(); window.location.reload(); }}
+                  className="min-h-11 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-slate-200 inline-flex items-center gap-1.5 shrink-0"
+                >
+                  <RotateCcw className="w-4 h-4" aria-hidden="true" /> {t('draft.discard')}
+                </button>
+              </div>
+            )}
+
             {error && (
-              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold">
+              <div role="alert" className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-base font-semibold">
                 {error}
               </div>
             )}
 
-            {/* Basic Info */}
-            <div className="grid sm:grid-cols-2 gap-4 text-xs">
+            <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Shameer Babu"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none focus:border-emerald-500"
-                />
+                <label htmlFor="pa-name" className={labelClass}>{t('pa.name')} <span className="text-rose-400" aria-hidden="true">*</span></label>
+                <input id="pa-name" type="text" autoComplete="name" placeholder="Shameer Babu" value={fullName}
+                  onChange={e => { setFullName(e.target.value); fields.clear('full_name'); }} required
+                  className={`${inputClass} font-semibold`} {...field('full_name')} />
+                <FieldError id={fieldErrorId('full_name')} message={fields.get('full_name')} />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Mobile / WhatsApp *</label>
-                <PhoneInput
-                  placeholder="98471 00000"
-                  value={mobile}
-                  onChange={setMobile}
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none focus:border-emerald-500"
-                />
+                <label htmlFor="pa-mobile" className={labelClass}>{t('pa.mobile')} <span className="text-rose-400" aria-hidden="true">*</span></label>
+                <PhoneInput id="pa-mobile" autoComplete="tel-national" placeholder="98471 00000" value={mobile}
+                  onChange={value => { setMobile(value); fields.clear('mobile'); }} required
+                  invalid={!!fields.get('mobile')} describedBy={fields.get('mobile') ? fieldErrorId('mobile') : undefined}
+                  className="w-full px-4 py-3 rounded-xl glass-input text-base font-mono" />
+                <FieldError id={fieldErrorId('mobile')} message={fields.get('mobile')} />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Email Address</label>
-                <input
-                  type="email"
-                  placeholder="player@gmail.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white outline-none"
-                />
+                <label htmlFor="pa-email" className={labelClass}>{t('pa.email')} <span className="text-sm font-normal text-slate-500">({t('common.optional')})</span></label>
+                <input id="pa-email" type="email" autoComplete="email" placeholder="player@gmail.com" value={email}
+                  onChange={e => { setEmail(e.target.value); fields.clear('email'); }}
+                  className={inputClass} {...field('email')} />
+                <FieldError id={fieldErrorId('email')} message={fields.get('email')} />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Age *</label>
-                <input
-                  type="number"
-                  min="14"
-                  max="50"
-                  value={age}
-                  onChange={(e) => setAge(Number(e.target.value))}
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none"
-                />
+                <label htmlFor="pa-age" className={labelClass}>{t('pa.age')} <span className="text-rose-400" aria-hidden="true">*</span></label>
+                <input id="pa-age" type="number" inputMode="numeric" min={14} max={50} value={age}
+                  onChange={e => { setAge(Number(e.target.value)); fields.clear('age'); }} required
+                  className={`${inputClass} font-semibold`} {...field('age')} />
+                <FieldError id={fieldErrorId('age')} message={fields.get('age')} />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Village / Town *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Nilambur"
-                  value={village}
-                  onChange={(e) => setVillage(e.target.value)}
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white outline-none"
-                />
+                <label htmlFor="pa-village" className={labelClass}>{t('pa.village')} <span className="text-rose-400" aria-hidden="true">*</span></label>
+                <input id="pa-village" type="text" placeholder="Nilambur" value={village}
+                  onChange={e => { setVillage(e.target.value); fields.clear('village'); }} required
+                  className={inputClass} {...field('village')} />
+                <FieldError id={fieldErrorId('village')} message={fields.get('village')} />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">District *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Malappuram"
-                  value={district}
-                  onChange={(e) => setDistrict(e.target.value)}
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white outline-none"
-                />
+                <label htmlFor="pa-district" className={labelClass}>{t('pa.district')} <span className="text-rose-400" aria-hidden="true">*</span></label>
+                <input id="pa-district" type="text" autoComplete="address-level2" placeholder="Malappuram" value={district}
+                  onChange={e => { setDistrict(e.target.value); fields.clear('district'); }} required
+                  className={inputClass} {...field('district')} />
+                <FieldError id={fieldErrorId('district')} message={fields.get('district')} />
               </div>
             </div>
 
-            {/* Profile Photo URL */}
-            <div className="text-xs">
-              <label className="block text-slate-300 font-semibold mb-1">Profile Photo URL</label>
-              <input
-                type="url"
-                placeholder="https://images.unsplash.com/photo-..."
-                value={photo}
-                onChange={(e) => setPhoto(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white outline-none"
-              />
+            <div>
+              <label htmlFor="pa-photo" className={labelClass}>{t('pa.photo')}</label>
+              <input id="pa-photo" type="url" inputMode="url" placeholder="https://…" value={photo}
+                onChange={e => { setPhoto(e.target.value); fields.clear('photo'); }}
+                aria-describedby="pa-photo-hint" className={inputClass} {...field('photo')} />
+              <p id="pa-photo-hint" className="mt-1 text-sm text-slate-400">{t('pa.photoHint')}</p>
+              <FieldError id={fieldErrorId('photo')} message={fields.get('photo')} />
             </div>
 
-            {/* Base Price Category Selector */}
-            <div className="space-y-2 text-xs">
-              <label className="block text-slate-300 font-semibold">
-                Select Base Price Category:
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <fieldset className="space-y-2">
+              <legend className="text-base font-bold text-slate-200 mb-2">{t('pa.category')}</legend>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {(auction.base_prices || []).map(cat => (
                   <button
                     key={cat.category}
                     type="button"
+                    aria-pressed={category === cat.category}
                     onClick={() => setCategory(cat.category)}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
+                    className={`p-3 rounded-2xl border-2 text-left transition-all ${
                       category === cat.category
-                        ? 'bg-amber-500/20 border-amber-500 text-white shadow-lg shadow-amber-500/10'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                        ? 'bg-amber-500/15 border-amber-500 text-white'
+                        : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
                     }`}
                   >
-                    <div className="font-bold text-xs">{cat.category}</div>
-                    <div className="text-sm font-black font-mono text-amber-400 mt-1">₹{cat.price.toLocaleString()}</div>
+                    <span className="block font-bold text-sm">{cat.category}</span>
+                    <span className="block text-base font-black font-mono text-amber-400 mt-1">{money(cat.price)}</span>
                   </button>
                 ))}
               </div>
-            </div>
+            </fieldset>
 
-            {/* Sport Specific Fields */}
             {isFootball ? (
-              <div className="grid sm:grid-cols-2 gap-4 text-xs pt-2 border-t border-slate-800">
+              <div className="grid sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Primary Football Position *</label>
-                  <select
-                    value={footballPosition}
-                    onChange={(e: any) => setFootballPosition(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none"
-                  >
+                  <label htmlFor="pa-position" className={labelClass}>{t('pa.position')}</label>
+                  <select id="pa-position" value={footballPosition} onChange={(e: any) => setFootballPosition(e.target.value)} className={inputClass}>
                     <option value="Striker">Striker (Forward)</option>
                     <option value="Left Wing">Left Wing</option>
                     <option value="Right Wing">Right Wing</option>
@@ -406,29 +422,20 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
                     <option value="Goalkeeper">Goalkeeper</option>
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Preferred Foot</label>
-                  <select
-                    value={footballFoot}
-                    onChange={(e: any) => setFootballFoot(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none"
-                  >
-                    <option value="right">Right Foot</option>
-                    <option value="left">Left Foot</option>
-                    <option value="both">Both Feet (Ambidextrous)</option>
+                  <label htmlFor="pa-foot" className={labelClass}>{t('pa.foot')}</label>
+                  <select id="pa-foot" value={footballFoot} onChange={(e: any) => setFootballFoot(e.target.value)} className={inputClass}>
+                    <option value="right">{t('pa.foot.right')}</option>
+                    <option value="left">{t('pa.foot.left')}</option>
+                    <option value="both">{t('pa.foot.both')}</option>
                   </select>
                 </div>
               </div>
             ) : (
-              <div className="grid sm:grid-cols-3 gap-4 text-xs pt-2 border-t border-slate-800">
+              <div className="grid sm:grid-cols-3 gap-4 pt-2 border-t border-slate-800">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Cricket Role *</label>
-                  <select
-                    value={cricketRole}
-                    onChange={(e: any) => setCricketRole(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none"
-                  >
+                  <label htmlFor="pa-role" className={labelClass}>{t('pa.role')}</label>
+                  <select id="pa-role" value={cricketRole} onChange={(e: any) => setCricketRole(e.target.value)} className={inputClass}>
                     <option value="All-rounder">All-rounder</option>
                     <option value="Batter">Top Order Batter</option>
                     <option value="Bowler">Bowler</option>
@@ -436,26 +443,16 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
                     <option value="Wicketkeeper + Batter">Wicketkeeper + Batter</option>
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Batting Style</label>
-                  <select
-                    value={cricketBattingStyle}
-                    onChange={(e: any) => setCricketBattingStyle(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none"
-                  >
+                  <label htmlFor="pa-batting" className={labelClass}>{t('pa.batting')}</label>
+                  <select id="pa-batting" value={cricketBattingStyle} onChange={(e: any) => setCricketBattingStyle(e.target.value)} className={inputClass}>
                     <option value="Right Hand">Right Hand</option>
                     <option value="Left Hand">Left Hand</option>
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Bowling Style</label>
-                  <select
-                    value={cricketBowlingStyle}
-                    onChange={(e: any) => setCricketBowlingStyle(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none"
-                  >
+                  <label htmlFor="pa-bowling" className={labelClass}>{t('pa.bowling')}</label>
+                  <select id="pa-bowling" value={cricketBowlingStyle} onChange={(e: any) => setCricketBowlingStyle(e.target.value)} className={inputClass}>
                     <option value="Medium Fast">Right-arm Medium Fast</option>
                     <option value="Fast">Right-arm Fast</option>
                     <option value="Off Spin">Right-arm Off Spin</option>
@@ -467,31 +464,25 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
               </div>
             )}
 
-            {/* Achievements */}
-            <div className="text-xs">
-              <label className="block text-slate-300 font-semibold mb-1">Past Experience & Achievements</label>
-              <textarea
-                rows={2}
-                placeholder="Mention past clubs played for, trophies won, high scores, or awards..."
-                value={pastAchievements}
-                onChange={(e) => setPastAchievements(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white outline-none"
-              />
+            <div>
+              <label htmlFor="pa-achievements" className={labelClass}>{t('pa.achievements')}</label>
+              <textarea id="pa-achievements" rows={3} value={pastAchievements}
+                onChange={e => setPastAchievements(e.target.value)}
+                aria-describedby="pa-achievements-hint" className={inputClass} />
+              <p id="pa-achievements-hint" className="mt-1 text-sm text-slate-400">{t('pa.achievementsHint')}</p>
             </div>
 
-            {/* Submit Button */}
-            <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-              <div className="text-xs text-slate-400">
-                Base Price: <strong className="text-amber-400 text-sm">₹{activeBasePrice.toLocaleString()}</strong>
+            <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="text-base text-slate-400">
+                {t('pa.basePrice')}: <strong className="text-amber-400 text-lg font-mono">{money(activeBasePrice)}</strong>
               </div>
-
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 flex items-center gap-2 transition-all"
+                className="min-h-12 px-6 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-base shadow-lg shadow-amber-500/20 inline-flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                {isSubmitting ? 'Submitting Registration...' : 'Register for Player Auction'}
-                <ArrowRight className="w-4 h-4" />
+                {isSubmitting ? t('pa.submitting') : t('pa.submit')}
+                <ArrowRight className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
           </form>

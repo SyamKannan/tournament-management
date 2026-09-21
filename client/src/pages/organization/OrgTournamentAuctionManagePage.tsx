@@ -398,18 +398,18 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
 
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-1">
-                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider ${
                   isFootball ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                 }`}>
                   {isFootball ? '⚽ Football 7s' : '🏏 Cricket T20'}
                 </span>
 
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[11px] font-bold">
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs font-bold">
                   Virtual Currency Auction
                 </span>
 
                 {auction ? (
-                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider ${
                     auction.status === 'live' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse' :
                     auction.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
                     auction.status === 'paused' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
@@ -418,7 +418,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                     ● {label(auction.status)}
                   </span>
                 ) : (
-                  <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[11px] font-bold uppercase">
+                  <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 text-xs font-bold uppercase">
                     Auction Disabled
                   </span>
                 )}
@@ -493,7 +493,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                 <Icon className="w-3.5 h-3.5" />
                 <span>{tab.label}</span>
                 {tab.highlight && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black">
+                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-black">
                     REPORT
                   </span>
                 )}
@@ -509,35 +509,35 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
           {/* Key Metric Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">Virtual Purse / Team</span>
+              <span className="text-xs font-black uppercase tracking-widest text-slate-400 block">Virtual Purse / Team</span>
               <div className="text-2xl sm:text-3xl font-black font-mono text-amber-400 mt-1">
                 ₹{auction?.team_purse.toLocaleString() || '1,00,000'}
               </div>
-              <span className="text-[11px] text-slate-500 font-semibold">Min Inc: {formatMoney(auction?.min_bid_increment || 500)}</span>
+              <span className="text-xs text-slate-500 font-semibold">Min Inc: {formatMoney(auction?.min_bid_increment || 500)}</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">Registered Players</span>
+              <span className="text-xs font-black uppercase tracking-widest text-slate-400 block">Registered Players</span>
               <div className="text-2xl sm:text-3xl font-black font-mono text-cyan-400 mt-1">
                 {summaryData?.stats?.total_players || allPlayers.length}
               </div>
-              <span className="text-[11px] text-slate-500 font-semibold">{summaryData?.stats?.pending_count || 0} Pending Review</span>
+              <span className="text-xs text-slate-500 font-semibold">{summaryData?.stats?.pending_count || 0} Pending Review</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">Players Sold</span>
+              <span className="text-xs font-black uppercase tracking-widest text-slate-400 block">Players Sold</span>
               <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400 mt-1">
                 {summaryData?.stats?.sold_count || 0}
               </div>
-              <span className="text-[11px] text-slate-500 font-semibold">{summaryData?.stats?.unsold_count || 0} Unsold</span>
+              <span className="text-xs text-slate-500 font-semibold">{summaryData?.stats?.unsold_count || 0} Unsold</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">Total Player Payout Entitlement</span>
+              <span className="text-xs font-black uppercase tracking-widest text-slate-400 block">Total Player Payout Entitlement</span>
               <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-1">
                 ₹{(paymentSummary.total_entitled_amount || 0).toLocaleString()}
               </div>
-              <span className="text-[11px] text-emerald-400 font-semibold">{paymentSummary.paid_players_count} Paid • {paymentSummary.pending_players_count} Pending</span>
+              <span className="text-xs text-emerald-400 font-semibold">{paymentSummary.paid_players_count} Paid • {paymentSummary.pending_players_count} Pending</span>
             </div>
           </div>
 
@@ -574,7 +574,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                     }`}
                   >
                     <span>{st.label}</span>
-                    <span className="text-[11px] text-slate-500 font-normal mt-2">
+                    <span className="text-xs text-slate-500 font-normal mt-2">
                       {auction.status === st.id ? '● Active State' : 'Click to Switch'}
                     </span>
                   </button>
@@ -609,7 +609,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
 
           {/* Filter & Search Bar */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] font-bold w-full sm:w-auto">
+            <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-bold w-full sm:w-auto">
               {(['all', 'registered', 'approved', 'sold', 'unsold', 'rejected'] as const).map(tab => (
                 <button
                   key={tab}
@@ -626,7 +626,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
             </div>
 
             <div className="relative w-full sm:w-64">
-              <input
+              <input aria-label="Search player name or village"
                 type="text"
                 placeholder="Search player name or village..."
                 value={searchQuery}
@@ -641,7 +641,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 uppercase text-[11px]">
+                <tr className="border-b border-slate-800 text-slate-400 uppercase text-xs">
                   <th className="pb-3">Player</th>
                   <th className="pb-3">Role / Skill</th>
                   <th className="pb-3">Location & Age</th>
@@ -659,19 +659,19 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                           <img src={p.photo} alt={p.full_name} className="w-9 h-9 rounded-xl object-cover border border-slate-700 shrink-0" />
                           <div>
                             <div className="font-bold text-white">{p.full_name}</div>
-                            <div className="text-[11px] text-slate-400">{p.mobile}</div>
+                            <div className="text-xs text-slate-400">{p.mobile}</div>
                           </div>
                         </div>
                       </td>
 
                       <td className="py-3">
                         <span className="font-semibold text-slate-200 block">{p.football_position || p.cricket_role}</span>
-                        <span className="text-[11px] text-amber-400 font-bold">{p.category}</span>
+                        <span className="text-xs text-amber-400 font-bold">{p.category}</span>
                       </td>
 
                       <td className="py-3 text-slate-400">
                         <div>{p.village || 'Village'}, {p.district}</div>
-                        <div className="text-[11px] text-slate-500">Age: {p.age}</div>
+                        <div className="text-xs text-slate-500">Age: {p.age}</div>
                       </td>
 
                       <td className="py-3 font-mono font-black text-amber-400">
@@ -679,7 +679,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                       </td>
 
                       <td className="py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black uppercase ${
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-black uppercase ${
                           p.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
                           p.status === 'sold' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' :
                           p.status === 'unsold' ? 'bg-slate-800 text-slate-400' :
@@ -689,7 +689,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                           {p.status === 'registered' ? 'Pending Review' : p.status}
                         </span>
                         {p.sold_to_team_name && (
-                          <span className="text-[11px] text-slate-400 block mt-0.5">
+                          <span className="text-xs text-slate-400 block mt-0.5">
                             Sold to: {p.sold_to_team_name} (₹{p.sold_price?.toLocaleString()})
                           </span>
                         )}
@@ -701,14 +701,14 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                             <>
                               <button
                                 onClick={() => handleApprovePlayer(p.id)}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center gap-1"
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1"
                               >
                                 <CheckCircle2 className="w-3 h-3" />
                                 <span>Approve</span>
                               </button>
                               <button
                                 onClick={() => handleRejectPlayer(p.id)}
-                                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-400 font-bold text-[11px]"
+                                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-400 font-bold text-xs"
                               >
                                 <XCircle className="w-3 h-3" />
                               </button>
@@ -778,10 +778,10 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                 {/* Bought Players Badges */}
                 {tp.bought_players && tp.bought_players.length > 0 && (
                   <div className="pt-2 border-t border-slate-800/80">
-                    <span className="text-[11px] font-bold uppercase text-slate-500 block mb-1.5">Acquired Players:</span>
+                    <span className="text-xs font-bold uppercase text-slate-500 block mb-1.5">Acquired Players:</span>
                     <div className="flex flex-wrap gap-1.5">
                       {tp.bought_players.map(bp => (
-                        <span key={bp.id} className="px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 text-[11px] font-semibold flex items-center gap-1">
+                        <span key={bp.id} className="px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 text-xs font-semibold flex items-center gap-1">
                           <span>{bp.full_name}</span>
                           <span className="text-amber-400 font-mono font-bold">₹{bp.sold_price?.toLocaleString()}</span>
                         </span>
@@ -830,8 +830,8 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
           {hasAuction && (
             <div className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Official Auction Title</label>
-                <input
+                <label htmlFor="orgtournamentauctionmanage-official-auction-title" className="block text-slate-300 font-semibold mb-1">Official Auction Title</label>
+                <input id="orgtournamentauctionmanage-official-auction-title"
                   type="text"
                   value={auctionTitle}
                   onChange={(e) => setAuctionTitle(e.target.value)}
@@ -842,8 +842,8 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Auction Start Date & Time *</label>
-                  <input
+                  <label htmlFor="orgtournamentauctionmanage-auction-start-date-time" className="block text-slate-300 font-semibold mb-1">Auction Start Date & Time *</label>
+                  <input id="orgtournamentauctionmanage-auction-start-date-time"
                     type="datetime-local"
                     value={auctionStartTime}
                     onChange={(e) => setAuctionStartTime(e.target.value)}
@@ -852,8 +852,8 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Auction End Date & Time (Optional)</label>
-                  <input
+                  <label htmlFor="orgtournamentauctionmanage-auction-end-date-time-optional" className="block text-slate-300 font-semibold mb-1">Auction End Date & Time (Optional)</label>
+                  <input id="orgtournamentauctionmanage-auction-end-date-time-optional"
                     type="datetime-local"
                     value={auctionEndTime}
                     onChange={(e) => setAuctionEndTime(e.target.value)}
@@ -862,11 +862,11 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">
+                  <label htmlFor="orgtournamentauctionmanage-total-team-virtual-purse-budget-" className="block text-slate-300 font-semibold mb-1">
                     Total Team Virtual Purse Budget (₹) *
-                    <span className="text-[11px] text-amber-400 font-normal ml-1.5">(Points only, no cash value)</span>
+                    <span className="text-xs text-amber-400 font-normal ml-1.5">(Points only, no cash value)</span>
                   </label>
-                  <input
+                  <input id="orgtournamentauctionmanage-total-team-virtual-purse-budget-"
                     type="number"
                     value={teamPurse}
                     onChange={(e) => setTeamPurse(Number(e.target.value))}
@@ -875,8 +875,8 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Minimum Bid Increment (₹) *</label>
-                  <input
+                  <label htmlFor="orgtournamentauctionmanage-minimum-bid-increment" className="block text-slate-300 font-semibold mb-1">Minimum Bid Increment (₹) *</label>
+                  <input id="orgtournamentauctionmanage-minimum-bid-increment"
                     type="number"
                     value={minBidIncrement}
                     onChange={(e) => setMinBidIncrement(Number(e.target.value))}
@@ -885,8 +885,8 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Max Players per Team Roster</label>
-                  <input
+                  <label htmlFor="orgtournamentauctionmanage-max-players-per-team-roster" className="block text-slate-300 font-semibold mb-1">Max Players per Team Roster</label>
+                  <input id="orgtournamentauctionmanage-max-players-per-team-roster"
                     type="number"
                     value={maxPlayersPerTeam}
                     onChange={(e) => setMaxPlayersPerTeam(Number(e.target.value))}
@@ -895,8 +895,8 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Min Players Required per Team</label>
-                  <input
+                  <label htmlFor="orgtournamentauctionmanage-min-players-required-per-team" className="block text-slate-300 font-semibold mb-1">Min Players Required per Team</label>
+                  <input id="orgtournamentauctionmanage-min-players-required-per-team"
                     type="number"
                     value={minPlayersPerTeam}
                     onChange={(e) => setMinPlayersPerTeam(Number(e.target.value))}
@@ -931,7 +931,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
             <div className="space-y-1">
               <h4 className="font-bold text-white text-sm flex items-center gap-2">
                 <span>Virtual-Money Auction & Player Settlement Model</span>
-                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase">
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-xs font-black uppercase">
                   OFFICIAL GUIDELINE
                 </span>
               </h4>
@@ -946,37 +946,37 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
           {/* Settlement KPI Headline Metrics */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">
+              <span className="text-xs font-black uppercase tracking-widest text-slate-400 block">
                 Total Entitled Payout
               </span>
               <div className="text-2xl sm:text-3xl font-black font-mono text-cyan-400 mt-1">
                 ₹{paymentSummary.total_entitled_amount.toLocaleString()}
               </div>
-              <span className="text-[11px] text-slate-400 font-semibold">{paymentSummary.total_sold_players} Sold Players</span>
+              <span className="text-xs text-slate-400 font-semibold">{paymentSummary.total_sold_players} Sold Players</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-emerald-500/30 bg-emerald-500/5 text-center">
-              <span className="text-[11px] font-black uppercase tracking-widest text-emerald-400 block">
+              <span className="text-xs font-black uppercase tracking-widest text-emerald-400 block">
                 Total Settled / Paid
               </span>
               <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400 mt-1">
                 ₹{paymentSummary.total_paid_amount.toLocaleString()}
               </div>
-              <span className="text-[11px] text-emerald-300/80 font-bold">{paymentSummary.paid_players_count} Players Settled</span>
+              <span className="text-xs text-emerald-300/80 font-bold">{paymentSummary.paid_players_count} Players Settled</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-amber-500/30 bg-amber-500/5 text-center">
-              <span className="text-[11px] font-black uppercase tracking-widest text-amber-400 block">
+              <span className="text-xs font-black uppercase tracking-widest text-amber-400 block">
                 Pending Payouts
               </span>
               <div className="text-2xl sm:text-3xl font-black font-mono text-amber-400 mt-1">
                 ₹{paymentSummary.total_pending_amount.toLocaleString()}
               </div>
-              <span className="text-[11px] text-amber-300/80 font-bold">{paymentSummary.pending_players_count} Players Awaiting</span>
+              <span className="text-xs text-amber-300/80 font-bold">{paymentSummary.pending_players_count} Players Awaiting</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center flex flex-col justify-between">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">
+              <span className="text-xs font-black uppercase tracking-widest text-slate-400 block">
                 Settlement Progress
               </span>
               <div>
@@ -990,7 +990,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                   />
                 </div>
               </div>
-              <span className="text-[11px] text-slate-400 mt-1">
+              <span className="text-xs text-slate-400 mt-1">
                 {paymentSummary.paid_players_count} of {paymentSummary.total_sold_players} settled
               </span>
             </div>
@@ -1013,7 +1013,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                   <div key={ts.team_id} className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-white text-sm">{ts.team_name}</span>
-                      <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-mono text-[11px]">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-mono text-xs">
                         {ts.players_acquired_count} bought
                       </span>
                     </div>
@@ -1114,7 +1114,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
 
               {/* Search Bar */}
               <div className="relative w-full sm:w-64">
-                <input
+                <input aria-label="Search player, team, phone"
                   type="text"
                   placeholder="Search player, team, phone..."
                   value={paymentSearch}
@@ -1129,7 +1129,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 uppercase text-[11px]">
+                  <tr className="border-b border-slate-800 text-slate-400 uppercase text-xs">
                     <th className="pb-3">Rank & Player</th>
                     <th className="pb-3">Acquiring Team</th>
                     <th className="pb-3">Entitled Fee</th>
@@ -1151,7 +1151,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                               <img src={sp.photo} alt={sp.full_name} className="w-9 h-9 rounded-xl object-cover border border-slate-700 shrink-0" />
                               <div>
                                 <div className="font-bold text-white text-sm">{sp.full_name}</div>
-                                <div className="text-[11px] text-slate-400">
+                                <div className="text-xs text-slate-400">
                                   {sp.mobile} • {sp.football_position || sp.cricket_role}
                                 </div>
                               </div>
@@ -1161,7 +1161,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                           {/* Team Column */}
                           <td className="py-3.5">
                             <span className="font-bold text-emerald-400 block">{sp.sold_to_team_name}</span>
-                            <span className="text-[11px] text-slate-400 font-semibold">{sp.category}</span>
+                            <span className="text-xs text-slate-400 font-semibold">{sp.category}</span>
                           </td>
 
                           {/* Entitled Fee */}
@@ -1169,7 +1169,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                             <div className="font-mono font-black text-amber-400 text-sm">
                               ₹{(sp.sold_price || sp.base_price).toLocaleString()}
                             </div>
-                            <span className="text-[10px] text-slate-500 uppercase font-semibold">Final Bid Price</span>
+                            <span className="text-xs text-slate-500 uppercase font-semibold">Final Bid Price</span>
                           </td>
 
                           {/* Settlement Status */}
@@ -1177,7 +1177,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                             <button
                               onClick={() => handleQuickTogglePayment(sp)}
                               title="Click to toggle Paid / Pending"
-                              className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all ${
+                              className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all ${
                                 isPaid
                                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
                                   : 'bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30 animate-pulse'
@@ -1198,15 +1198,15 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                           </td>
 
                           {/* Payment Details */}
-                          <td className="py-3.5 text-slate-400 text-[11px]">
+                          <td className="py-3.5 text-slate-400 text-xs">
                             {isPaid ? (
                               <div>
                                 <span className="text-white font-semibold uppercase">{sp.payment_method || 'CASH'}</span>
                                 {sp.payment_reference && (
-                                  <span className="block font-code text-[10px] text-cyan-400">Ref: {sp.payment_reference}</span>
+                                  <span className="block font-code text-xs text-cyan-400">Ref: {sp.payment_reference}</span>
                                 )}
                                 {sp.paid_at && (
-                                  <span className="text-[10px] text-slate-500 block">
+                                  <span className="text-xs text-slate-500 block">
                                     Date: {formatDate(sp.paid_at)}
                                   </span>
                                 )}
@@ -1274,11 +1274,11 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
               {/* Player Summary Card */}
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
                 <div>
-                  <span className="text-slate-400 uppercase text-[10px] font-bold block">Acquired by Team</span>
+                  <span className="text-slate-400 uppercase text-xs font-bold block">Acquired by Team</span>
                   <span className="font-bold text-emerald-400 text-sm">{selectedPlayerForPayment.sold_to_team_name}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-slate-400 uppercase text-[10px] font-bold block">Winning Auction Price</span>
+                  <span className="text-slate-400 uppercase text-xs font-bold block">Winning Auction Price</span>
                   <span className="font-mono font-black text-amber-400 text-sm">
                     ₹{(selectedPlayerForPayment.sold_price || selectedPlayerForPayment.base_price).toLocaleString()}
                   </span>
@@ -1322,8 +1322,8 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                   {/* Amount & Method */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Disbursed Amount (₹) *</label>
-                      <input
+                      <label htmlFor="orgtournamentauctionmanage-disbursed-amount" className="block text-slate-300 font-semibold mb-1">Disbursed Amount (₹) *</label>
+                      <input id="orgtournamentauctionmanage-disbursed-amount"
                         type="number"
                         value={paymentFormAmount}
                         onChange={(e) => setPaymentFormAmount(Number(e.target.value))}
@@ -1332,8 +1332,8 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Payment Method *</label>
-                      <select
+                      <label htmlFor="orgtournamentauctionmanage-payment-method" className="block text-slate-300 font-semibold mb-1">Payment Method *</label>
+                      <select id="orgtournamentauctionmanage-payment-method"
                         value={paymentFormMethod}
                         onChange={(e: any) => setPaymentFormMethod(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white font-semibold outline-none"
@@ -1350,8 +1350,8 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                   {/* Reference & Date */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Transaction Ref / UTR / Cheque #</label>
-                      <input
+                      <label htmlFor="orgtournamentauctionmanage-transaction-ref-utr-cheque" className="block text-slate-300 font-semibold mb-1">Transaction Ref / UTR / Cheque #</label>
+                      <input id="orgtournamentauctionmanage-transaction-ref-utr-cheque"
                         type="text"
                         placeholder="e.g. UPI/2026/894102948"
                         value={paymentFormRef}
@@ -1361,8 +1361,8 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Payment Date</label>
-                      <input
+                      <label htmlFor="orgtournamentauctionmanage-payment-date" className="block text-slate-300 font-semibold mb-1">Payment Date</label>
+                      <input id="orgtournamentauctionmanage-payment-date"
                         type="date"
                         value={paymentFormDate}
                         onChange={(e) => setPaymentFormDate(e.target.value)}
@@ -1375,8 +1375,8 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
 
               {/* Committee Notes */}
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Settlement Notes / Remarks</label>
-                <textarea
+                <label htmlFor="orgtournamentauctionmanage-settlement-notes-remarks" className="block text-slate-300 font-semibold mb-1">Settlement Notes / Remarks</label>
+                <textarea id="orgtournamentauctionmanage-settlement-notes-remarks"
                   rows={2}
                   placeholder="e.g. Handed over at committee office by Tournament President."
                   value={paymentFormNotes}

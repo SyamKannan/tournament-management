@@ -9,6 +9,7 @@ import {
 import { ImpersonateModal } from './ImpersonateModal';
 import { label } from '../lib/labels';
 import { BrandMark } from './brand/BrandMark';
+import { PreferencesMenu } from './PreferencesMenu';
 
 interface NavbarProps {
   /** Shown only on workspace routes, where a sidebar exists to open. */
@@ -123,7 +124,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
               <BrandMark className="w-9 h-9 shrink-0 shadow-md shadow-emerald-500/20 rounded-xl group-hover:scale-105 transition-transform" />
               <span className="text-base font-black tracking-tight text-white font-heading flex items-center gap-1.5">
                 KickWick
-                <span className="hidden sm:inline text-emerald-400 text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/10
+                <span className="hidden sm:inline text-emerald-400 text-xs px-1.5 py-0.5 rounded bg-emerald-500/10
                                  border border-emerald-500/20 font-sans font-bold uppercase">
                   PRO
                 </span>
@@ -144,10 +145,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
           </nav>
 
           <div className="flex items-center gap-2">
+            <PreferencesMenu />
             {isAuthenticated && (
               <span
                 title={isWsConnected ? 'Live updates connected' : 'Live updates offline'}
-                className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${
+                className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold ${
                   isWsConnected
                     ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20'
                     : 'bg-slate-800 text-slate-500 ring-1 ring-slate-700'
@@ -231,7 +233,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
                       <span className="block text-xs font-bold text-white leading-tight truncate max-w-[130px]">
                         {identity.title}
                       </span>
-                      <span className="block text-[11px] text-slate-400 font-medium truncate max-w-[130px]">
+                      <span className="block text-xs text-slate-400 font-medium truncate max-w-[130px]">
                         {identity.caption}
                       </span>
                     </span>
@@ -248,7 +250,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
                         <p className="text-sm font-bold text-white truncate">{identity.fullTitle}</p>
                         <p className="text-xs text-slate-400 truncate">{identity.email}</p>
                         <span className="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400
-                                         border border-emerald-500/20 text-[11px] font-bold uppercase">
+                                         border border-emerald-500/20 text-xs font-bold uppercase">
                           {identity.badge}
                         </span>
                       </div>

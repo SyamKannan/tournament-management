@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Team, Tournament, RegistrationReceipt } from '../../types';
@@ -28,6 +28,10 @@ export const OrgTeamsPage: React.FC = () => {
   const [selectedReceipt, setSelectedReceipt] = useState<RegistrationReceipt | null>(null);
   const [paymentTeam, setPaymentTeam] = useState<Team | null>(null);
   const [rosterTeam, setRosterTeam] = useState<Team | null>(null);
+  // A tournament can take sixty-odd teams. Finding the one whose manager is
+  // on the phone meant scrolling the whole table.
+  const [teamSearch, setTeamSearch] = useState('');
+  const [teamStatus, setTeamStatus] = useState<'all' | 'pending' | 'approved' | 'unpaid'>('all');
 
   useEffect(() => {
     const fetchTourneys = async () => {
@@ -139,6 +143,21 @@ export const OrgTeamsPage: React.FC = () => {
   }
 
   const isFootball = activeTournament?.sport_code === 'football';
+  const visibleTeams = useMemo(() => {
+    const q = teamSearch.trim().toLowerCase();
+    const digits = q.replace(/\D+/g, '');
+    return teams.filter(team => {
+      if (teamStatus === 'pending' && team.status !== 'pending') return false;
+      if (teamStatus === 'approved' && team.status !== 'approved') return false;
+      if (teamStatus === 'unpaid' && outstandingFor(team) <= 0) return false;
+      if (!q) return true;
+      return [team.name, team.short_name, team.manager_name, team.village, team.captain_name]
+        .some(value => value?.toLowerCase().includes(q))
+        || (digits.length >= 3 && (team.manager_phone || '').replace(/\D+/g, '').includes(digits));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teams, teamSearch, teamStatus]);
+
   const pendingCount = teams.filter(t => t.status === 'pending').length;
   const approvedCount = teams.filter(t => t.status === 'approved').length;
   const unpaidCount = teams.filter(t => outstandingFor(t) > 0).length;
@@ -167,26 +186,26 @@ export const OrgTeamsPage: React.FC = () => {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 {activeTournament && (
-                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider ${
                     isFootball ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                   }`}>
                     {isFootball ? '⚽ Football' : '🏏 Cricket'}
                   </span>
                 )}
                 {pendingCount > 0 && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[11px] font-bold flex items-center gap-1">
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     {pendingCount} pending approval{pendingCount === 1 ? '' : 's'}
                   </span>
                 )}
                 {approvedCount > 0 && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[11px] font-bold flex items-center gap-1">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-xs font-bold flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
                     {approvedCount} approved
                   </span>
                 )}
                 {unpaidCount > 0 && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 text-[11px] font-bold">
+                  <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 text-xs font-bold">
                     {unpaidCount} fee{unpaidCount === 1 ? '' : 's'} outstanding
                   </span>
                 )}
@@ -224,10 +243,46 @@ export const OrgTeamsPage: React.FC = () => {
           message="Once teams register for this tournament, their squads, ground fee payments, and approval status will show up here."
         />
       ) : (
+      <div className="space-y-3">
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        <div className="w-full sm:w-80">
+          <label htmlFor="team-search" className="sr-only">Search teams</label>
+          <input
+            id="team-search"
+            type="search"
+            value={teamSearch}
+            onChange={e => setTeamSearch(e.target.value)}
+            placeholder="Search team, manager, village or phone…"
+            className="w-full px-3.5 py-2.5 rounded-xl glass-input text-sm"
+          />
+        </div>
+        <div className="flex gap-1.5 flex-wrap" role="group" aria-label="Filter teams">
+          {([
+            ['all', `All (${teams.length})`],
+            ['pending', `Awaiting approval (${teams.filter(t => t.status === 'pending').length})`],
+            ['approved', 'Approved'],
+            ['unpaid', 'Fee outstanding'],
+          ] as const).map(([value, text]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={teamStatus === value}
+              onClick={() => setTeamStatus(value)}
+              className={`min-h-10 px-3 rounded-xl text-sm font-bold border transition-colors ${
+                teamStatus === value
+                  ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-300'
+                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              {text}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
         <div className="overflow-x-auto min-w-0">
-          <table className="responsive-table w-full min-w-[720px] text-xs text-left">
-            <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
+          <table className="responsive-table w-full min-w-[720px] text-sm text-left">
+            <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-xs font-bold tracking-wider">
               <tr>
                 <th className="px-5 py-3.5">Team Name</th>
                 <th className="px-4 py-3.5">Manager Contact</th>
@@ -239,7 +294,7 @@ export const OrgTeamsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
-              {teams.map(team => {
+              {visibleTeams.map(team => {
                 const pay = team.payment;
                 const remaining = outstandingFor(team);
                 const paidAmount = pay?.paid_amount || 0;
@@ -252,14 +307,14 @@ export const OrgTeamsPage: React.FC = () => {
                         <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: team.jersey_color }} />
                         <div>
                           <div className="font-bold text-white text-xs">{team.name}</div>
-                          <div className="text-[11px] text-slate-400">{team.village}, {team.district}</div>
+                          <div className="text-xs text-slate-400">{team.village}, {team.district}</div>
                         </div>
                       </div>
                     </td>
 
                     <td data-label="Manager" className="px-4 py-4">
                       <div className="font-medium text-white">{team.manager_name}</div>
-                      <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
+                      <div className="text-xs text-slate-400 font-mono flex items-center gap-1">
                         <Phone className="w-3 h-3 text-slate-500" />
                         <span>{team.manager_phone}</span>
                       </div>
@@ -268,7 +323,7 @@ export const OrgTeamsPage: React.FC = () => {
                     <td data-label="Squad" className="px-4 py-4 text-center">
                       <button
                         onClick={() => setRosterTeam(team)}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[11px] font-semibold transition-colors"
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs font-semibold transition-colors"
                       >
                         {team.players_count || 7} Players ↗
                       </button>
@@ -277,14 +332,14 @@ export const OrgTeamsPage: React.FC = () => {
                     <td data-label="Fee Paid" className="px-4 py-4 font-mono font-bold text-emerald-400">
                       ₹{paidAmount.toLocaleString()}
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className={`px-1.5 py-px rounded text-[10px] font-bold uppercase ${
+                        <span className={`px-1.5 py-px rounded text-xs font-bold uppercase ${
                           feeState === 'paid' ? 'bg-emerald-500/20 text-emerald-400' :
                           feeState === 'partial' ? 'bg-amber-500/20 text-amber-400' : 'bg-rose-500/20 text-rose-400'
                         }`}>
                           {feeState}
                         </span>
                         {pay?.payment_method && paidAmount > 0 && (
-                          <span className="text-[11px] text-slate-500 font-normal uppercase">{label(pay.payment_method)}</span>
+                          <span className="text-xs text-slate-500 font-normal uppercase">{label(pay.payment_method)}</span>
                         )}
                       </div>
                     </td>
@@ -296,13 +351,13 @@ export const OrgTeamsPage: React.FC = () => {
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
                             <button
                               onClick={() => handleMarkPaid(team)}
-                              className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-[11px] font-bold"
+                              className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-xs font-bold"
                             >
                               Mark as Paid
                             </button>
                             <button
                               onClick={() => setPaymentTeam(team)}
-                              className="text-[11px] text-slate-400 hover:text-white hover:underline font-semibold"
+                              className="text-xs text-slate-400 hover:text-white hover:underline font-semibold"
                             >
                               Record partial / UPI
                             </button>
@@ -314,7 +369,7 @@ export const OrgTeamsPage: React.FC = () => {
                     </td>
 
                     <td data-label="Approval" className="px-4 py-4 text-center">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase ${
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase ${
                         team.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400' :
                         team.status === 'pending' ? 'bg-amber-500/20 text-amber-400' : 'bg-rose-500/20 text-rose-400'
                       }`}>
@@ -328,13 +383,13 @@ export const OrgTeamsPage: React.FC = () => {
                           <>
                             <button
                               onClick={() => handleStatusChange(team, 'approved')}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-[11px] font-semibold"
+                              className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-xs font-semibold"
                             >
                               Approve
                             </button>
                             <button
                               onClick={() => handleStatusChange(team, 'rejected')}
-                              className="px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-[11px] font-semibold"
+                              className="px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-xs font-semibold"
                             >
                               Reject
                             </button>
@@ -357,7 +412,11 @@ export const OrgTeamsPage: React.FC = () => {
               })}
             </tbody>
           </table>
+          {visibleTeams.length === 0 && (
+            <p className="p-8 text-center text-sm text-slate-400">No teams match that search or filter.</p>
+          )}
         </div>
+      </div>
       </div>
       )}
 
@@ -370,7 +429,7 @@ export const OrgTeamsPage: React.FC = () => {
                 <h3 className="text-base font-bold text-white font-heading">{rosterTeam.name} Roster</h3>
                 <p className="text-xs text-slate-400">Captain: {rosterTeam.captain_name} | Manager: {rosterTeam.manager_name}</p>
               </div>
-              <button onClick={() => setRosterTeam(null)} className="text-slate-400 hover:text-white">✕</button>
+              <button onClick={() => setRosterTeam(null)} aria-label="Close roster" className="min-h-10 min-w-10 text-slate-400 hover:text-white">✕</button>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-2 text-xs">
@@ -383,9 +442,9 @@ export const OrgTeamsPage: React.FC = () => {
                     <div>
                       <div className="font-bold text-white flex items-center gap-1.5">
                         <span>{p.full_name}</span>
-                        {p.is_captain && <span className="text-[11px] text-amber-400 font-bold">(C)</span>}
+                        {p.is_captain && <span className="text-xs text-amber-400 font-bold">(C)</span>}
                       </div>
-                      <div className="text-[11px] text-slate-400">
+                      <div className="text-xs text-slate-400">
                         {p.football_position || `${p.cricket_role || 'Player'} (${p.cricket_bowling_style || ''})`}
                       </div>
                     </div>

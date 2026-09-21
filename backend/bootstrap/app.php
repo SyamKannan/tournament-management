@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\ApiExceptionRenderer;
 use App\Http\Middleware\RequireAuth;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\RequireRole;
@@ -38,4 +39,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        // Every API failure leaves in one envelope, with `error` carrying a
+        // sentence the person who hit it can act on. Without this, anything
+        // the framework threw — a validation failure above all — reached the
+        // client with no `error` key and was shown as "Request failed with
+        // status 422". See ApiExceptionRenderer.
+        $exceptions->render(new ApiExceptionRenderer);
     })->create();

@@ -74,7 +74,7 @@ export const AdminSportsPage: React.FC = () => {
               </div>
               <div className="min-w-0">
                 <div className="text-base font-bold text-white font-heading truncate">{sport.name}</div>
-                <div className={`text-[11px] font-semibold uppercase tracking-wider ${sport.is_active ? 'text-emerald-400' : 'text-slate-500'}`}>
+                <div className={`text-xs font-semibold uppercase tracking-wider ${sport.is_active ? 'text-emerald-400' : 'text-slate-500'}`}>
                   {sport.is_active ? 'Visible to end users' : 'Hidden from end users'}
                 </div>
               </div>

@@ -86,7 +86,7 @@ export const AuthShowcase: React.FC<AuthShowcaseProps> = ({
   const shown = counts ? stats.filter(key => (counts[key] ?? 0) > 0).slice(0, 3) : [];
 
   return (
-    <div className="relative hidden lg:block lg:w-[45%] xl:w-1/2 overflow-hidden shrink-0 lg:sticky lg:top-16 lg:h-[calc(100dvh-4rem)] lg:self-start">
+    <div data-theme="dark" className="relative hidden lg:block lg:w-[45%] xl:w-1/2 overflow-hidden shrink-0 lg:sticky lg:top-16 lg:h-[calc(100dvh-4rem)] lg:self-start">
       <ImageCarouselBackdrop images={images} activeIndex={activeSlide} />
       <div className="absolute inset-0 photo-overlay-base" aria-hidden="true" />
       <div className="absolute inset-0" style={{ backgroundImage: ACCENT_WASH[accent] }} aria-hidden="true" />
@@ -108,7 +108,7 @@ export const AuthShowcase: React.FC<AuthShowcaseProps> = ({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: [0.21, 1.02, 0.73, 1] }}
         >
-          <span className={`inline-flex items-center px-3 py-1 rounded-full border text-[11px] font-bold uppercase tracking-wider mb-5 ${ACCENT_BADGE[accent]}`}>
+          <span className={`inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wider mb-5 ${ACCENT_BADGE[accent]}`}>
             {eyebrow}
           </span>
           <h2 className="text-3xl xl:text-4xl font-black font-heading text-white leading-tight mb-3 max-w-md">
@@ -133,7 +133,7 @@ export const AuthShowcase: React.FC<AuthShowcaseProps> = ({
                 {key === 'live_matches' && <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" aria-hidden="true" />}
                 {compact.format(counts![key])}
               </div>
-              <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide leading-tight mt-0.5">{STAT_LABELS[key]}</div>
+              <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide leading-tight mt-0.5">{STAT_LABELS[key]}</div>
             </motion.div>
           ))}
         </div>

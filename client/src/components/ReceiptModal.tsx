@@ -102,7 +102,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
             </div>
             <div>
               <h3 className="text-sm font-bold text-white font-heading">Official Registration Receipt</h3>
-              <p className="text-[11px] text-slate-400 font-mono">{receipt.receipt_number}</p>
+              <p className="text-xs text-slate-400 font-mono">{receipt.receipt_number}</p>
             </div>
           </div>
           <button
@@ -127,7 +127,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                 <div className="text-xs font-bold uppercase tracking-wider">
                   {isFullyPaid ? 'Registration Fee Fully Paid' : 'Partially Paid (Advance Confirmed)'}
                 </div>
-                <div className="text-[11px] opacity-80">
+                <div className="text-xs opacity-80">
                   {isFullyPaid ? 'Team eligible for tournament fixture placement.' : `Remaining ₹${data.remaining_balance.toLocaleString()} payable before first match.`}
                 </div>
               </div>
@@ -140,27 +140,27 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
           {/* Details grid */}
           <div className="grid grid-cols-2 gap-4 text-xs bg-slate-950/50 p-4 rounded-xl border border-slate-800">
             <div>
-              <span className="text-slate-400 block text-[11px]">Tournament</span>
+              <span className="text-slate-400 block text-xs">Tournament</span>
               <span className="font-semibold text-white">{data.tournament_name}</span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[11px]">Organizing Body</span>
+              <span className="text-slate-400 block text-xs">Organizing Body</span>
               <span className="font-semibold text-white">{data.organization_name}</span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[11px]">Registered Team</span>
+              <span className="text-slate-400 block text-xs">Registered Team</span>
               <span className="font-bold text-emerald-400 text-sm">{data.team_name}</span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[11px]">Team Manager</span>
+              <span className="text-slate-400 block text-xs">Team Manager</span>
               <span className="font-medium text-white">{data.manager_name} ({data.manager_phone})</span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[11px]">Payment Mode</span>
+              <span className="text-slate-400 block text-xs">Payment Mode</span>
               <span className="font-medium text-white">{data.payment_method}</span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[11px]">Transaction ID</span>
+              <span className="text-slate-400 block text-xs">Transaction ID</span>
               <span className="font-code text-slate-300 truncate block">{data.transaction_id}</span>
             </div>
           </div>
@@ -192,7 +192,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
           </div>
 
           {/* QR Verification String */}
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400">
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400">
             <QrCode className="w-6 h-6 text-emerald-400 flex-shrink-0" />
             <div className="truncate">
               <div className="font-semibold text-slate-300">Digital Authenticity Signature</div>
@@ -203,7 +203,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
 
         {/* Actions Footer */}
         <div className="px-6 py-4 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between">
-          <div className="text-[11px] text-slate-500">
+          <div className="text-xs text-slate-500">
             Issued on {formatDateTime(receipt.issued_at)}
           </div>
           <div className="flex items-center gap-2">

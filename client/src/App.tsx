@@ -9,6 +9,9 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { ToastProvider } from './components/ui/Toast';
 import { ConfirmProvider } from './components/ui/ConfirmDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { PreferencesProvider } from './i18n';
+import { MustChangePasswordGate } from './components/MustChangePasswordGate';
+import { OfflineBanner } from './components/OfflineBanner';
 import { LandingPage } from './pages/LandingPage';
 
 /**
@@ -63,6 +66,7 @@ const OrgLiveScorerPage = lazyPage(() => import('./pages/organization/OrgLiveSco
 const OrgSponsorsAdsPage = lazyPage(() => import('./pages/organization/OrgSponsorsAdsPage'), 'OrgSponsorsAdsPage');
 const OrgAnnouncementsPage = lazyPage(() => import('./pages/organization/OrgAnnouncementsPage'), 'OrgAnnouncementsPage');
 const OrgNotificationsPage = lazyPage(() => import('./pages/organization/OrgNotificationsPage'), 'OrgNotificationsPage');
+const OrgMembersPage = lazyPage(() => import('./pages/organization/OrgMembersPage'), 'OrgMembersPage');
 const OrgVenuesPage = lazyPage(() => import('./pages/organization/OrgVenuesPage'), 'OrgVenuesPage');
 const OrgReportsPage = lazyPage(() => import('./pages/organization/OrgReportsPage'), 'OrgReportsPage');
 const OrgBillingPage = lazyPage(() => import('./pages/organization/OrgBillingPage'), 'OrgBillingPage');
@@ -99,7 +103,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   if (isTVMode) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100">
+      <main data-theme="dark" className="min-h-screen bg-slate-950 text-slate-100">
         <ErrorBoundary resetKey={location.pathname}>
           <Suspense fallback={<PageLoader />}>{children}</Suspense>
         </ErrorBoundary>
@@ -110,6 +114,8 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className={`min-h-screen text-slate-100 flex flex-col font-sans ${hasSidebar ? 'app-shell' : 'bg-slate-950'}`}>
       <a href="#main-content" className="skip-link">Skip to content</a>
+      <OfflineBanner />
+      <MustChangePasswordGate />
 
       <Navbar showMenuButton={hasSidebar} onMenuClick={() => setSidebarOpen(true)} />
 
@@ -141,6 +147,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 export const App: React.FC = () => {
   return (
+    <PreferencesProvider>
     <ToastProvider>
       <ConfirmProvider>
         <PlatformConfigProvider>
@@ -303,6 +310,11 @@ export const App: React.FC = () => {
                     <OrgNotificationsPage />
                   </ProtectedRoute>
                 } />
+                <Route path="/organization/members" element={
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                    <OrgMembersPage />
+                  </ProtectedRoute>
+                } />
                 <Route path="/organization/reports" element={
                   <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
                     <OrgReportsPage />
@@ -361,6 +373,7 @@ export const App: React.FC = () => {
         </PlatformConfigProvider>
       </ConfirmProvider>
     </ToastProvider>
+    </PreferencesProvider>
   );
 };
 

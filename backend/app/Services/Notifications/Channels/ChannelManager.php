@@ -15,6 +15,8 @@ class ChannelManager
     /** @var array<string, class-string<ChannelDriver>> */
     private array $drivers = [
         'log' => LogDriver::class,
+        'twilio' => TwilioDriver::class,
+        'meta_whatsapp' => MetaWhatsAppDriver::class,
     ];
 
     public function __construct(private readonly Container $container) {}
@@ -48,5 +50,124 @@ class ChannelManager
     public function registered(): array
     {
         return array_keys($this->drivers);
+    }
+
+    /** The driver name configured for a channel, without building it. */
+    public function driverNameFor(string $channel): string
+    {
+        return (string) config("notifications.channels.{$channel}", 'log');
+    }
+
+    /**
+     * Whether a channel only records messages instead of sending them.
+     *
+     * The engine reports a `log` send as successful on purpose — the row, the
+     * opt-out check and the retry sweep all have to keep working without a
+     * gateway. But "sent" then means "written to a log file", and an organizer
+     * reading their notification list must not be told a team was contacted
+     * when nobody was. Everything user-facing asks this first.
+     */
+    public function isSimulated(string $channel): bool
+    {
+        return $this->driverNameFor($channel) === 'log';
+    }
+
+    /**
+     * What is wrong with the current notification setup, in words an operator
+     * can act on. Empty means messages are really going out.
+     *
+     * @return array<int, array{channel: string, driver: string, severity: string, message: string}>
+     */
+    public function healthIssues(): array
+    {
+        $issues = [];
+
+        if (! config('notifications.enabled')) {
+            $issues[] = [
+                'channel' => 'all',
+                'driver' => 'none',
+                'severity' => 'critical',
+                'message' => 'Notifications are switched off entirely (NOTIFICATIONS_ENABLED=false). '
+                    .'Nothing is queued, including password reset codes.',
+            ];
+
+            return $issues;
+        }
+
+        foreach (['sms', 'whatsapp'] as $channel) {
+            $driver = $this->driverNameFor($channel);
+
+            if (! isset($this->drivers[$driver])) {
+                $issues[] = [
+                    'channel' => $channel,
+                    'driver' => $driver,
+                    'severity' => 'critical',
+                    'message' => "No driver is registered as [{$driver}], so every {$channel} message fails.",
+                ];
+
+                continue;
+            }
+
+            if ($driver !== 'log') {
+                foreach ($this->missingCredentials($driver, $channel) as $missing) {
+                    $issues[] = [
+                        'channel' => $channel,
+                        'driver' => $driver,
+                        'severity' => 'critical',
+                        'message' => "The {$driver} driver carries {$channel} but {$missing} is not set.",
+                    ];
+                }
+
+                continue;
+            }
+
+            // `log` in production means a real person asking for a password
+            // reset code never receives one, and there is no other way in.
+            $issues[] = [
+                'channel' => $channel,
+                'driver' => 'log',
+                'severity' => app()->isProduction() ? 'critical' : 'info',
+                'message' => app()->isProduction()
+                    ? "The {$channel} channel is still on the `log` driver, so messages are written to the "
+                        ."application log and never delivered. Password reset codes cannot reach anyone."
+                    : "The {$channel} channel records messages instead of sending them (no gateway configured).",
+            ];
+        }
+
+        return $issues;
+    }
+
+    /**
+     * Credentials a configured driver needs but has not been given.
+     *
+     * @return array<int, string>
+     */
+    private function missingCredentials(string $driver, string $channel): array
+    {
+        $required = match ($driver) {
+            'twilio' => [
+                'TWILIO_SID' => 'notifications.twilio.sid',
+                'TWILIO_TOKEN' => 'notifications.twilio.token',
+                $channel === 'whatsapp' ? 'TWILIO_WHATSAPP_FROM' : 'TWILIO_SMS_FROM'
+                    => $channel === 'whatsapp'
+                        ? 'notifications.twilio.whatsapp_from'
+                        : 'notifications.twilio.sms_from',
+            ],
+            'meta_whatsapp' => [
+                'META_WHATSAPP_PHONE_NUMBER_ID' => 'notifications.meta.phone_number_id',
+                'META_WHATSAPP_TOKEN' => 'notifications.meta.token',
+            ],
+            default => [],
+        };
+
+        $missing = [];
+
+        foreach ($required as $envName => $configKey) {
+            if (blank(config($configKey))) {
+                $missing[] = $envName;
+            }
+        }
+
+        return $missing;
     }
 }

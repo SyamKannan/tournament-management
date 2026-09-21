@@ -166,25 +166,33 @@ class TeamController extends Controller
     }
 
     /**
-     * Accept a public team entry: squad validation, roster creation, ground-fee
-     * payment and receipt, all in one transaction.
+     * Everything that can refuse a public team entry, without writing anything.
+     *
+     * Run twice on purpose. The client calls it through `validateRegistration`
+     * *before* it opens the payment checkout, so a team is never charged for a
+     * registration that was always going to be turned away (squad too small,
+     * duplicate jersey numbers, the manager's number already entered). And
+     * `register` runs it again, because the situation can change between the
+     * check and the submit.
+     *
+     * @return array{0: JsonResponse|null, 1: array<string, mixed>}
      */
-    public function register(Request $request, string $token): JsonResponse
+    private function registrationPrecheck(Request $request, string $token): array
     {
         $link = RegistrationLink::query()->where('token', $token)->where('status', 'active')->first();
 
         if (! $link) {
-            return response()->json(['error' => 'Registration link is inactive or invalid'], 400);
+            return [response()->json(['error' => 'Registration link is inactive or invalid'], 400), []];
         }
 
         $tournament = Tournament::find($link->tournament_id);
 
         if (! $tournament) {
-            return response()->json(['error' => 'Tournament not found'], 404);
+            return [response()->json(['error' => 'Tournament not found'], 404), []];
         }
 
         if ($closed = $this->registrationClosedReason($tournament, $link)) {
-            return response()->json(['error' => $closed], 400);
+            return [response()->json(['error' => $closed], 400), []];
         }
 
         $currentTeams = Team::query()
@@ -193,9 +201,9 @@ class TeamController extends Controller
             ->count();
 
         if ($currentTeams >= $tournament->max_teams) {
-            return response()->json([
+            return [response()->json([
                 'error' => "Tournament registration is full (Max {$tournament->max_teams} teams)",
-            ], 400);
+            ], 400), []];
         }
 
         $data = $request->validate([
@@ -232,9 +240,9 @@ class TeamController extends Controller
         $enabledMethods = $tournament->payment_config['enabled_methods'] ?? Tournament::PAYMENT_METHODS;
 
         if (in_array($paymentMethod, Tournament::PAYMENT_METHODS, true) && ! in_array($paymentMethod, $enabledMethods, true)) {
-            return response()->json([
+            return [response()->json([
                 'error' => 'This payment method is not accepted for this tournament. Please choose another one.',
-            ], 400);
+            ], 400), []];
         }
 
         $players = $data['players'];
@@ -244,15 +252,15 @@ class TeamController extends Controller
         $maxPlayers = (int) ($settings['squad_max_players'] ?: ($football ? 14 : 16));
 
         if (count($players) < $minPlayers) {
-            return response()->json([
+            return [response()->json([
                 'error' => sprintf('Minimum %d players are required. You entered %d.', $minPlayers, count($players)),
-            ], 400);
+            ], 400), []];
         }
 
         if (count($players) > $maxPlayers) {
-            return response()->json([
+            return [response()->json([
                 'error' => sprintf('Maximum %d players allowed. You entered %d.', $maxPlayers, count($players)),
-            ], 400);
+            ], 400), []];
         }
 
         $playerLimit = $this->billing->planLimitFor($tournament->organization_id, 'players');
@@ -261,18 +269,18 @@ class TeamController extends Controller
             $currentPlayers = Player::query()->where('organization_id', $tournament->organization_id)->count();
 
             if ($currentPlayers + count($players) > $playerLimit) {
-                return response()->json([
+                return [response()->json([
                     'error' => "This registration would exceed the organizer's player limit ({$currentPlayers}/{$playerLimit}). Please contact the organizer.",
-                ], 400);
+                ], 400), []];
             }
         }
 
         $jerseyNumbers = array_filter(array_map(fn ($player) => (int) ($player['jersey_number'] ?? 0), $players));
 
         if (count(array_unique($jerseyNumbers)) !== count($jerseyNumbers)) {
-            return response()->json([
+            return [response()->json([
                 'error' => 'Duplicate jersey numbers detected in the team roster. Every player must have a unique number.',
-            ], 400);
+            ], 400), []];
         }
 
         // Entered from a team manager's portal: the team is theirs, so it shows up
@@ -284,7 +292,7 @@ class TeamController extends Controller
             ->where('manager_user_id', $managerUserId)
             ->where('status', '!=', 'withdrawn')
             ->exists()) {
-            return response()->json(['error' => 'You already have a team in this tournament.'], 409);
+            return [response()->json(['error' => 'You already have a team in this tournament.'], 409), []];
         }
 
         $normalizedPhone = preg_replace('/\D+/', '', $data['manager_phone']);
@@ -295,10 +303,65 @@ class TeamController extends Controller
             ->contains(fn ($team) => preg_replace('/\D+/', '', $team->manager_phone) === $normalizedPhone && $normalizedPhone !== '');
 
         if ($alreadyRegistered) {
-            return response()->json([
+            return [response()->json([
                 'error' => 'A team is already registered for this tournament with this manager mobile number. Contact the organizer if you need to make changes.',
-            ], 409);
+            ], 409), []];
         }
+
+        $paymentOption = $data['payment_option'] ?? 'full';
+        $options = $this->payments->paymentOptions($tournament);
+        $amountToPay = $paymentOption === 'partial'
+            ? (float) ($options['partialAmount'] ?: $options['totalFee'])
+            : (float) $options['fullAmount'];
+
+        return [null, compact('link', 'tournament', 'data', 'players', 'paymentMethod', 'managerUserId', 'amountToPay', 'paymentOption')];
+    }
+
+    /**
+     * The pre-payment check, as an endpoint: "would this registration be
+     * accepted?" Answered before any money moves.
+     */
+    public function validateRegistration(Request $request, string $token): JsonResponse
+    {
+        [$error, $context] = $this->registrationPrecheck($request, $token);
+
+        if ($error) {
+            return $error;
+        }
+
+        return response()->json([
+            'ok' => true,
+            'amount_to_pay' => $context['amountToPay'],
+        ]);
+    }
+
+    /**
+     * Accept a public team entry: squad validation, roster creation, ground-fee
+     * payment and receipt, all in one transaction.
+     */
+    public function register(Request $request, string $token): JsonResponse
+    {
+        // A retry of a registration that already went through — the response
+        // was lost on a bad connection, the captain tapped "try again". The
+        // payment has been used, and saying so ("already used") to someone
+        // whose team *is* registered would send them to the organizer for
+        // nothing. Hand back the registration it paid for instead.
+        if ($replay = $this->replayedRegistration($request)) {
+            return $replay;
+        }
+
+        [$error, $context] = $this->registrationPrecheck($request, $token);
+
+        if ($error) {
+            $this->recordOrphanedPayment($request, $token, $error);
+
+            return $error;
+        }
+
+        [
+            'link' => $link, 'tournament' => $tournament, 'data' => $data, 'players' => $players,
+            'paymentMethod' => $paymentMethod, 'managerUserId' => $managerUserId,
+        ] = $context;
 
         $paymentOption = $data['payment_option'] ?? 'full';
         $payAtGround = $paymentMethod === 'pay_at_ground';
@@ -440,6 +503,123 @@ class TeamController extends Controller
                 ->get(['id', 'full_name', 'jersey_number', 'player_code']),
             'message' => 'Team registered successfully! Download or print your official registration receipt.',
         ], 201);
+    }
+
+    /**
+     * The registration a verified payment already paid for, if this request
+     * is a retry of one that succeeded. Matched on the payment id *and* the
+     * manager's number, so a payment id alone never reveals someone else's
+     * registration.
+     */
+    private function replayedRegistration(Request $request): ?JsonResponse
+    {
+        $paymentId = (string) $request->input('razorpay_payment_id', '');
+
+        if ($paymentId === '') {
+            return null;
+        }
+
+        $payment = RegistrationPayment::query()->where('transaction_id', $paymentId)->first();
+
+        if (! $payment) {
+            return null;
+        }
+
+        $team = Team::find($payment->team_id);
+        $phone = preg_replace('/\D+/', '', (string) $request->input('manager_phone', ''));
+
+        // Not the same entry: fall through, and the normal path refuses the
+        // reused payment exactly as it always has, without confirming here
+        // that the id belongs to somebody's registration.
+        if (! $team || $phone === '' || preg_replace('/\D+/', '', (string) $team->manager_phone) !== $phone) {
+            return null;
+        }
+
+        return response()->json([
+            'team' => $team,
+            'payment' => $payment,
+            'receipt' => RegistrationReceipt::query()
+                ->where('team_id', $team->id)
+                ->orderByDesc('created_at')
+                ->first(),
+            'players' => Player::query()
+                ->where('team_id', $team->id)
+                ->orderBy('jersey_number')
+                ->get(['id', 'full_name', 'jersey_number', 'player_code']),
+            'replayed' => true,
+            'message' => 'Your team was already registered with this payment. Here is your receipt.',
+        ]);
+    }
+
+    /**
+     * A verified payment arrived with a registration that was then refused.
+     *
+     * The client checks first so this should be rare — but the situation can
+     * change between check and submit (the last slot filled, the same number
+     * entered from another phone). The money is real, so it is written to the
+     * organizer's audit trail with the reference they need to refund it, and
+     * the refusal tells the payer exactly that.
+     */
+    private function recordOrphanedPayment(Request $request, string $token, JsonResponse &$error): void
+    {
+        $paymentId = (string) $request->input('razorpay_payment_id', '');
+        $orderId = (string) $request->input('razorpay_order_id', '');
+        $signature = (string) $request->input('razorpay_signature', '');
+
+        if ($paymentId === '' || $orderId === '' || $signature === '') {
+            return;
+        }
+
+        $link = RegistrationLink::query()->where('token', $token)->first();
+        $tournament = $link ? Tournament::find($link->tournament_id) : null;
+
+        if (! $tournament) {
+            return;
+        }
+
+        // Only a genuine, verified payment is worth an organizer's attention;
+        // anything else is a forged or replayed request.
+        try {
+            $amount = $this->payments->paymentOptions($tournament);
+            $option = $request->input('payment_option') === 'partial' ? 'partial' : 'full';
+            $expected = $option === 'partial'
+                ? (float) ($amount['partialAmount'] ?: $amount['totalFee'])
+                : (float) $amount['fullAmount'];
+
+            if (! $this->gateway->verify('registration', $orderId, $paymentId, $signature, $expected)) {
+                return;
+            }
+        } catch (\Throwable) {
+            return;
+        }
+
+        $reason = (string) ($error->getData(true)['error'] ?? 'Registration refused');
+
+        Audit::log([
+            'organization_id' => $tournament->organization_id,
+            'user_id' => 'public',
+            'user_name' => (string) $request->input('manager_name', 'Unknown'),
+            'user_role' => 'PUBLIC',
+            'action' => 'REGISTRATION_PAYMENT_NEEDS_REFUND',
+            'entity_type' => 'Tournament',
+            'entity_id' => $tournament->id,
+            'details' => sprintf(
+                'Payment %s (₹%s) from %s (%s) for team [%s] was received but the registration was refused: %s',
+                $paymentId,
+                number_format($expected, 0),
+                (string) $request->input('manager_name', ''),
+                (string) $request->input('manager_phone', ''),
+                (string) $request->input('team_name', ''),
+                $reason,
+            ),
+            'ip_address' => $request->ip(),
+        ]);
+
+        $data = $error->getData(true);
+        $data['error'] = $reason.' Your payment (reference '.$paymentId.') was received — the organizer has been notified and will refund it or complete your entry.';
+        $data['payment_reference'] = $paymentId;
+        $data['refund_pending'] = true;
+        $error->setData($data);
     }
 
     /* ------------------------------------------------- Organizer management */

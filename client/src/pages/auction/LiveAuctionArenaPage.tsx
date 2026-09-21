@@ -5,13 +5,15 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { useRoomSocket } from '../../lib/useRoomSocket';
+import { useSingleFlight } from '../../lib/useSingleFlight';
+import { usePreferences } from '../../i18n';
 import type { 
   Auction, AuctionPlayer, AuctionBid, TeamAuctionPurse, 
   Tournament, Organization 
 } from '../../types';
 import { 
   Gavel, Clock, Check, X, Tv, 
-  Search, Zap, AlertTriangle, CheckCircle2
+  Search, Zap, AlertTriangle, CheckCircle2, RotateCcw
 } from 'lucide-react';
 import { label } from '../../lib/labels';
 
@@ -20,6 +22,10 @@ export const LiveAuctionArenaPage: React.FC = () => {
   const toast = useToast();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const { t, money } = usePreferences();
+  // Every auctioneer action goes through here, one at a time: a double tap on
+  // a slow connection placed two bids, or tried to sell twice.
+  const flight = useSingleFlight();
 
   const [data, setData] = useState<{
     auction: Auction;
@@ -84,14 +90,19 @@ export const LiveAuctionArenaPage: React.FC = () => {
   }, fetchAuctionState);
 
   // Refresh straight after our own action too — the gateway may be down.
-  const runAction = async (request: () => Promise<unknown>, fallbackError: string) => {
-    try {
-      await request();
-    } catch (err: any) {
-      toast.error(err.message || fallbackError);
-    } finally {
-      fetchAuctionState();
-    }
+  const runAction = async (request: () => Promise<unknown>, fallbackError: string): Promise<boolean> => {
+    const ok = await flight.run(async () => {
+      try {
+        await request();
+        return true;
+      } catch (err: any) {
+        toast.error(err.message || fallbackError);
+        return false;
+      } finally {
+        await fetchAuctionState();
+      }
+    });
+    return ok === true;
   };
 
   const handlePlaceBid = (amount: number) => {
@@ -108,11 +119,53 @@ export const LiveAuctionArenaPage: React.FC = () => {
   const handleCallPlayer = (playerId: string) =>
     runAction(() => api.post(`/auctions/${data?.auction.id}/call-player`, { player_id: playerId }), 'Failed to call player');
 
-  const handleSellPlayer = () =>
-    runAction(() => api.post(`/auctions/${data?.auction.id}/sell-player`, {}), 'Failed to finalize sale');
+  // The hammer commits a team's money in front of the room, so it asks first
+  // — and says exactly what is about to happen, so the auctioneer is
+  // confirming a sale, not a dialog.
+  const handleSellPlayer = async () => {
+    if (!data?.auction.current_bid_team_id || flight.busy) return;
+    const proceed = await confirm({
+      title: t('auction.sell.confirmTitle', {
+        player: data.current_player?.full_name ?? '',
+        team: data.auction.current_bid_team_name ?? '',
+      }),
+      message: t('auction.sell.confirmBody', { amount: money(Number(data.auction.current_bid_amount) || 0) }),
+      confirmLabel: t('auction.sell.confirm'),
+    });
+    if (!proceed) return;
+    await runAction(() => api.post(`/auctions/${data.auction.id}/sell-player`, {}), 'Failed to finalize sale');
+  };
 
-  const handleUnsoldPlayer = () =>
-    runAction(() => api.post(`/auctions/${data?.auction.id}/unsold-player`, {}), 'Failed to mark unsold');
+  const handleUnsoldPlayer = async () => {
+    if (!data || flight.busy) return;
+    const proceed = await confirm({
+      title: t('auction.unsold.confirmTitle', { player: data.current_player?.full_name ?? '' }),
+      message: t('auction.unsold.confirmBody'),
+      confirmLabel: 'Mark unsold',
+    });
+    if (!proceed) return;
+    await runAction(() => api.post(`/auctions/${data.auction.id}/unsold-player`, {}), 'Failed to mark unsold');
+  };
+
+  /**
+   * Undo the last hammer: the player goes back up at the bid that stood. Only
+   * offered while that player is still on the block — once the next one is
+   * called the room has moved on, and the server refuses it too.
+   */
+  const handleReopenHammer = async () => {
+    if (!data || flight.busy) return;
+    const playerName = data.current_player?.full_name ?? '';
+    const proceed = await confirm({
+      title: t('auction.undo.confirmTitle'),
+      message: t('auction.undo.confirmBody', { player: playerName }),
+      confirmLabel: t('auction.undo'),
+      tone: 'danger',
+    });
+    if (!proceed) return;
+    setSoldCelebration(prev => ({ ...prev, active: false }));
+    const ok = await runAction(() => api.post(`/auctions/${data.auction.id}/reopen-hammer`, {}), 'Could not reopen the bidding');
+    if (ok) toast.success(t('auction.undo.done', { player: playerName }));
+  };
 
   // Accelerated Round
   const handleAcceleratedRound = async () => {
@@ -182,7 +235,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-[#070b1d] text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6">
       {/* Top Header Navigation */}
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-3.5">
@@ -194,7 +247,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
 
           <div>
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] font-black uppercase tracking-widest">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-black uppercase tracking-widest">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
                 <span>LIVE AUCTION ARENA</span>
               </span>
@@ -294,6 +347,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
           {hasBeenOutbid && (
             <button
               onClick={() => handlePlaceBid(nextMinBid)}
+              disabled={flight.busy}
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs shadow-md shrink-0"
             >
               Counter Bid ₹{nextMinBid.toLocaleString()}
@@ -366,7 +420,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
               {/* Current Bid Display Box */}
               <div className="mt-8 p-6 rounded-2xl bg-slate-950 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
                     Base Price: <span className="font-mono text-slate-300 font-bold">₹{current_player.base_price.toLocaleString()}</span>
                   </span>
                   <div className="text-xs font-bold text-amber-400 uppercase mt-1">Current Highest Bid</div>
@@ -376,12 +430,12 @@ export const LiveAuctionArenaPage: React.FC = () => {
                 </div>
 
                 <div className="text-center sm:text-right">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Leading Bidder</span>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Leading Bidder</span>
                   <div className="text-base sm:text-lg font-black text-white font-heading mt-0.5">
                     {auction.current_bid_team_name || 'Awaiting Opening Bid'}
                   </div>
                   {auction.current_bid_team_name && (
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold uppercase inline-block mt-1">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold uppercase inline-block mt-1">
                       Highest Bidder 🏆
                     </span>
                   )}
@@ -395,24 +449,36 @@ export const LiveAuctionArenaPage: React.FC = () => {
                     Auctioneer Controls:
                   </div>
 
+                  {auction.hammer_state === 'sold' || auction.hammer_state === 'unsold' ? (
+                    <button
+                      onClick={handleReopenHammer}
+                      disabled={flight.busy}
+                      className="min-h-11 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-sm flex items-center gap-1.5 transition-colors disabled:opacity-40"
+                    >
+                      <RotateCcw className="w-4 h-4" aria-hidden="true" />
+                      <span>{t('auction.undo')}</span>
+                    </button>
+                  ) : (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleSellPlayer}
-                      disabled={!auction.current_bid_team_id}
-                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white font-black text-xs shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all"
+                      disabled={!auction.current_bid_team_id || flight.busy}
+                      className="min-h-11 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all"
                     >
-                      <Check className="w-4 h-4" />
-                      <span>HAMMER SOLD!</span>
+                      <Check className="w-4 h-4" aria-hidden="true" />
+                      <span>{flight.busy ? 'Saving…' : 'HAMMER SOLD!'}</span>
                     </button>
 
                     <button
                       onClick={handleUnsoldPlayer}
-                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-colors"
+                      disabled={flight.busy}
+                      className="min-h-11 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-sm flex items-center gap-1.5 transition-colors disabled:opacity-40"
                     >
-                      <X className="w-4 h-4 text-rose-400" />
+                      <X className="w-4 h-4 text-rose-400" aria-hidden="true" />
                       <span>Mark Unsold</span>
                     </button>
                   </div>
+                  )}
                 </div>
               )}
             </div>
@@ -434,7 +500,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
               <h3 className="text-xs font-bold text-white uppercase tracking-wider font-heading">
                 Team Purses & Squad Capacity (Virtual Points)
               </h3>
-              <span className="text-[11px] text-amber-400 font-semibold">Virtual Purse: ₹{auction.team_purse.toLocaleString()} / Team</span>
+              <span className="text-xs text-amber-400 font-semibold">Virtual Purse: ₹{auction.team_purse.toLocaleString()} / Team</span>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-3 text-xs">
@@ -453,7 +519,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
                     <span className="font-mono font-bold text-emerald-400">₹{tp.remaining_purse.toLocaleString()}</span>
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>Squad: {tp.players_bought_count} / {tp.max_players} Bought</span>
                     <span>Spent: ₹{tp.spent_amount.toLocaleString()}</span>
                   </div>
@@ -492,8 +558,8 @@ export const LiveAuctionArenaPage: React.FC = () => {
 
             {/* Select Team to Bid For */}
             <div className="text-xs">
-              <label className="block text-slate-400 font-semibold mb-1">Active Bidding Team</label>
-              <select
+              <label htmlFor="liveauctionarena-active-bidding-team" className="block text-slate-400 font-semibold mb-1">Active Bidding Team</label>
+              <select id="liveauctionarena-active-bidding-team"
                 value={selectedBiddingTeamId}
                 onChange={(e) => setSelectedBiddingTeamId(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none"
@@ -509,12 +575,13 @@ export const LiveAuctionArenaPage: React.FC = () => {
             {/* Quick Increment Buttons */}
             {current_player ? (
               <div className="space-y-2.5">
-                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
                   Quick Bid Increments:
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handlePlaceBid(nextMinBid)}
+                    disabled={flight.busy}
                     className="py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 transition-all text-center"
                   >
                     <div>Bid Next Min</div>
@@ -523,6 +590,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
 
                   <button
                     onClick={() => handlePlaceBid(currentBid + minIncrement * 2)}
+                    disabled={flight.busy}
                     className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors text-center"
                   >
                     <div>+{minIncrement * 2}</div>
@@ -531,6 +599,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
 
                   <button
                     onClick={() => handlePlaceBid(currentBid + 2000)}
+                    disabled={flight.busy}
                     className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors text-center"
                   >
                     <div>+₹2,000</div>
@@ -539,6 +608,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
 
                   <button
                     onClick={() => handlePlaceBid(currentBid + 5000)}
+                    disabled={flight.busy}
                     className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors text-center"
                   >
                     <div>+₹5,000</div>
@@ -569,7 +639,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
                   >
                     <div>
                       <span className="font-bold text-white">{bid.team_name}</span>
-                      <span className="text-[11px] text-slate-500 block">
+                      <span className="text-xs text-slate-500 block">
                         {new Date(bid.timestamp).toLocaleTimeString()}
                       </span>
                     </div>
@@ -595,7 +665,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
               {isAuctioneer && (
                 <button
                   onClick={handleAcceleratedRound}
-                  className="text-[11px] text-amber-400 hover:text-amber-300 font-bold underline"
+                  className="text-xs text-amber-400 hover:text-amber-300 font-bold underline"
                   title="Re-auction unsold players with 25% discount"
                 >
                   ⚡ Accelerated Round
@@ -604,7 +674,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex items-center gap-1.5 text-[11px] font-bold">
+            <div className="flex items-center gap-1.5 text-xs font-bold">
               {(['registered', 'sold', 'unsold', 'all'] as const).map(tab => (
                 <button
                   key={tab}
@@ -620,7 +690,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
 
             {/* Player Search Input */}
             <div className="relative">
-              <input
+              <input aria-label="Search player or village"
                 type="text"
                 placeholder="Search player or village..."
                 value={searchQuery}
@@ -641,7 +711,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
                     <img src={p.photo} alt={p.full_name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
                     <div className="min-w-0">
                       <div className="font-bold text-white truncate">{p.full_name}</div>
-                      <div className="text-[11px] text-slate-400 truncate">
+                      <div className="text-xs text-slate-400 truncate">
                         {p.football_position || p.cricket_role} • {p.category}
                       </div>
                     </div>
@@ -650,7 +720,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
                   <div className="flex items-center gap-2 shrink-0">
                     <div className="text-right">
                       <span className="font-mono text-amber-400 font-bold">₹{(p.sold_price || p.base_price).toLocaleString()}</span>
-                      <span className={`block text-[11px] font-bold uppercase ${
+                      <span className={`block text-xs font-bold uppercase ${
                         p.status === 'sold' ? 'text-emerald-400' : p.status === 'unsold' ? 'text-rose-400' : 'text-cyan-400'
                       }`}>
                         {label(p.status)}
@@ -660,7 +730,8 @@ export const LiveAuctionArenaPage: React.FC = () => {
                     {isAuctioneer && (p.status === 'registered' || p.status === 'approved' || p.status === 'unsold') && (
                       <button
                         onClick={() => handleCallPlayer(p.id)}
-                        className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-400 hover:text-slate-950 font-bold text-[11px] transition-all"
+                        disabled={flight.busy}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-400 hover:text-slate-950 font-bold text-xs transition-all"
                       >
                         Call
                       </button>

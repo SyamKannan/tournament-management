@@ -106,6 +106,9 @@ Route::prefix('admin')->middleware(['auth.required', 'role:SUPER_ADMIN'])->group
     Route::put('organizations/{id}/status', [AdminController::class, 'updateOrganizationStatus']);
 
     Route::get('users', [AdminController::class, 'listUsers']);
+    // A locked-out person whose SMS code cannot reach them has no other way in.
+    Route::post('users/{id}/reset-password', [AdminController::class, 'resetUserPassword']);
+    Route::get('notification-health', [AdminController::class, 'notificationHealth']);
 
     Route::get('subscriptions', [AdminController::class, 'listSubscriptions']);
     Route::get('invoices', [AdminController::class, 'listInvoices']);
@@ -144,6 +147,9 @@ Route::prefix('organizations')->group(function () {
             Route::post('{id}/notifications/opt-out', [NotificationController::class, 'optOut']);
             Route::post('{id}/notifications/opt-in', [NotificationController::class, 'optIn']);
             Route::get('{id}/usage', [OrganizationController::class, 'usage']);
+            // Getting a team manager or scorer back in when the SMS code can't reach them.
+            Route::get('{id}/members', [OrganizationController::class, 'members']);
+            Route::post('{id}/members/{userId}/reset-password', [OrganizationController::class, 'resetMemberPassword']);
             Route::post('{id}/subscribe/order', [OrganizationController::class, 'subscribeOrder']);
             Route::post('{id}/subscribe', [OrganizationController::class, 'subscribe']);
         });
@@ -177,6 +183,8 @@ Route::prefix('tournaments')->group(function () {
 
 Route::prefix('teams')->group(function () {
     Route::get('public/registration/{token}', [TeamController::class, 'registrationPage']);
+    // Checked before the checkout opens, so nobody pays for an entry that would be refused.
+    Route::post('public/registration/{token}/validate', [TeamController::class, 'validateRegistration'])->middleware('throttle:30,1');
     Route::post('public/registration/{token}/payment-order', [TeamController::class, 'paymentOrder'])->middleware('throttle:10,1');
     Route::post('public/registration/{token}', [TeamController::class, 'register'])->middleware('throttle:10,1');
 
@@ -302,6 +310,7 @@ Route::prefix('posters')->group(function () {
     // only manages their own team's roster, not tournament-wide promotion.
     Route::middleware(['auth.required', 'role:ORG_ADMIN,SCORER,SUPER_ADMIN'])->group(function () {
         Route::post('generate', [PosterController::class, 'generate']);
+        Route::get('jobs/{jobId}', [PosterController::class, 'jobStatus']);
     });
 
     Route::delete('{id}', [PosterController::class, 'destroy'])->middleware(['auth.required', 'role:ORG_ADMIN,SUPER_ADMIN']);
@@ -334,6 +343,8 @@ Route::prefix('auctions')->group(function () {
         Route::post('{id}/place-bid', [AuctionController::class, 'placeBid']);
         Route::post('{id}/sell-player', [AuctionController::class, 'sellPlayer']);
         Route::post('{id}/unsold-player', [AuctionController::class, 'unsoldPlayer']);
+        // Undo the latest sold/unsold call while that player is still on the hammer.
+        Route::post('{id}/reopen-hammer', [AuctionController::class, 'reopenHammer']);
         Route::post('{id}/accelerated-round', [AuctionController::class, 'acceleratedRound']);
 
         Route::post('{id}/players/{playerId}/approve', [AuctionController::class, 'approvePlayer']);

@@ -126,7 +126,7 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
             <button
               onClick={handleReset}
               disabled={submitting}
-              className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 font-bold text-[11px]"
+              className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 font-bold text-xs"
             >
               ↺ Retry Toss
             </button>
@@ -158,7 +158,7 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
             <button
               onClick={handleReset}
               disabled={submitting}
-              className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 font-bold text-[11px]"
+              className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 font-bold text-xs"
             >
               ↺ Retry Toss
             </button>
@@ -173,7 +173,7 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
             )}
           </p>
           {match.toss_method === 'manual' && (
-            <p className="text-[11px] text-slate-500">Recorded by the scorer, not flipped by the server.</p>
+            <p className="text-xs text-slate-500">Recorded by the scorer, not flipped by the server.</p>
           )}
           <div className="flex flex-wrap items-center justify-center gap-2">
             {decisions.map(({ value, label }, index) => (
@@ -239,8 +239,8 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
             <>
               <div className="grid grid-cols-2 gap-3 w-full text-xs">
                 <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">Team Calling</label>
-                  <select
+                  <label htmlFor="tosspanel-team-calling" className="block text-slate-400 mb-1 font-semibold">Team Calling</label>
+                  <select id="tosspanel-team-calling"
                     value={callerTeamId}
                     onChange={(e) => setCallerTeamId(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-white"
@@ -250,8 +250,8 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">Call</label>
-                  <select
+                  <label htmlFor="tosspanel-call" className="block text-slate-400 mb-1 font-semibold">Call</label>
+                  <select id="tosspanel-call"
                     value={call}
                     onChange={(e) => setCall(e.target.value as 'heads' | 'tails')}
                     className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-white capitalize"
@@ -280,8 +280,8 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
           </p>
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div>
-              <label className="block text-slate-400 mb-1 font-semibold">Toss Winner</label>
-              <select
+              <label htmlFor="tosspanel-toss-winner" className="block text-slate-400 mb-1 font-semibold">Toss Winner</label>
+              <select id="tosspanel-toss-winner"
                 value={manualWinnerId}
                 onChange={(e) => setManualWinnerId(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-white"
@@ -291,8 +291,8 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
               </select>
             </div>
             <div>
-              <label className="block text-slate-400 mb-1 font-semibold">Their Decision</label>
-              <select
+              <label htmlFor="tosspanel-their-decision" className="block text-slate-400 mb-1 font-semibold">Their Decision</label>
+              <select id="tosspanel-their-decision"
                 value={manualDecision}
                 onChange={(e) => setManualDecision(e.target.value as TossDecision)}
                 className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-white"
@@ -305,8 +305,8 @@ export const TossPanel: React.FC<TossPanelProps> = ({ match, teamA, teamB, onUpd
           </div>
 
           <div className="text-xs">
-            <label className="block text-slate-400 mb-1 font-semibold">Coin Landed On (optional)</label>
-            <select
+            <label htmlFor="tosspanel-coin-landed-on-optional" className="block text-slate-400 mb-1 font-semibold">Coin Landed On (optional)</label>
+            <select id="tosspanel-coin-landed-on-optional"
               value={manualResult}
               onChange={(e) => setManualResult(e.target.value as '' | 'heads' | 'tails')}
               className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-white capitalize"

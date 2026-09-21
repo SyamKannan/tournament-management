@@ -5,8 +5,9 @@ import { useRoomSocket } from '../../lib/useRoomSocket';
 import { TournamentPicker } from '../../components/ui/TournamentPicker';
 import { Skeleton, SkeletonCard, EmptyState } from '../../components/ui/Feedback';
 import { useToast } from '../../components/ui/Toast';
-import { Image as ImageIcon, Download, Share2, Trash2, Sparkles, Loader2 } from 'lucide-react';
+import { Image as ImageIcon, Download, Share2, Trash2, Sparkles, Loader2, AlertTriangle } from 'lucide-react';
 import { label } from '../../lib/labels';
+import { useT } from '../../i18n';
 
 const POSTER_TYPES: { value: string; label: string; needsMatch: boolean }[] = [
   { value: 'matchday', label: 'Matchday (VS lockup)', needsMatch: true },
@@ -17,11 +18,44 @@ const POSTER_TYPES: { value: string; label: string; needsMatch: boolean }[] = [
   { value: 'tournament_announcement', label: 'Tournament Announcement', needsMatch: false },
 ];
 
+/** Survives leaving the page, so a poster asked for is not forgotten. */
+const PENDING_KEY = 'kickwick_pending_poster_job';
+
+interface PosterJob {
+  id: string;
+  status: 'queued' | 'rendering' | 'done' | 'failed';
+  attempt?: number;
+  max_attempts?: number;
+  message?: string;
+  stalled?: boolean;
+  poster?: any;
+  tournament_id?: string;
+}
+
+function readPending(): { jobId: string; tournamentId: string } | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePending(value: { jobId: string; tournamentId: string } | null) {
+  try {
+    if (value) sessionStorage.setItem(PENDING_KEY, JSON.stringify(value));
+    else sessionStorage.removeItem(PENDING_KEY);
+  } catch {
+    // Storage blocked: the job is still followed while this page is open.
+  }
+}
+
 /**
- * AI-assisted match/tournament posters. Generation is async — POST just
- * queues GeneratePoster (a full render is 10-20s: art director call,
- * optional AI background, headless Chrome), so the finished poster shows up
- * over the `tournament:<id>` realtime room rather than in the POST response.
+ * AI-assisted match/tournament posters. Generation is async — POST queues
+ * GeneratePoster (a full render is 10-20s: art director call, optional AI
+ * background, headless Chrome) and returns a job id. The page follows that id
+ * — queued, rendering, retrying, done or failed — rather than guessing from
+ * the gallery and timing out, and picks it back up after a reload.
  */
 export const OrgPostersPage: React.FC = () => {
   const toast = useToast();
@@ -35,9 +69,11 @@ export const OrgPostersPage: React.FC = () => {
   const [posterType, setPosterType] = useState('matchday');
   const [posters, setPosters] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const generatingSince = useRef<number | null>(null);
-  const postersBeforeGenerate = useRef<Set<string>>(new Set());
+  const t = useT();
+  const [job, setJob] = useState<PosterJob | null>(null);
+  const jobRef = useRef<PosterJob | null>(null);
+  jobRef.current = job;
+  const generating = job !== null && (job.status === 'queued' || job.status === 'rendering');
 
   const selectedTypeMeta = POSTER_TYPES.find(t => t.value === posterType)!;
 
@@ -73,69 +109,105 @@ export const OrgPostersPage: React.FC = () => {
     setPosters(prev => (prev.some(p => p.id === poster.id) ? prev : [poster, ...prev]));
   };
 
-  // GeneratePoster runs on a queue worker, so the finished poster arrives over
-  // the tournament room rather than in the POST response.
+  const finishJob = (next: PosterJob) => {
+    writePending(null);
+    if (next.status === 'done') {
+      if (next.poster) addPoster(next.poster);
+      setJob(null);
+      toast.success(t('poster.ready'));
+    } else {
+      setJob(next);
+      toast.error(next.message || t('poster.failed'));
+    }
+  };
+
+  // The finished poster usually arrives over the tournament room first.
   useRoomSocket(selectedTournamentId ? `tournament:${selectedTournamentId}` : null, msg => {
     if (msg.type === 'POSTER_CREATED' && msg.payload?.poster) {
       addPoster(msg.payload.poster);
-      if (generatingSince.current) {
-        generatingSince.current = null;
-        setGenerating(false);
-        toast.success('Poster ready!');
+      if (jobRef.current && (jobRef.current.status === 'queued' || jobRef.current.status === 'rendering')) {
+        finishJob({ ...jobRef.current, status: 'done', poster: msg.payload.poster });
       }
+    }
+    if (msg.type === 'POSTER_FAILED' && jobRef.current && msg.payload?.job_id === jobRef.current.id) {
+      finishJob({ ...jobRef.current, status: 'failed' });
     }
   }, undefined, 0);
 
-  // Without the gateway (or if the job dies) nothing is pushed, so check the
-  // list ourselves while a poster is being made, and give up after two minutes.
+  // Pick up a poster requested before a reload or a trip to another page.
   useEffect(() => {
-    if (!generating || !selectedTournamentId) return;
-    const timer = setInterval(async () => {
-      const startedAt = generatingSince.current;
-      if (!startedAt) return;
-      try {
-        const latest: any[] = await api.get(`/posters?tournament_id=${selectedTournamentId}`);
-        const fresh = latest.find(p => !postersBeforeGenerate.current.has(p.id));
-        if (fresh) {
-          addPoster(fresh);
-          generatingSince.current = null;
-          setGenerating(false);
-          toast.success('Poster ready!');
-          return;
-        }
-      } catch { /* try again next tick */ }
-      if (Date.now() - startedAt > 120000) {
-        generatingSince.current = null;
-        setGenerating(false);
-        toast.error('The poster is taking too long. Check that the queue worker is running, then try again.');
-      }
-    }, 5000);
-    return () => clearInterval(timer);
+    const pending = readPending();
+    if (!pending) return;
+    setSelectedTournamentId(current => current || pending.tournamentId);
+    setJob({ id: pending.jobId, status: 'queued' });
+    toast.info(t('poster.resumed'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generating, selectedTournamentId]);
+  }, []);
+
+  // The gateway may be down, so the job is also asked about directly. No
+  // give-up timer: the server retries a failed render and says when it has
+  // stopped, which is the only honest end to the wait.
+  useEffect(() => {
+    if (!job || (job.status !== 'queued' && job.status !== 'rendering')) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const latest: PosterJob = await api.get(`/posters/jobs/${job.id}`);
+        if (cancelled) return;
+        if (latest.status === 'done' || latest.status === 'failed') {
+          finishJob(latest);
+        } else {
+          setJob(previous => (previous && previous.id === latest.id ? { ...previous, ...latest } : previous));
+        }
+      } catch (err: any) {
+        if (!cancelled && err?.status === 404) {
+          finishJob({ id: job.id, status: 'failed', message: err.message });
+        }
+        // Anything else (offline, a blip) is retried on the next tick.
+      }
+    };
+    const timer = setInterval(tick, 4000);
+    tick();
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.id, job?.status]);
 
   const handleGenerate = async () => {
+    if (generating) return;
     if (selectedTypeMeta.needsMatch && !selectedMatchId) {
       toast.error('Pick a match first.');
       return;
     }
 
-    generatingSince.current = Date.now();
-    postersBeforeGenerate.current = new Set(posters.map(p => p.id));
-    setGenerating(true);
+    setJob({ id: 'pending', status: 'queued' });
     try {
-      await api.post('/posters/generate', {
+      const res: { job_id: string } = await api.post('/posters/generate', {
         poster_type: posterType,
         tournament_id: selectedTournamentId,
         ...(selectedTypeMeta.needsMatch ? { match_id: selectedMatchId } : {}),
       });
-      toast.success('Generating poster… it will appear below shortly.');
+      setJob({ id: res.job_id, status: 'queued' });
+      writePending({ jobId: res.job_id, tournamentId: selectedTournamentId });
     } catch (err: any) {
-      generatingSince.current = null;
-      setGenerating(false);
+      setJob(null);
       toast.error(err.message || 'Failed to start poster generation.');
     }
   };
+
+  /** One line saying where the poster has got to, in words an organizer can act on. */
+  const jobMessage = (() => {
+    if (!job) return null;
+    if (job.status === 'failed') return job.message || t('poster.failed');
+    if (job.stalled) return t('poster.stalled');
+    if (job.status === 'rendering' && (job.attempt ?? 1) > 1) {
+      return t('poster.retrying', { attempt: job.attempt ?? 2, max: job.max_attempts ?? 3 });
+    }
+    if (job.status === 'rendering') return t('poster.rendering');
+    return t('poster.queued');
+  })();
 
   const handleShare = async (poster: any) => {
     if (navigator.share) {
@@ -186,8 +258,8 @@ export const OrgPostersPage: React.FC = () => {
 
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-slate-300 font-semibold mb-1 text-xs">Poster Type</label>
-            <select
+            <label htmlFor="orgposters-poster-type" className="block text-slate-300 font-semibold mb-1 text-xs">Poster Type</label>
+            <select id="orgposters-poster-type"
               value={posterType}
               onChange={(e) => setPosterType(e.target.value)}
               className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-xs"
@@ -200,8 +272,8 @@ export const OrgPostersPage: React.FC = () => {
 
           {selectedTypeMeta.needsMatch && (
           <div>
-            <label className="block text-slate-300 font-semibold mb-1 text-xs">Match</label>
-            <select
+            <label htmlFor="orgposters-match" className="block text-slate-300 font-semibold mb-1 text-xs">Match</label>
+            <select id="orgposters-match"
               value={selectedMatchId}
               onChange={(e) => setSelectedMatchId(e.target.value)}
               className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-xs"
@@ -225,11 +297,24 @@ export const OrgPostersPage: React.FC = () => {
                      flex items-center justify-center gap-2"
         >
           {generating ? (
-            <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
+            <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Generating…</>
           ) : (
-            <><Sparkles className="w-4 h-4" /> Generate Poster</>
+            <><Sparkles className="w-4 h-4" aria-hidden="true" /> Generate Poster</>
           )}
         </button>
+
+        {jobMessage && (
+          <p
+            role="status"
+            aria-live="polite"
+            className={`flex items-start gap-2 text-sm ${job?.status === 'failed' || job?.stalled ? 'text-amber-300' : 'text-slate-400'}`}
+          >
+            {job?.status === 'failed' || job?.stalled
+              ? <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+              : <Loader2 className="w-4 h-4 mt-0.5 shrink-0 animate-spin" aria-hidden="true" />}
+            <span>{jobMessage}</span>
+          </p>
+        )}
       </div>
 
       <div>
@@ -254,7 +339,7 @@ export const OrgPostersPage: React.FC = () => {
               <div key={poster.id} className="rounded-2xl bg-slate-900/60 ring-1 ring-slate-800 overflow-hidden group relative">
                 <img src={poster.image_path} alt={poster.poster_type} className="w-full aspect-[4/5] object-cover" loading="lazy" />
                 <div className="p-3 flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wide text-amber-400">
+                  <span className="text-xs font-bold uppercase tracking-wide text-amber-400">
                     {label(poster.poster_type)}
                   </span>
                   <div className="flex items-center gap-1">

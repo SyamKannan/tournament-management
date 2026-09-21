@@ -207,7 +207,7 @@ export const MyProfilePage: React.FC = () => {
             type="button"
             onClick={() => setShowPhotoModal(true)}
             title={isClub ? 'Change club logo' : 'Change profile photo'}
-            className="absolute inset-0 bg-black/60 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-bold gap-1 cursor-pointer"
+            className="absolute inset-0 bg-black/60 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-bold gap-1 cursor-pointer"
           >
             <Camera className="w-4 h-4 text-emerald-400" />
             <span>Change</span>
@@ -216,7 +216,7 @@ export const MyProfilePage: React.FC = () => {
         <div className="text-center sm:text-left">
           <h2 className="text-lg font-bold text-white">{isClub ? org.name : user.name}</h2>
           <p className="text-xs text-slate-400">{isClub ? (org.email || user.email) : user.email}</p>
-          <span className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-black uppercase tracking-wider">
+          <span className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-black uppercase tracking-wider">
             {isClub ? <Building2 className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
             {isClub ? (org.type || 'Club') : (ROLE_LABELS[role] || label(role))}
           </span>
@@ -232,8 +232,8 @@ export const MyProfilePage: React.FC = () => {
           </h3>
           <div className="grid sm:grid-cols-2 gap-3 text-xs">
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Club / Organization Name</label>
-              <input
+              <label htmlFor="myprofile-club-organization-name" className="block text-slate-300 font-semibold mb-1">Club / Organization Name</label>
+              <input id="myprofile-club-organization-name"
                 type="text"
                 value={org.name}
                 onChange={(e) => setOrg({ ...org, name: e.target.value })}
@@ -241,8 +241,8 @@ export const MyProfilePage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Type</label>
-              <select
+              <label htmlFor="myprofile-type" className="block text-slate-300 font-semibold mb-1">Type</label>
+              <select id="myprofile-type"
                 value={org.type}
                 onChange={(e) => setOrg({ ...org, type: e.target.value as OrganizationType })}
                 className="w-full px-3.5 py-2 rounded-xl glass-input bg-slate-900"
@@ -251,8 +251,8 @@ export const MyProfilePage: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Contact Person</label>
-              <input
+              <label htmlFor="myprofile-contact-person" className="block text-slate-300 font-semibold mb-1">Contact Person</label>
+              <input id="myprofile-contact-person"
                 type="text"
                 value={org.contact_person}
                 onChange={(e) => setOrg({ ...org, contact_person: e.target.value })}
@@ -260,8 +260,8 @@ export const MyProfilePage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Public Contact Email</label>
-              <input
+              <label htmlFor="myprofile-public-contact-email" className="block text-slate-300 font-semibold mb-1">Public Contact Email</label>
+              <input id="myprofile-public-contact-email"
                 type="email"
                 value={org.email}
                 onChange={(e) => setOrg({ ...org, email: e.target.value })}
@@ -269,24 +269,24 @@ export const MyProfilePage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Phone</label>
-              <PhoneInput
+              <label htmlFor="myprofile-phone" className="block text-slate-300 font-semibold mb-1">Phone</label>
+              <PhoneInput id="myprofile-phone"
                 value={org.phone}
                 onChange={(phone) => setOrg({ ...org, phone })}
                 className="w-full px-3.5 py-2 rounded-xl glass-input"
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">WhatsApp</label>
-              <PhoneInput
+              <label htmlFor="myprofile-whatsapp" className="block text-slate-300 font-semibold mb-1">WhatsApp</label>
+              <PhoneInput id="myprofile-whatsapp"
                 value={org.whatsapp}
                 onChange={(whatsapp) => setOrg({ ...org, whatsapp })}
                 className="w-full px-3.5 py-2 rounded-xl glass-input"
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Website</label>
-              <input
+              <label htmlFor="myprofile-website" className="block text-slate-300 font-semibold mb-1">Website</label>
+              <input id="myprofile-website"
                 type="text"
                 value={org.website}
                 onChange={(e) => setOrg({ ...org, website: e.target.value })}
@@ -294,8 +294,8 @@ export const MyProfilePage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Address</label>
-              <input
+              <label htmlFor="myprofile-address" className="block text-slate-300 font-semibold mb-1">Address</label>
+              <input id="myprofile-address"
                 type="text"
                 value={org.address}
                 onChange={(e) => setOrg({ ...org, address: e.target.value })}
@@ -303,8 +303,8 @@ export const MyProfilePage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Village</label>
-              <input
+              <label htmlFor="myprofile-village" className="block text-slate-300 font-semibold mb-1">Village</label>
+              <input id="myprofile-village"
                 type="text"
                 value={org.village}
                 onChange={(e) => setOrg({ ...org, village: e.target.value })}
@@ -312,8 +312,8 @@ export const MyProfilePage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Panchayat</label>
-              <input
+              <label htmlFor="myprofile-panchayat" className="block text-slate-300 font-semibold mb-1">Panchayat</label>
+              <input id="myprofile-panchayat"
                 type="text"
                 value={org.panchayat}
                 onChange={(e) => setOrg({ ...org, panchayat: e.target.value })}
@@ -321,8 +321,8 @@ export const MyProfilePage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">District</label>
-              <input
+              <label htmlFor="myprofile-district" className="block text-slate-300 font-semibold mb-1">District</label>
+              <input id="myprofile-district"
                 type="text"
                 value={org.district}
                 onChange={(e) => setOrg({ ...org, district: e.target.value })}
@@ -330,8 +330,8 @@ export const MyProfilePage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">State</label>
-              <input
+              <label htmlFor="myprofile-state" className="block text-slate-300 font-semibold mb-1">State</label>
+              <input id="myprofile-state"
                 type="text"
                 value={org.state}
                 onChange={(e) => setOrg({ ...org, state: e.target.value })}
@@ -339,8 +339,8 @@ export const MyProfilePage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Country</label>
-              <input
+              <label htmlFor="myprofile-country" className="block text-slate-300 font-semibold mb-1">Country</label>
+              <input id="myprofile-country"
                 type="text"
                 value={org.country}
                 onChange={(e) => setOrg({ ...org, country: e.target.value })}
@@ -372,8 +372,8 @@ export const MyProfilePage: React.FC = () => {
         )}
         <div className="grid sm:grid-cols-2 gap-3 text-xs">
           <div className={isClub ? 'hidden' : undefined}>
-            <label className="block text-slate-300 font-semibold mb-1">Full Name</label>
-            <input
+            <label htmlFor="myprofile-full-name" className="block text-slate-300 font-semibold mb-1">Full Name</label>
+            <input id="myprofile-full-name"
               type="text"
               value={account.name}
               onChange={(e) => setAccount({ ...account, name: e.target.value })}
@@ -382,8 +382,8 @@ export const MyProfilePage: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-slate-300 font-semibold mb-1">{isClub ? 'Sign-in Email' : 'Email'}</label>
-            <input
+            <label htmlFor="myprofile-field" className="block text-slate-300 font-semibold mb-1">{isClub ? 'Sign-in Email' : 'Email'}</label>
+            <input id="myprofile-field"
               type="email"
               value={account.email}
               onChange={(e) => setAccount({ ...account, email: e.target.value })}
@@ -392,8 +392,8 @@ export const MyProfilePage: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-slate-300 font-semibold mb-1">Phone</label>
-            <PhoneInput
+            <label htmlFor="myprofile-phone-2" className="block text-slate-300 font-semibold mb-1">Phone</label>
+            <PhoneInput id="myprofile-phone-2"
               value={account.phone}
               onChange={(phone) => setAccount({ ...account, phone })}
               className="w-full px-3.5 py-2 rounded-xl glass-input"
@@ -420,8 +420,8 @@ export const MyProfilePage: React.FC = () => {
         </h3>
         <div className="grid sm:grid-cols-3 gap-3 text-xs">
           <div>
-            <label className="block text-slate-300 font-semibold mb-1">Current Password</label>
-            <input
+            <label htmlFor="myprofile-current-password" className="block text-slate-300 font-semibold mb-1">Current Password</label>
+            <input id="myprofile-current-password"
               type="password"
               value={passwords.current_password}
               onChange={(e) => setPasswords({ ...passwords, current_password: e.target.value })}
@@ -430,8 +430,8 @@ export const MyProfilePage: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-slate-300 font-semibold mb-1">New Password</label>
-            <input
+            <label htmlFor="myprofile-new-password" className="block text-slate-300 font-semibold mb-1">New Password</label>
+            <input id="myprofile-new-password"
               type="password"
               value={passwords.new_password}
               onChange={(e) => setPasswords({ ...passwords, new_password: e.target.value })}
@@ -441,8 +441,8 @@ export const MyProfilePage: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-slate-300 font-semibold mb-1">Confirm New Password</label>
-            <input
+            <label htmlFor="myprofile-confirm-new-password" className="block text-slate-300 font-semibold mb-1">Confirm New Password</label>
+            <input id="myprofile-confirm-new-password"
               type="password"
               value={passwords.confirm_password}
               onChange={(e) => setPasswords({ ...passwords, confirm_password: e.target.value })}
@@ -498,8 +498,8 @@ export const MyProfilePage: React.FC = () => {
           </h3>
           <div className="grid sm:grid-cols-2 gap-3 text-xs">
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Age</label>
-              <input
+              <label htmlFor="myprofile-age" className="block text-slate-300 font-semibold mb-1">Age</label>
+              <input id="myprofile-age"
                 type="number"
                 min={5}
                 max={100}
@@ -509,8 +509,8 @@ export const MyProfilePage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Jersey Number</label>
-              <input
+              <label htmlFor="myprofile-jersey-number" className="block text-slate-300 font-semibold mb-1">Jersey Number</label>
+              <input id="myprofile-jersey-number"
                 type="number"
                 min={0}
                 max={99}
@@ -520,8 +520,8 @@ export const MyProfilePage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Date of Birth</label>
-              <input
+              <label htmlFor="myprofile-date-of-birth" className="block text-slate-300 font-semibold mb-1">Date of Birth</label>
+              <input id="myprofile-date-of-birth"
                 type="date"
                 value={player.dob ? player.dob.slice(0, 10) : ''}
                 onChange={(e) => setPlayer({ ...player, dob: e.target.value })}
@@ -530,8 +530,8 @@ export const MyProfilePage: React.FC = () => {
             </div>
             {player.football_position !== undefined && player.football_position !== null && (
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Football Position</label>
-                <input
+                <label htmlFor="myprofile-football-position" className="block text-slate-300 font-semibold mb-1">Football Position</label>
+                <input id="myprofile-football-position"
                   type="text"
                   value={player.football_position || ''}
                   onChange={(e) => setPlayer({ ...player, football_position: e.target.value as any })}
@@ -542,8 +542,8 @@ export const MyProfilePage: React.FC = () => {
             {player.cricket_role !== undefined && player.cricket_role !== null && (
               <>
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Cricket Role</label>
-                  <input
+                  <label htmlFor="myprofile-cricket-role" className="block text-slate-300 font-semibold mb-1">Cricket Role</label>
+                  <input id="myprofile-cricket-role"
                     type="text"
                     value={player.cricket_role || ''}
                     onChange={(e) => setPlayer({ ...player, cricket_role: e.target.value as any })}
@@ -551,8 +551,8 @@ export const MyProfilePage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Batting Style</label>
-                  <input
+                  <label htmlFor="myprofile-batting-style" className="block text-slate-300 font-semibold mb-1">Batting Style</label>
+                  <input id="myprofile-batting-style"
                     type="text"
                     value={player.cricket_batting_style || ''}
                     onChange={(e) => setPlayer({ ...player, cricket_batting_style: e.target.value as any })}
@@ -560,8 +560,8 @@ export const MyProfilePage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Bowling Style</label>
-                  <input
+                  <label htmlFor="myprofile-bowling-style" className="block text-slate-300 font-semibold mb-1">Bowling Style</label>
+                  <input id="myprofile-bowling-style"
                     type="text"
                     value={player.cricket_bowling_style || ''}
                     onChange={(e) => setPlayer({ ...player, cricket_bowling_style: e.target.value as any })}

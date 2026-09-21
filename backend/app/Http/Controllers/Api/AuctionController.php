@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Auction;
 use App\Models\AuctionBid;
 use App\Models\AuctionPlayer;
+use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\Player;
 use App\Models\Team;
@@ -14,6 +15,7 @@ use App\Services\AuctionService;
 use App\Services\Notifications\Audience;
 use App\Services\Notifications\NotificationService;
 use App\Services\RealtimeBroadcaster;
+use App\Support\Audit;
 use App\Support\Ids;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -782,7 +784,10 @@ class AuctionController extends Controller
             $auction->organization_id,
             'auction_player',
             $player->id,
-            "auction_player_sold:{$auction->id}:{$player->id}",
+            // Keyed on the team and price too: a sale undone and made again to
+            // a different team is a different message the player must get,
+            // while the same sale repeated still sends only once.
+            "auction_player_sold:{$auction->id}:{$player->id}:{$auction->current_bid_team_id}:{$finalPrice}",
         );
 
         return response()->json([
@@ -833,6 +838,122 @@ class AuctionController extends Controller
         ]);
 
         return response()->json(['auction' => $auction, 'player' => $player]);
+    }
+
+    /**
+     * Undo the hammer: put the player just sold (or just marked unsold) back
+     * up for bidding, exactly where the bidding stood.
+     *
+     * Scoring has always had undo; the auction, where one tap commits a team's
+     * purse in front of a full room, had none, so a mis-tap or a double-tap on
+     * a slow connection was permanent. This reverses only the *latest* result —
+     * the player still on the hammer — and only before anything has been built
+     * on it: once the next player is called, or money has been taken for the
+     * sale, the room has moved on and a correction is the organizer's call.
+     */
+    public function reopenHammer(Request $request, string $id): JsonResponse
+    {
+        $auction = Auction::find($id);
+
+        if (! $auction) {
+            return response()->json(['error' => 'Auction not found'], 404);
+        }
+
+        if ($denied = $this->denyNonAuctioneer($request, $auction)) {
+            return $denied;
+        }
+
+        if (! $auction->current_player_id || ! in_array($auction->hammer_state, ['sold', 'unsold'], true)) {
+            return response()->json([
+                'error' => 'There is no result to undo. Only the most recent sale or unsold call can be reopened, before the next player is called.',
+            ], 409);
+        }
+
+        $player = AuctionPlayer::find($auction->current_player_id);
+
+        if (! $player || ! in_array($player->status, ['sold', 'unsold'], true)) {
+            return response()->json(['error' => 'That result has already been changed.'], 409);
+        }
+
+        if ($player->status === 'sold' && $player->payment_status === 'paid') {
+            return response()->json([
+                'error' => 'A payment has already been recorded for this sale. Mark the payment as pending first, then reopen.',
+            ], 409);
+        }
+
+        if ($player->player_id && DB::table('match_lineups')->where('player_id', $player->player_id)->exists()) {
+            return response()->json([
+                'error' => 'This player has already been named in a match lineup, so the sale can no longer be undone here.',
+            ], 409);
+        }
+
+        $previous = [
+            'status' => $player->status,
+            'team' => $player->sold_to_team_name,
+            'price' => $player->sold_price,
+        ];
+
+        DB::transaction(function () use ($auction, $player) {
+            // The roster entry the sale created goes with it — otherwise the
+            // team keeps a player it no longer bought.
+            if ($player->player_id) {
+                Player::query()->whereKey($player->player_id)->delete();
+            }
+
+            // A "you were sold" message still waiting in the queue must not go
+            // out for a sale that no longer stands.
+            Notification::query()
+                ->where('event', 'auction_player_sold')
+                ->where('related_type', 'auction_player')
+                ->where('related_id', $player->id)
+                ->where('status', 'queued')
+                ->update(['status' => 'skipped', 'error' => 'Sale was undone before the message was sent']);
+
+            $player->fill([
+                'status' => 'in_hammer',
+                'sold_price' => null,
+                'sold_to_team_id' => null,
+                'sold_to_team_name' => null,
+                'payment_status' => 'pending',
+                'payment_amount' => null,
+                'player_id' => null,
+            ])->save();
+
+            // The bid that stood when the hammer fell is still on the auction
+            // row — the sale never cleared it — so bidding resumes from there.
+            $auction->hammer_state = 'bidding';
+            $auction->save();
+        });
+
+        $auction->refresh();
+        $purses = $this->auctions->teamPurses($auction);
+
+        $actor = $request->user();
+        Audit::log([
+            'organization_id' => $auction->organization_id,
+            'user_id' => $actor?->id ?? '',
+            'user_name' => $actor?->name ?? '',
+            'user_role' => $actor?->role ?? '',
+            'action' => 'AUCTION_HAMMER_REOPENED',
+            'entity_type' => 'AuctionPlayer',
+            'entity_id' => $player->id,
+            'details' => $previous['status'] === 'sold'
+                ? sprintf('Undid the sale of [%s] to [%s] for %s; bidding reopened.', $player->full_name, $previous['team'], $previous['price'])
+                : sprintf('Undid the unsold call on [%s]; bidding reopened.', $player->full_name),
+            'ip_address' => $request->ip(),
+        ]);
+
+        $this->realtime->toRoom("auction:{$auction->id}", 'HAMMER_REOPENED', [
+            'auction' => $auction,
+            'player' => $player,
+            'team_purses' => $purses,
+        ]);
+
+        return response()->json([
+            'auction' => $auction,
+            'player' => $player,
+            'team_purses' => $purses,
+        ]);
     }
 
     /**

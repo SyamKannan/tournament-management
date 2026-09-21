@@ -66,7 +66,7 @@ export const TeamJoinPage: React.FC = () => {
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-sm font-bold text-white leading-tight">{tournament.name}</h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5 capitalize">
+                  <p className="text-xs text-slate-400 mt-0.5 capitalize">
                     {tournament.sport_code}{organization ? ` · ${organization.name}` : ''}
                   </p>
                 </div>
@@ -99,7 +99,7 @@ export const TeamJoinPage: React.FC = () => {
 
               <div className="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Ground fee</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Ground fee</p>
                   <p className="text-base font-black text-white">{entry_fee > 0 ? money(entry_fee) : 'Free'}</p>
                 </div>
                 <Link

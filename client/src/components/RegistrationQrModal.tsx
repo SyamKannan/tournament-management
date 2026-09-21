@@ -68,7 +68,7 @@ export function RegistrationQrModal({ tournamentName, url, fileSlug, onClose }: 
             )}
           </div>
           <p className="text-center text-sm font-bold text-white">{tournamentName}</p>
-          <p className="text-center text-[11px] font-code text-slate-400 break-all">{url}</p>
+          <p className="text-center text-xs font-code text-slate-400 break-all">{url}</p>
 
           <div className="grid grid-cols-3 gap-2">
             <button

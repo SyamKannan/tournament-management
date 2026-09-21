@@ -65,7 +65,7 @@ export const PublicOrganizationPage: React.FC = () => {
             />
             <div>
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold uppercase">
                   {organization.type}
                 </span>
                 <span className="text-xs text-slate-400 font-semibold">{organization.district}, {organization.state}</span>
@@ -89,7 +89,7 @@ export const PublicOrganizationPage: React.FC = () => {
                 <div key={t.id} className="p-6 rounded-3xl glass-card border border-slate-800 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold uppercase">
                         {t.sport_code.toUpperCase()} • {label(t.format)}
                       </span>
                       <span className="font-mono text-xs font-bold text-emerald-400">Fee: {formatMoney(t.ground_fee)}</span>

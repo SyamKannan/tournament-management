@@ -116,6 +116,7 @@ class PasswordResetService
         }
 
         $user->password_hash = Hash::make($newPassword);
+        $user->must_change_password = false;
         $user->save();
 
         $reset->used_at = now();

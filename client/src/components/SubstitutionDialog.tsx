@@ -73,7 +73,7 @@ export const SubstitutionDialog: React.FC<SubstitutionDialogProps> = ({
           <span className="min-w-0 flex-1">
             <span className="block font-bold truncate">{player.full_name}</span>
             {player.football_position && (
-              <span className="block text-[10px] text-slate-500 truncate">{player.football_position}</span>
+              <span className="block text-xs text-slate-500 truncate">{player.football_position}</span>
             )}
           </span>
         </button>
@@ -98,13 +98,13 @@ export const SubstitutionDialog: React.FC<SubstitutionDialogProps> = ({
 
         <div className="grid sm:grid-cols-2 gap-4 mt-4">
           <div>
-            <div className="text-[11px] font-black uppercase tracking-wider text-rose-300 mb-2 flex items-center gap-1">
+            <div className="text-xs font-black uppercase tracking-wider text-rose-300 mb-2 flex items-center gap-1">
               <ArrowDown className="w-3.5 h-3.5" /> Coming off
             </div>
             {list(onPitch, offId, setOffId, 'rose', 'Nobody is marked as on the pitch. Check the team sheet.')}
           </div>
           <div>
-            <div className="text-[11px] font-black uppercase tracking-wider text-emerald-300 mb-2 flex items-center gap-1">
+            <div className="text-xs font-black uppercase tracking-wider text-emerald-300 mb-2 flex items-center gap-1">
               <ArrowUp className="w-3.5 h-3.5" /> Coming on
             </div>
             {list(bench, onId, setOnId, 'emerald', 'Nobody is left on the bench.')}

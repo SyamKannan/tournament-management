@@ -94,9 +94,13 @@ and hands the row to a driver. Nothing throws into the caller — a gateway outa
 fail a team approval, same rule as `RealtimeBroadcaster`.
 - Message wording lives in `NotificationCatalog` (one place, SMS-length aware). Recipients
   come from `Audience` — never re-derive which of a team's four contact columns to use.
-- Drivers implement `Channels\ChannelDriver` and are registered in `ChannelManager`.
-  `log` is the default and records instead of sending, so everything works with no gateway
-  account; a real provider is one class plus `config/notifications.php`.
+- Drivers implement `Channels\ChannelDriver` and are registered in `ChannelManager`:
+  `log` (default — records instead of sending), `twilio` (SMS + WhatsApp) and
+  `meta_whatsapp` (Cloud API; map events to approved templates in
+  `notifications.whatsapp_templates`). A `log` send is stored as `sent`, so anything
+  user-facing must ask `ChannelManager::isSimulated()` — the org log flags those rows
+  "Recorded, not delivered", and `GET /api/admin/notification-health` puts a `log` driver in
+  production in front of the super admin (password reset codes can't reach anyone).
 - Scheduled messages pass a `dedupeKey`; the unique index turns at-least-once scheduling
   into exactly-once delivery. Always pass one from a command.
 - Per-org switches live in `organizations.notification_settings`; `config('notifications.defaults')`
@@ -131,6 +135,23 @@ no email. `PasswordResetService` answers identically whether or not the account 
 endpoint would otherwise enumerate which phone numbers are registered); the code is stored
 hashed, expires in 15 minutes and burns after `PasswordReset::MAX_ATTEMPTS` wrong guesses.
 A successful reset revokes every session and returns a working token.
+When the SMS can't arrive, `TemporaryPasswordService` issues a one-time password —
+`POST /api/admin/users/{id}/reset-password` (super admin) or
+`/api/organizations/{id}/members/{userId}/reset-password` (organizer; not for other admins).
+It sets `users.must_change_password`, which the client's `MustChangePasswordGate` enforces
+at sign-in. Onboarding a club works the same way: no default password, and the response
+carries `admin_credentials` exactly once.
+
+**Errors reach people as sentences.** `App\Exceptions\ApiExceptionRenderer` renders every
+API exception as `{error, message, code, errors?}` — `error` is the first human-readable
+message, `errors` the per-field map on a 422 (the client's `useFieldErrors` shows it under
+the field). Controllers keep returning `['error' => '…']`; never let a bare status code
+reach the client.
+
+**Lists are paged on the server.** Use `App\Support\Paginate` (`query()`, `search()`) for
+anything that grows — envelope `{data, page, per_page, total, total_pages, has_more}`,
+searched in SQL. Don't `->get()` a whole table for a list screen, and don't cap with
+`limit(50)` and let the browser filter. Client side: `usePaginatedList` + `<Pager>`.
 
 **Rate limiting.** Use a **named** limiter from `AppServiceProvider::registerRateLimiters()`
 for anything that needs a real budget. An inline `throttle:5,10` keys on route+IP — the same
@@ -215,6 +236,22 @@ database/seeders/data/seed.json   the demo fixture (passwords in clear, hashed o
 routes/api.php               the entire route table, single file
 ```
 
+**Client conventions for people on a ground.**
+- Theme, text size and language live in `src/i18n` (`PreferencesProvider`, `useT`,
+  `en.ts`/`ml.ts`). The light theme re-points Tailwind's colour variables in `src/theme.css`,
+  so keep using `slate-*`/`text-white` tokens, not hex. TV screens and photo heroes are dark
+  islands (`data-theme="dark"`). A new accent *text* shade needs a rule in `theme.css`.
+- Anything that commits money or a score goes through `useSingleFlight` (a ref guard — a
+  disabled button alone lets a same-frame double tap through) and awaits its refetch.
+- Long public forms keep a device draft (`useDraft`, `useLeaveWarning`).
+- Screens nobody touches for minutes (scorer, scoreboard and auction TV) call `useWakeLock`.
+- Auction: `POST /api/auctions/{id}/reopen-hammer` undoes the latest sold/unsold call while
+  that player is still on the hammer (refused once paid for or named in a lineup).
+- Team registration calls `…/registration/{token}/validate` *before* opening checkout; a
+  resubmitted paid registration is replayed (`replayed: true`); a paid-but-refused one is
+  audited as `REGISTRATION_PAYMENT_NEEDS_REFUND`.
+- Razorpay's script loads on demand (`utils/razorpay.ts`), never as a blocking tag.
+
 ## Config
 
 | Variable | Default | Notes |
@@ -226,7 +263,8 @@ routes/api.php               the entire route table, single file
 | `CORS_ALLOWED_ORIGINS` | `*` | narrow before deploying |
 | `FRONTEND_URL` | request `Origin`, then `APP_URL` | client origin for the registration QR on posters |
 | `NOTIFICATIONS_ENABLED` | `true` | off queues nothing at all — set it on any copy of production data |
-| `WHATSAPP_DRIVER` / `SMS_DRIVER` | `log` | `log` records instead of sending; no gateway account needed |
+| `WHATSAPP_DRIVER` / `SMS_DRIVER` | `log` | `log`, `twilio` or `meta_whatsapp`; `log` in production means reset codes never arrive |
+| `TWILIO_*`, `META_WHATSAPP_*` | — | gateway credentials, see `backend/.env.example` |
 
 Demo login for any seeded account: password `12345678` (see root README for the account
 list). `POST /api/dev/reset-seed` wipes and reseeds the DB and must 404 in production
@@ -244,7 +282,10 @@ standings tie-breakers),
 `TokenRevocationTest` (both revocation paths), `TournamentSettingsTest` (settings actually
 reaching the scoring engine), `NotificationEngineTest` (templates, opt-outs, per-org
 switches, both scheduled sweeps and their dedupe), `BracketTest` (seeding, byes,
-progression and its undo, groups feeding a bracket, ground clashes, venue CRUD).
+progression and its undo, groups feeding a bracket, ground clashes, venue CRUD),
+`HumanFacingFixesTest` (error envelope, delivery honesty and drivers, temporary passwords,
+paging and search, auction undo, pay-then-register safety, poster job status).
+
 
 No client-side test suite exists — `npm run typecheck` is the only automated client
 check.

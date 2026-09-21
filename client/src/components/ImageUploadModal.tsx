@@ -161,7 +161,7 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
                 <span>Change Photo</span>
               </button>
             </div>
-            <span className="text-[11px] text-slate-400 mt-2 font-medium">Live Photo Preview</span>
+            <span className="text-xs text-slate-400 mt-2 font-medium">Live Photo Preview</span>
           </div>
 
           {/* Drag & Drop Upload Zone */}
@@ -178,6 +178,7 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
           >
             <input
               ref={fileInputRef}
+              aria-label="Choose an image file"
               type="file"
               accept="image/png,image/jpeg,image/jpg,image/webp"
               onChange={(e) => e.target.files?.[0] && handleFileChange(e.target.files[0])}
@@ -189,14 +190,14 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
             <div className="text-xs font-bold text-white">
               Click to browse or drag & drop photo
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-400 mt-0.5">
               Supports PNG, JPG, WEBP up to 10MB
             </p>
           </div>
 
           {/* Preset Avatars Selection */}
           <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
               <span>Or Choose a Preset:</span>
             </div>

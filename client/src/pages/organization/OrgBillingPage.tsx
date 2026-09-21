@@ -170,7 +170,7 @@ export const OrgBillingPage: React.FC = () => {
               <>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-base font-bold text-white">{plan.name}</span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold uppercase border border-emerald-500/20">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold uppercase border border-emerald-500/20">
                     {label(subscription?.status) || 'Active'}
                   </span>
                 </div>
@@ -198,7 +198,7 @@ export const OrgBillingPage: React.FC = () => {
               <>
                 <div className="flex items-center gap-2">
                   <span className="text-base font-bold text-white">No Active Plan</span>
-                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[11px] font-bold uppercase border border-slate-700">
+                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-xs font-bold uppercase border border-slate-700">
                     Free Account
                   </span>
                 </div>
@@ -250,7 +250,7 @@ export const OrgBillingPage: React.FC = () => {
                   }`}
                 >
                   {isRecommended && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-[10px] font-black uppercase tracking-wider text-white shadow-lg whitespace-nowrap">
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-xs font-black uppercase tracking-wider text-white shadow-lg whitespace-nowrap">
                       Recommended
                     </span>
                   )}
@@ -259,7 +259,7 @@ export const OrgBillingPage: React.FC = () => {
                     <span className="font-bold text-white text-base">{p.name}</span>
                     {plan && (
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                        className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase border ${
                           isUpgrade
                             ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
                             : 'bg-slate-800 text-slate-400 border-slate-700'
@@ -289,7 +289,7 @@ export const OrgBillingPage: React.FC = () => {
                     {limits.map(l => (
                       <div key={l.label} className="px-3 py-2 rounded-xl bg-slate-950/60 border border-slate-800/80">
                         <div className="text-sm font-black text-white font-mono">{l.value >= 999 ? '∞' : l.value}</div>
-                        <div className="text-[10px] text-slate-500 uppercase tracking-wide">{l.label}</div>
+                        <div className="text-xs text-slate-500 uppercase tracking-wide">{l.label}</div>
                       </div>
                     ))}
                   </div>
@@ -333,7 +333,7 @@ export const OrgBillingPage: React.FC = () => {
           <div className="rounded-2xl border border-slate-800/80 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="responsive-table w-full min-w-[760px] text-xs">
-                <thead className="bg-slate-900/90 text-slate-400 uppercase text-[10px] tracking-wider">
+                <thead className="bg-slate-900/90 text-slate-400 uppercase text-xs tracking-wider">
                   <tr>
                     <th className="text-left px-4 py-3 font-semibold">Invoice #</th>
                     <th className="text-left px-4 py-3 font-semibold">Date</th>
@@ -351,14 +351,14 @@ export const OrgBillingPage: React.FC = () => {
                       <td data-label="Amount" className="px-4 py-3 font-mono font-bold text-white">₹{inv.amount.toLocaleString()}</td>
                       <td data-label="Method" className="px-4 py-3 text-slate-400 uppercase">{inv.payment_method}</td>
                       <td data-label="Status" className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${STATUS_STYLES[inv.status] || 'bg-slate-800 text-slate-300 border-slate-700'}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase border ${STATUS_STYLES[inv.status] || 'bg-slate-800 text-slate-300 border-slate-700'}`}>
                           {label(inv.status)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right rt-full">
                         <button
                           onClick={() => downloadInvoicePdf(inv)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-semibold text-[11px] transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs transition-colors"
                         >
                           <Download className="w-3.5 h-3.5" />
                           <span>PDF</span>
@@ -399,7 +399,7 @@ export const OrgBillingPage: React.FC = () => {
 
 const UsageBar: React.FC<{ label: string; metric: UsageMetric; color: string }> = ({ label, metric, color }) => (
   <div>
-    <div className="flex justify-between text-[11px] mb-1">
+    <div className="flex justify-between text-xs mb-1">
       <span className="text-slate-400">{label}</span>
       <span className="font-bold text-white font-mono">{metric.current}/{metric.max}</span>
     </div>

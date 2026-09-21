@@ -10,6 +10,7 @@ import {
 } from '../../components/auth/AuthUI';
 import { KeyRound, MessageSquare, ArrowLeft } from 'lucide-react';
 import { roleHome } from '../../lib/roleHome';
+import { useT } from '../../i18n';
 
 /**
  * Getting back into an account, by a code sent to the phone.
@@ -27,6 +28,7 @@ export const ForgotPasswordPage: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
   const [usePhone, setUsePhone] = useState(true);
   const [code, setCode] = useState('');
+  const t = useT();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
@@ -122,7 +124,7 @@ export const ForgotPasswordPage: React.FC = () => {
         <AuthAlert message={error} />
 
         {notice && step === 'confirm' && (
-          <div className="mb-4 p-3 rounded-xl bg-cyan-500/10 ring-1 ring-cyan-500/20 text-xs text-cyan-200 flex items-start gap-2">
+          <div className="mb-4 p-3 rounded-xl bg-cyan-500/10 ring-1 ring-cyan-500/20 text-sm text-cyan-200 flex items-start gap-2" role="status">
             <MessageSquare className="w-4 h-4 shrink-0 mt-px" />
             <span>{notice}</span>
           </div>
@@ -130,7 +132,7 @@ export const ForgotPasswordPage: React.FC = () => {
 
         {step === 'ask' ? (
           <form onSubmit={askForCode} className="space-y-4">
-            <div className="flex gap-1.5 text-[11px] font-bold">
+            <div className="flex gap-1.5 text-xs font-bold">
               {([true, false] as const).map(phoneMode => (
                 <button
                   key={String(phoneMode)}
@@ -149,10 +151,10 @@ export const ForgotPasswordPage: React.FC = () => {
 
             {usePhone ? (
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label htmlFor="forgotpassword-phone-number-on-your-account" className="block text-xs font-semibold text-slate-300 mb-1.5">
                   Phone number on your account
                 </label>
-                <PhoneInput value={identifier} onChange={setIdentifier} />
+                <PhoneInput id="forgotpassword-phone-number-on-your-account" value={identifier} onChange={setIdentifier} />
               </div>
             ) : (
               <AuthField htmlFor="recover-email" label="Email on your account">
@@ -212,8 +214,14 @@ export const ForgotPasswordPage: React.FC = () => {
               />
             </AuthField>
 
-            <p className="text-[11px] text-slate-500">
+            <p className="text-sm text-slate-400">
               Resetting signs you out everywhere else, in case somebody else knows your old password.
+            </p>
+
+            {/* The SMS is not the only way back in — say so, rather than
+                leaving someone waiting for a code that may never arrive. */}
+            <p className="text-sm text-cyan-200 bg-cyan-500/10 ring-1 ring-cyan-500/20 rounded-xl p-3">
+              {t('auth.forgot.noSms')}
             </p>
 
             <div className="pt-2 space-y-2">
@@ -221,7 +229,7 @@ export const ForgotPasswordPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => { setStep('ask'); setCode(''); setError(null); }}
-                className="w-full text-[11px] font-semibold text-slate-400 hover:text-white flex items-center justify-center gap-1.5"
+                className="w-full text-xs font-semibold text-slate-400 hover:text-white flex items-center justify-center gap-1.5"
               >
                 <ArrowLeft className="w-3 h-3" />
                 Use a different number

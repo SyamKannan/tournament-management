@@ -44,7 +44,7 @@ export const CreasePanel: React.FC<CreasePanelProps> = ({
         <button
           onClick={onSwap}
           disabled={!strikerId || !nonStrikerId}
-          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] flex items-center gap-1.5 disabled:opacity-40"
+          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center gap-1.5 disabled:opacity-40"
           title="Swap the ends without recording a ball"
         >
           <ArrowLeftRight className="w-3.5 h-3.5" />
@@ -54,8 +54,8 @@ export const CreasePanel: React.FC<CreasePanelProps> = ({
 
       <div className="grid sm:grid-cols-3 gap-3 text-xs">
         <div>
-          <label className="block text-slate-400 mb-1 font-semibold">Striker *</label>
-          <select
+          <label htmlFor="creasepanel-striker" className="block text-slate-400 mb-1 font-semibold">Striker *</label>
+          <select id="creasepanel-striker"
             value={strikerId || ''}
             onChange={event => onChange('striker', event.target.value)}
             className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-white"
@@ -70,8 +70,8 @@ export const CreasePanel: React.FC<CreasePanelProps> = ({
         </div>
 
         <div>
-          <label className="block text-slate-400 mb-1 font-semibold">Non-striker</label>
-          <select
+          <label htmlFor="creasepanel-non-striker" className="block text-slate-400 mb-1 font-semibold">Non-striker</label>
+          <select id="creasepanel-non-striker"
             value={nonStrikerId || ''}
             onChange={event => onChange('nonStriker', event.target.value)}
             className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-white"
@@ -86,8 +86,8 @@ export const CreasePanel: React.FC<CreasePanelProps> = ({
         </div>
 
         <div>
-          <label className="block text-slate-400 mb-1 font-semibold">Bowler</label>
-          <select
+          <label htmlFor="creasepanel-bowler" className="block text-slate-400 mb-1 font-semibold">Bowler</label>
+          <select id="creasepanel-bowler"
             value={bowlerId || ''}
             onChange={event => onChange('bowler', event.target.value)}
             className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-white"
@@ -103,7 +103,7 @@ export const CreasePanel: React.FC<CreasePanelProps> = ({
       </div>
 
       {!ready && (
-        <p className="text-[11px] text-amber-400 font-semibold">
+        <p className="text-xs text-amber-400 font-semibold">
           Name both batters and the bowler to unlock the scoring keypad — every ball is recorded against them.
         </p>
       )}

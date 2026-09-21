@@ -131,8 +131,8 @@ export const OrgVenuesPage: React.FC = () => {
 
         <div className="grid sm:grid-cols-2 gap-3 text-xs">
           <div className="sm:col-span-2">
-            <label className="block text-slate-300 font-semibold mb-1">Ground name</label>
-            <input
+            <label htmlFor="orgvenues-ground-name" className="block text-slate-300 font-semibold mb-1">Ground name</label>
+            <input id="orgvenues-ground-name"
               value={form.name}
               onChange={e => setForm({ ...form, name: e.target.value })}
               placeholder="Kottappadi Football Stadium"
@@ -147,8 +147,9 @@ export const OrgVenuesPage: React.FC = () => {
             ['google_maps_url', 'Google Maps link'],
           ] as const).map(([field, labelText]) => (
             <div key={field}>
-              <label className="block text-slate-300 font-semibold mb-1">{labelText}</label>
+              <label htmlFor={`venue-${field}`} className="block text-slate-300 font-semibold mb-1">{labelText}</label>
               <input
+                id={`venue-${field}`}
                 value={form[field]}
                 onChange={e => setForm({ ...form, [field]: e.target.value })}
                 className="w-full px-3.5 py-2 rounded-xl glass-input"
@@ -156,8 +157,8 @@ export const OrgVenuesPage: React.FC = () => {
             </div>
           ))}
           <div className="sm:col-span-2">
-            <label className="block text-slate-300 font-semibold mb-1">Address</label>
-            <input
+            <label htmlFor="orgvenues-address" className="block text-slate-300 font-semibold mb-1">Address</label>
+            <input id="orgvenues-address"
               value={form.address}
               onChange={e => setForm({ ...form, address: e.target.value })}
               className="w-full px-3.5 py-2 rounded-xl glass-input"
@@ -204,10 +205,10 @@ export const OrgVenuesPage: React.FC = () => {
             >
               <div className="min-w-0">
                 <div className="text-sm font-bold text-white truncate">{venue.name}</div>
-                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                <p className="text-xs text-slate-400 mt-0.5 truncate">
                   {[venue.village, venue.panchayat, venue.district].filter(Boolean).join(' · ') || 'No location set'}
                 </p>
-                <p className="text-[11px] text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   {venue.fixture_count === 0
                     ? 'No fixtures yet'
                     : `${venue.fixture_count} fixture${venue.fixture_count === 1 ? '' : 's'}`}

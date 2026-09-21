@@ -17,15 +17,15 @@ const StatTile: React.FC<{ label: string; value: React.ReactNode; hint?: React.R
   label, value, hint, tone = 'text-white',
 }) => (
   <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center">
-    <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">{label}</span>
+    <span className="text-xs font-black uppercase tracking-widest text-slate-400 block">{label}</span>
     <div className={`text-3xl sm:text-4xl font-black font-mono mt-1 ${tone}`}>{value}</div>
-    {hint && <span className="text-[11px] text-slate-500 font-semibold">{hint}</span>}
+    {hint && <span className="text-xs text-slate-500 font-semibold">{hint}</span>}
   </div>
 );
 
 const MiniStat: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800">
-    <span className="text-[11px] text-slate-400 block">{label}</span>
+    <span className="text-xs text-slate-400 block">{label}</span>
     <span className="text-lg font-mono font-black text-white">{value}</span>
   </div>
 );
@@ -177,7 +177,7 @@ export const PublicPlayerProfilePage: React.FC = () => {
   const awards = stats.awards || [];
 
   return (
-    <div className="min-h-screen bg-[#070b1d] text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
       {/* Top Breadcrumb */}
       <div>
         <Link
@@ -207,12 +207,12 @@ export const PublicPlayerProfilePage: React.FC = () => {
 
           <div className="space-y-1.5 flex-1">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-black uppercase tracking-widest">
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-black uppercase tracking-widest">
                 {sport}
               </span>
               <PlayerCodeBadge code={player.player_code} />
               {auction_info?.status === 'sold' && auction_info.sold_price != null && (
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-black uppercase">
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-black uppercase">
                   AUCTION VALUE: ₹{auction_info.sold_price.toLocaleString()}
                 </span>
               )}
@@ -268,7 +268,7 @@ export const PublicPlayerProfilePage: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 uppercase text-[11px]">
+                <tr className="border-b border-slate-800 text-slate-400 uppercase text-xs">
                   <th className="pb-2">Tournament</th>
                   <th className="pb-2">Team</th>
                   <th className="pb-2 text-center">Matches</th>
@@ -321,16 +321,16 @@ export const PublicPlayerProfilePage: React.FC = () => {
                       {m.player_of_match && <Trophy className="w-3.5 h-3.5 text-yellow-400 shrink-0" aria-label="Player of the match" />}
                     </div>
                     <div className="text-slate-300 font-mono mt-0.5">{m.summary}</div>
-                    <div className="text-[11px] text-slate-500 mt-0.5">
+                    <div className="text-xs text-slate-500 mt-0.5">
                       {[m.round_name, matchDate(m.date)].filter(Boolean).join(' • ')}
                     </div>
                   </div>
                   {m.result ? (
-                    <span className={`px-2 py-0.5 rounded-lg border text-[11px] font-black uppercase shrink-0 ${RESULT_STYLES[m.result]}`}>
+                    <span className={`px-2 py-0.5 rounded-lg border text-xs font-black uppercase shrink-0 ${RESULT_STYLES[m.result]}`}>
                       {m.result}
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-400 text-[11px] font-black uppercase shrink-0">
+                    <span className="px-2 py-0.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs font-black uppercase shrink-0">
                       Live
                     </span>
                   )}
@@ -365,7 +365,7 @@ export const PublicPlayerProfilePage: React.FC = () => {
                   <Award className="w-5 h-5 text-amber-400 shrink-0" />
                   <div>
                     <div className="font-bold text-white">{aw.title}{aw.opponent_name ? ` vs ${aw.opponent_name}` : ''}</div>
-                    <div className="text-[11px] text-slate-400">{aw.tournament_name} • {matchDate(aw.date)}</div>
+                    <div className="text-xs text-slate-400">{aw.tournament_name} • {matchDate(aw.date)}</div>
                   </div>
                 </div>
               ))}

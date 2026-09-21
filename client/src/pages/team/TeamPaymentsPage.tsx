@@ -185,7 +185,7 @@ export const TeamPaymentsPage: React.FC = () => {
       ) : (
         <div className="rounded-2xl border border-slate-800 scroll-x">
           <table className="responsive-table w-full min-w-[720px] text-xs">
-            <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px]">
+            <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-xs">
               <tr>
                 <th className="text-left font-bold px-4 py-3">Date</th>
                 <th className="text-left font-bold px-4 py-3">Team / Tournament</th>
@@ -200,11 +200,11 @@ export const TeamPaymentsPage: React.FC = () => {
                 <tr key={p.receipt.id} className="bg-slate-950/40 hover:bg-slate-900/60">
                   <td data-label="Date" className="px-4 py-3 text-slate-300 whitespace-nowrap">
                     {formatDate(p.issued_at)}
-                    <span className="block font-mono text-[10px] text-slate-500">{p.receipt.receipt_number}</span>
+                    <span className="block font-mono text-xs text-slate-500">{p.receipt.receipt_number}</span>
                   </td>
                   <td data-label="Team / Tournament" className="px-4 py-3 min-w-[180px] rt-full">
                     <span className="block font-semibold text-white">{p.team_name}</span>
-                    <span className="block text-[11px] text-slate-400">{p.tournament_name}</span>
+                    <span className="block text-xs text-slate-400">{p.tournament_name}</span>
                   </td>
                   <td data-label="Method" className="px-4 py-3 text-slate-300 whitespace-nowrap">{label(p.method.toLowerCase())}</td>
                   <td data-label="Amount" className="px-4 py-3 text-right font-bold text-emerald-400 whitespace-nowrap">{money(p.amount)}</td>
@@ -215,7 +215,7 @@ export const TeamPaymentsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setOpenReceipt(p.receipt)}
-                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-[11px] whitespace-nowrap"
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs whitespace-nowrap"
                     >
                       View receipt
                     </button>
@@ -234,7 +234,7 @@ export const TeamPaymentsPage: React.FC = () => {
 
 const Total: React.FC<{ icon: React.ElementType; label: string; value: string; tone?: string }> = ({ icon: Icon, label: text, value, tone }) => (
   <div className="p-4 rounded-2xl glass-card border border-slate-800">
-    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+    <p className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
       <Icon className="w-3.5 h-3.5" /> {text}
     </p>
     <p className={`mt-1 text-xl font-black ${tone ?? 'text-white'}`}>{value}</p>

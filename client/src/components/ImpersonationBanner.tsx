@@ -48,7 +48,7 @@ export const ImpersonationBanner: React.FC = () => {
             <ShieldAlert className="w-4 h-4 text-amber-200" />
           </div>
           <div className="truncate">
-            <span className="font-bold tracking-wide uppercase text-[11px] bg-black/30 px-2 py-0.5 rounded-full border border-white/10 mr-2 text-amber-200 inline-flex items-center gap-1">
+            <span className="font-bold tracking-wide uppercase text-xs bg-black/30 px-2 py-0.5 rounded-full border border-white/10 mr-2 text-amber-200 inline-flex items-center gap-1">
               <Sparkles className="w-3 h-3" /> {isClub ? 'Viewing as club' : 'Viewing as'}
             </span>
             <span className="font-semibold text-white truncate">

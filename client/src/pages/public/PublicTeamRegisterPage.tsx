@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api } from '../../services/api';
-import type { Tournament, Organization } from '../../types';
+import { api, ApiError } from '../../services/api';
+import type { Tournament } from '../../types';
 import {
   ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft,
-  Plus, Trash2, Download, Camera
+  Plus, Trash2, Download, Camera, RotateCcw, AlertTriangle, Info,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ReceiptModal } from '../../components/ReceiptModal';
@@ -12,11 +12,14 @@ import { PlayerCodeBadge } from '../../components/PlayerCodeBadge';
 import { ImageUploadModal } from '../../components/ImageUploadModal';
 import { PhoneInput } from '../../components/PhoneInput';
 import { useToast } from '../../components/ui/Toast';
+import { FieldError, fieldErrorId, useFieldErrors } from '../../components/ui/FieldError';
 import { useAuth } from '../../context/AuthContext';
 import type { PaymentMethod } from '../../types';
 import type { RazorpayOrder, RazorpayVerifiedPayment } from '../../utils/razorpay';
 import { openCheckout } from '../../utils/checkout';
 import { PAYMENT_METHOD_META, ALL_PAYMENT_METHODS, isOnlineMethod } from '../../lib/paymentMethods';
+import { useDraft, useLeaveWarning } from '../../lib/useDraft';
+import { usePreferences } from '../../i18n';
 
 const AVATAR_COLORS = [
   'bg-rose-500/20 text-rose-300', 'bg-amber-500/20 text-amber-300', 'bg-emerald-500/20 text-emerald-300',
@@ -30,7 +33,26 @@ const getInitials = (name: string) => {
   return (parts[0][0] + (parts[1]?.[0] || '')).toUpperCase();
 };
 
-const PAYMENT_METHOD_INFO = PAYMENT_METHOD_META;
+const FOOTBALL_POSITIONS: { value: string; label: string }[] = [
+  { value: 'Goalkeeper', label: 'Goalkeeper (GK)' },
+  { value: 'Centre Back', label: 'Centre Back (CB)' },
+  { value: 'Left Back', label: 'Left Back (LB)' },
+  { value: 'Right Back', label: 'Right Back (RB)' },
+  { value: 'Defensive Midfielder', label: 'Defensive Mid (DM)' },
+  { value: 'Central Midfielder', label: 'Central Mid (CM)' },
+  { value: 'Attacking Midfielder', label: 'Attacking Mid (AM)' },
+  { value: 'Left Wing', label: 'Left Wing (LW)' },
+  { value: 'Right Wing', label: 'Right Wing (RW)' },
+  { value: 'Striker', label: 'Striker / Forward' },
+];
+
+const CRICKET_ROLES: { value: string; label: string }[] = [
+  { value: 'Batter', label: 'Batter' },
+  { value: 'Bowler', label: 'Bowler' },
+  { value: 'All-rounder', label: 'All-rounder' },
+  { value: 'Wicketkeeper', label: 'Wicketkeeper' },
+  { value: 'Wicketkeeper + Batter', label: 'WK + Batter' },
+];
 
 interface PlayerRow {
   full_name: string;
@@ -44,36 +66,88 @@ interface PlayerRow {
   photo?: string;
 }
 
+/** What the server returns for a finished (or replayed) registration. */
+interface RegistrationResult {
+  receipt: any;
+  players: { id: string; full_name: string; jersey_number: number; player_code: string }[];
+  replayed?: boolean;
+}
+
+type PaidWith = RazorpayVerifiedPayment & { amount: number };
+
+/**
+ * Everything typed so far, kept on the device until the team is registered.
+ *
+ * `paidWith` is the important part: once a checkout has succeeded, the money
+ * has moved. If the registration request then fails — the signal dropped, the
+ * tab was closed — the verified payment is still here, so "Finish
+ * registration" resubmits with it instead of charging again. The server treats
+ * a resubmission of a registration that did go through as a replay and hands
+ * back the receipt.
+ */
+interface Draft {
+  step: number;
+  teamName: string;
+  shortName: string;
+  jerseyColor: string;
+  village: string;
+  panchayat: string;
+  district: string;
+  managerName: string;
+  managerPhone: string;
+  managerWhatsapp: string;
+  managerEmail: string;
+  managerAddress: string;
+  players: PlayerRow[];
+  paymentOption: 'full' | 'partial';
+  paymentMethod: PaymentMethod | null;
+  paidWith: PaidWith | null;
+}
+
+type Outcome =
+  | { kind: 'none' }
+  | { kind: 'recover'; ref: string; amount: number }
+  | { kind: 'refund'; ref: string };
+
+const inputClass = 'w-full px-4 py-3 rounded-xl glass-input text-base';
+const labelClass = 'block text-sm font-semibold text-slate-200 mb-1.5';
+const hintClass = 'mt-1 text-sm text-slate-400';
+const primaryButton = 'min-h-12 px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-base shadow-lg shadow-emerald-600/20 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-2';
+const secondaryButton = 'min-h-12 px-5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-base font-semibold text-slate-200 inline-flex items-center gap-2';
+
 export const PublicTeamRegisterPage: React.FC = () => {
   const toast = useToast();
+  const { t, money } = usePreferences();
   const { token } = useParams<{ token: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const fields = useFieldErrors();
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
-  const [_organization, setOrganization] = useState<Organization | null>(null);
   const [paymentOptions, setPaymentOptions] = useState<any>(null);
   // Entries closed or the field already full — said up front, not on submit.
   const [closedReason, setClosedReason] = useState<string | null>(null);
 
-  // Wizard Step (1 to 5)
-  const [currentStep, setCurrentStep] = useState<number>(1);
+  const draft = useDraft<Draft>(token ? `team-registration:${token}` : null);
+  const saved = draft.initial;
 
-  // Step 1: Team Details
-  const [teamName, setTeamName] = useState('');
-  const [shortName, setShortName] = useState('');
-  const [jerseyColor, setJerseyColor] = useState('#3B82F6');
-  const [secondaryJerseyColor, _setSecondaryJerseyColor] = useState('#FFFFFF');
-  const [village, setVillage] = useState('');
-  const [panchayat, setPanchayat] = useState('');
-  const [district, setDistrict] = useState('Malappuram');
+  const [currentStep, setCurrentStep] = useState<number>(saved?.step && saved.step < 5 ? saved.step : 1);
 
-  // Step 2: Team Manager
-  const [managerName, setManagerName] = useState('');
-  const [managerPhone, setManagerPhone] = useState('');
-  const [managerWhatsapp, setManagerWhatsapp] = useState('');
-  const [managerEmail, setManagerEmail] = useState('');
-  const [managerAddress, setManagerAddress] = useState('');
+  // Step 1: Team
+  const [teamName, setTeamName] = useState(saved?.teamName ?? '');
+  const [shortName, setShortName] = useState(saved?.shortName ?? '');
+  const [jerseyColor, setJerseyColor] = useState(saved?.jerseyColor ?? '#3B82F6');
+  const secondaryJerseyColor = '#FFFFFF';
+  const [village, setVillage] = useState(saved?.village ?? '');
+  const [panchayat, setPanchayat] = useState(saved?.panchayat ?? '');
+  const [district, setDistrict] = useState(saved?.district ?? 'Malappuram');
+
+  // Step 2: Manager
+  const [managerName, setManagerName] = useState(saved?.managerName ?? '');
+  const [managerPhone, setManagerPhone] = useState(saved?.managerPhone ?? '');
+  const [managerWhatsapp, setManagerWhatsapp] = useState(saved?.managerWhatsapp ?? '');
+  const [managerEmail, setManagerEmail] = useState(saved?.managerEmail ?? '');
+  const [managerAddress, setManagerAddress] = useState(saved?.managerAddress ?? '');
 
   // Entering from a team manager's portal: start from their own details
   // (the team is linked to their account when it's submitted).
@@ -87,20 +161,24 @@ export const PublicTeamRegisterPage: React.FC = () => {
     setManagerEmail(current => current || user.email || '');
   }, [isManagerAccount, user]);
 
-  // Step 3: Squad Players
-  const [players, setPlayers] = useState<PlayerRow[]>([]);
+  // Step 3: Squad
+  const [players, setPlayers] = useState<PlayerRow[]>(saved?.players ?? []);
   const [photoUploadIndex, setPhotoUploadIndex] = useState<number | null>(null);
+  const [squadErrors, setSquadErrors] = useState<Record<number, string>>({});
+  const [squadSummaryError, setSquadSummaryError] = useState<string | null>(null);
 
-  // Step 4: Payment Option
-  const [selectedPaymentOption, setSelectedPaymentOption] = useState<'full' | 'partial'>('partial');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
+  // Step 4: Payment
+  const [selectedPaymentOption, setSelectedPaymentOption] = useState<'full' | 'partial'>(saved?.paymentOption ?? 'partial');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(saved?.paymentMethod ?? 'upi');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  // Shown once checkout succeeds, while the registration is being submitted.
-  const [paymentStage, setPaymentStage] = useState<'idle' | 'verifying' | 'success'>('idle');
+  const [paymentStage, setPaymentStage] = useState<'idle' | 'checking' | 'verifying' | 'success'>('idle');
+  const [paidWith, setPaidWith] = useState<PaidWith | null>(saved?.paidWith ?? null);
+  const [outcome, setOutcome] = useState<Outcome>(
+    saved?.paidWith ? { kind: 'recover', ref: saved.paidWith.razorpay_payment_id, amount: saved.paidWith.amount } : { kind: 'none' },
+  );
 
-  // Step 5: Completed Receipt
-  const [completedReceipt, setCompletedReceipt] = useState<any>(null);
-  const [registeredPlayers, setRegisteredPlayers] = useState<{ id: string; full_name: string; jersey_number: number; player_code: string }[]>([]);
+  // Step 5: Receipt
+  const [completed, setCompleted] = useState<RegistrationResult | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
   useEffect(() => {
@@ -109,43 +187,78 @@ export const PublicTeamRegisterPage: React.FC = () => {
         setLoading(true);
         const res = await api.get(`/teams/public/registration/${token}`);
         setTournament(res.tournament);
-        setOrganization(res.organization);
         setPaymentOptions(res.payment_options);
-        // Half is only on offer when the organizer allows paying in halves.
-        setSelectedPaymentOption(res.payment_options?.allowPartial ? 'partial' : 'full');
         setClosedReason(
           res.closed_reason
-            || (res.is_full ? `This tournament is full — all ${res.tournament.max_teams} places have been taken.` : null)
+            || (res.is_full ? t('reg.closed.full', { max: res.tournament.max_teams }) : null),
         );
 
         const availableMethods: PaymentMethod[] = res.tournament.payment_config?.enabled_methods?.length
           ? res.tournament.payment_config.enabled_methods
           : ALL_PAYMENT_METHODS;
-        setPaymentMethod(availableMethods[0]);
 
-        // Prepopulate default players count (e.g. 7 for football sevens, 11 for cricket)
-        const isFb = res.tournament.sport_code === 'football';
-        const defaultCount = res.tournament.settings.squad_min_players || (isFb ? 7 : 11);
-        
-        const initialPlayers: PlayerRow[] = Array.from({ length: defaultCount }, (_, i) => ({
-          full_name: '',
-          jersey_number: i + 1,
-          is_captain: i === 0,
-          football_position: isFb ? (i === 0 ? 'Goalkeeper' : i <= 2 ? 'Centre Back' : i <= 4 ? 'Central Midfielder' : 'Striker') : undefined,
-          cricket_role: !isFb ? (i <= 3 ? 'Batter' : i <= 5 ? 'All-rounder' : 'Bowler') : undefined,
-          cricket_batting_style: 'Right Hand',
-          cricket_bowling_style: 'Fast'
-        }));
-        setPlayers(initialPlayers);
+        // A restored draft keeps its own choices where they are still offered.
+        if (!saved?.paymentOption) {
+          setSelectedPaymentOption(res.payment_options?.allowPartial ? 'partial' : 'full');
+        } else if (saved.paymentOption === 'partial' && !res.payment_options?.allowPartial) {
+          setSelectedPaymentOption('full');
+        }
+        if (!saved?.paymentMethod || !availableMethods.includes(saved.paymentMethod)) {
+          setPaymentMethod(availableMethods[0]);
+        }
+
+        if (!saved?.players?.length) {
+          const isFb = res.tournament.sport_code === 'football';
+          const defaultCount = res.tournament.settings.squad_min_players || (isFb ? 7 : 11);
+          setPlayers(Array.from({ length: defaultCount }, (_, i) => ({
+            full_name: '',
+            jersey_number: i + 1,
+            is_captain: i === 0,
+            football_position: isFb ? (i === 0 ? 'Goalkeeper' : i <= 2 ? 'Centre Back' : i <= 4 ? 'Central Midfielder' : 'Striker') : undefined,
+            cricket_role: !isFb ? (i <= 3 ? 'Batter' : i <= 5 ? 'All-rounder' : 'Bowler') : undefined,
+            cricket_batting_style: 'Right Hand',
+            cricket_bowling_style: 'Fast',
+          })));
+        }
       } catch (err: any) {
-        setError(err.message || 'Invalid registration link');
+        setError(err.message || t('reg.inactive.body'));
       } finally {
         setLoading(false);
       }
     };
 
     fetchLinkData();
+    // The draft is read once, on open; switching language must not refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Written as they go.
+  const snapshot: Draft = useMemo(() => ({
+    step: currentStep,
+    teamName, shortName, jerseyColor, village, panchayat, district,
+    managerName, managerPhone, managerWhatsapp, managerEmail, managerAddress,
+    players, paymentOption: selectedPaymentOption, paymentMethod, paidWith,
+  }), [currentStep, teamName, shortName, jerseyColor, village, panchayat, district,
+    managerName, managerPhone, managerWhatsapp, managerEmail, managerAddress,
+    players, selectedPaymentOption, paymentMethod, paidWith]);
+
+  const hasTyped = teamName.trim() !== '' || managerName.trim() !== '' || players.some(p => p.full_name.trim() !== '');
+  const finished = currentStep === 5 && completed !== null;
+  const { save: saveDraft, clear: clearDraft } = draft;
+
+  useEffect(() => {
+    if (!loading && !finished && hasTyped) saveDraft(snapshot);
+  }, [snapshot, loading, finished, hasTyped, saveDraft]);
+
+  useLeaveWarning(hasTyped && !finished);
+
+  const startOver = () => {
+    clearDraft();
+    window.location.reload();
+  };
+
+  const minPlayers = tournament?.settings.squad_min_players || 7;
+  const maxPlayers = tournament?.settings.squad_max_players || 14;
 
   const handleAddPlayer = () => {
     const isFb = tournament?.sport_code === 'football';
@@ -159,108 +272,186 @@ export const PublicTeamRegisterPage: React.FC = () => {
         football_position: isFb ? 'Central Midfielder' : undefined,
         cricket_role: !isFb ? 'Batter' : undefined,
         cricket_batting_style: 'Right Hand',
-        cricket_bowling_style: 'Medium'
-      }
+        cricket_bowling_style: 'Medium',
+      },
     ]);
   };
 
   const handleRemovePlayer = (index: number) => {
-    const min = tournament?.settings.squad_min_players || 7;
-    if (players.length <= min) {
-      toast.warning(`Minimum ${min} players required for this tournament roster.`);
+    if (players.length <= minPlayers) {
+      toast.warning(t('reg.squad.errMin', { min: minPlayers }));
       return;
     }
     setPlayers(players.filter((_, i) => i !== index));
+    setSquadErrors({});
   };
 
   const handlePlayerChange = (index: number, field: keyof PlayerRow, value: any) => {
-    const updated = [...players];
+    const updated = players.map(p => ({ ...p }));
     if (field === 'is_captain' && value === true) {
       updated.forEach(p => (p.is_captain = false));
     }
     (updated[index] as any)[field] = value;
     setPlayers(updated);
+    if (squadErrors[index]) {
+      setSquadErrors(previous => {
+        const next = { ...previous };
+        delete next[index];
+        return next;
+      });
+    }
+    fields.clear(`players.${index}`);
   };
 
-  // Step 3 Validation: Duplicates & Empty names
-  const validatePlayers = () => {
-    for (let i = 0; i < players.length; i++) {
-      if (!players[i].full_name.trim()) {
-        toast.warning(`Please enter the name for Player #${i + 1}`);
-        return false;
-      }
-      if (!players[i].jersey_number) {
-        toast.warning(`Please enter a jersey number for ${players[i].full_name}`);
-        return false;
-      }
-    }
+  /**
+   * Check the squad in place: each problem is shown on its own row and the
+   * first one is scrolled to — one toast saying "something is wrong" over a
+   * list of fifteen sent people hunting.
+   */
+  const validatePlayers = (): boolean => {
+    const errors: Record<number, string> = {};
+    const seen = new Map<number, number>();
 
-    const jerseys = players.map(p => Number(p.jersey_number));
-    const unique = new Set(jerseys);
-    if (unique.size !== jerseys.length) {
-      toast.warning('Duplicate jersey numbers detected! Every player must have a unique jersey number.');
+    players.forEach((player, i) => {
+      const n = i + 1;
+      const jersey = Number(player.jersey_number);
+      if (!player.full_name.trim()) {
+        errors[i] = t('reg.squad.errName', { n });
+      } else if (player.jersey_number === '' || player.jersey_number === null || player.jersey_number === undefined) {
+        errors[i] = t('reg.squad.errJersey', { n });
+      } else if (!Number.isInteger(jersey) || jersey < 1 || jersey > 99) {
+        errors[i] = t('reg.squad.errJerseyRange');
+      } else if (seen.has(jersey)) {
+        errors[i] = t('reg.squad.errDuplicate', { number: jersey });
+        const first = seen.get(jersey)!;
+        errors[first] = errors[first] ?? t('reg.squad.errDuplicate', { number: jersey });
+      } else {
+        seen.set(jersey, i);
+      }
+    });
+
+    setSquadErrors(errors);
+
+    if (players.length < minPlayers) {
+      setSquadSummaryError(t('reg.squad.errMin', { min: minPlayers }));
+      return false;
+    }
+    setSquadSummaryError(null);
+
+    const firstBad = Object.keys(errors).map(Number).sort((a, b) => a - b)[0];
+    if (firstBad !== undefined) {
+      document.getElementById(`player-row-${firstBad}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById(`player-name-${firstBad}`)?.focus({ preventScroll: true });
       return false;
     }
     return true;
   };
 
-  // Submit registration + record the ground-fee payment against it
-  const submitRegistration = async (verifiedPayment?: RazorpayVerifiedPayment) => {
+  const payload = useCallback((verified?: RazorpayVerifiedPayment | null) => ({
+    team_name: teamName,
+    short_name: shortName || teamName.substring(0, 4).toUpperCase(),
+    jersey_color: jerseyColor,
+    secondary_jersey_color: secondaryJerseyColor,
+    village,
+    panchayat,
+    district,
+    manager_name: managerName,
+    manager_phone: managerPhone,
+    manager_whatsapp: managerWhatsapp || managerPhone,
+    manager_email: managerEmail,
+    manager_address: managerAddress,
+    players: players.map(p => ({ ...p, jersey_number: Number(p.jersey_number) })),
+    payment_option: selectedPaymentOption,
+    payment_method: paymentMethod,
+    ...(verified && {
+      razorpay_payment_id: verified.razorpay_payment_id,
+      razorpay_order_id: verified.razorpay_order_id,
+      razorpay_signature: verified.razorpay_signature,
+    }),
+  }), [teamName, shortName, jerseyColor, village, panchayat, district, managerName, managerPhone,
+    managerWhatsapp, managerEmail, managerAddress, players, selectedPaymentOption, paymentMethod]);
+
+  /** Send a server rejection to the step and field it is about. */
+  const showRejection = (err: unknown) => {
+    fields.capture(err);
+    const firstKey = err instanceof ApiError ? Object.keys(err.fieldErrors)[0] : undefined;
+    if (firstKey?.startsWith('players')) setCurrentStep(3);
+    else if (firstKey?.startsWith('manager')) setCurrentStep(2);
+    else if (firstKey && ['team_name', 'short_name', 'village', 'panchayat', 'district'].includes(firstKey)) setCurrentStep(1);
+    toast.error(err instanceof Error ? err.message : 'Registration failed');
+  };
+
+  const submitRegistration = async (verified?: PaidWith) => {
     setIsProcessingPayment(true);
     try {
-      const res = await api.post(`/teams/public/registration/${token}`, {
-        team_name: teamName,
-        short_name: shortName || teamName.substring(0, 4).toUpperCase(),
-        jersey_color: jerseyColor,
-        secondary_jersey_color: secondaryJerseyColor,
-        village,
-        panchayat,
-        district,
-        manager_name: managerName,
-        manager_phone: managerPhone,
-        manager_whatsapp: managerWhatsapp || managerPhone,
-        manager_email: managerEmail,
-        manager_address: managerAddress,
-        players: players.map(p => ({
-          ...p,
-          jersey_number: Number(p.jersey_number)
-        })),
-        payment_option: selectedPaymentOption,
-        payment_method: paymentMethod,
-        ...(verifiedPayment && {
-          razorpay_payment_id: verifiedPayment.razorpay_payment_id,
-          razorpay_order_id: verifiedPayment.razorpay_order_id,
-          razorpay_signature: verifiedPayment.razorpay_signature,
-        })
-      });
-
+      const res: RegistrationResult = await api.post(`/teams/public/registration/${token}`, payload(verified));
       confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 } });
-      setCompletedReceipt(res.receipt);
-      setRegisteredPlayers(res.players || []);
+      setCompleted(res);
+      setOutcome({ kind: 'none' });
+      setPaidWith(null);
+      clearDraft();
       setCurrentStep(5);
-    } catch (err: any) {
-      toast.error(err.message || 'Registration failed');
+    } catch (err: unknown) {
+      const apiErr = err instanceof ApiError ? err : null;
+
+      if (!verified) {
+        showRejection(err);
+      } else if (apiErr?.data?.refund_pending) {
+        // The server refused a paid entry and told the organizer to refund.
+        setOutcome({ kind: 'refund', ref: verified.razorpay_payment_id });
+        setPaidWith(null);
+        clearDraft();
+      } else {
+        // Money moved; the registration may or may not have. Keep the payment
+        // so they can finish without paying twice — and if the server named a
+        // field, take them to it first.
+        setOutcome({ kind: 'recover', ref: verified.razorpay_payment_id, amount: verified.amount });
+        if (apiErr && !apiErr.isNetworkError && apiErr.status < 500 && apiErr.status !== 429) {
+          showRejection(err);
+        } else {
+          toast.error(apiErr?.message || 'Registration failed');
+        }
+      }
     } finally {
       setIsProcessingPayment(false);
       setPaymentStage('idle');
     }
   };
 
+  const totalGroundFee = tournament?.ground_fee || 0;
+  const allowHalf = !!paymentOptions?.allowPartial && totalGroundFee > 0;
+  const partialAmount = allowHalf ? (paymentOptions?.partialAmount || totalGroundFee / 2) : totalGroundFee;
+  const isPayAtGround = paymentMethod === 'pay_at_ground';
+  const amountToPayNow = isPayAtGround ? 0 : (selectedPaymentOption === 'full' ? totalGroundFee : partialAmount);
+  const balanceDue = Math.max(0, totalGroundFee - amountToPayNow);
+
   // Paying at the ground skips straight to registration. UPI / card /
-  // netbanking open the checkout the super admin configured for ground fees
-  // (Razorpay or the demo checkout), starting on the method picked here, and
-  // the registration is only submitted once the payment is verified.
+  // netbanking open the checkout — but only once the server has said the entry
+  // would be accepted, so nobody pays for a registration that was always going
+  // to be refused.
   const handlePayAndRegister = async () => {
+    if (isProcessingPayment || !tournament) return;
+    setIsProcessingPayment(true);
+    setPaymentStage('checking');
+
+    try {
+      await api.post(`/teams/public/registration/${token}/validate`, payload());
+    } catch (err) {
+      setIsProcessingPayment(false);
+      setPaymentStage('idle');
+      showRejection(err);
+      return;
+    }
+
     if (!isOnlineMethod(paymentMethod)) {
       await submitRegistration();
       return;
     }
 
-    setIsProcessingPayment(true);
     try {
       const order: RazorpayOrder = await api.post(`/teams/public/registration/${token}/payment-order`, {
         payment_option: selectedPaymentOption,
-        method: paymentMethod
+        method: paymentMethod,
       });
 
       if (!order.configured) {
@@ -268,16 +459,22 @@ export const PublicTeamRegisterPage: React.FC = () => {
         return;
       }
 
+      setPaymentStage('verifying');
       const verified = await openCheckout({
         order,
         method: paymentMethod,
         name: tournament.name,
         description: `Ground fee — ${teamName}`,
-        prefill: { name: managerName, contact: managerPhone, email: managerEmail }
+        prefill: { name: managerName, contact: managerPhone, email: managerEmail },
       });
 
+      const withAmount: PaidWith = { ...verified, amount: amountToPayNow };
+      // Saved before submitting: if this tab dies now, the payment survives.
+      setPaidWith(withAmount);
+      saveDraft({ ...snapshot, paidWith: withAmount });
+
       setPaymentStage('success');
-      await submitRegistration(verified);
+      await submitRegistration(withAmount);
     } catch (err: any) {
       toast.error(err.message || 'Payment could not be completed');
       setPaymentStage('idle');
@@ -285,12 +482,18 @@ export const PublicTeamRegisterPage: React.FC = () => {
     }
   };
 
+  const retryWithSavedPayment = () => {
+    if (!paidWith || isProcessingPayment) return;
+    setPaymentStage('success');
+    submitRegistration(paidWith);
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4" role="status">
         <div className="flex items-center gap-3 text-emerald-400">
           <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-          <span className="font-semibold text-sm">Loading Registration Wizard...</span>
+          <span className="font-semibold text-base">{t('reg.loading')}</span>
         </div>
       </div>
     );
@@ -299,29 +502,29 @@ export const PublicTeamRegisterPage: React.FC = () => {
   if (error || !tournament) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-center">
-        <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mb-4 text-xl">⚠️</div>
-        <h2 className="text-xl font-bold text-white mb-2">Registration Link Inactive</h2>
-        <p className="text-xs text-slate-400 mb-6">{error || 'This tournament registration link has expired or is invalid.'}</p>
-        <Link to="/" className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold">
-          Go to Platform Home
+        <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mb-4 text-xl" aria-hidden="true">⚠️</div>
+        <h1 className="text-xl font-bold text-white mb-2">{t('reg.inactive.title')}</h1>
+        <p className="text-base text-slate-400 mb-6 max-w-sm">{error || t('reg.inactive.body')}</p>
+        <Link to="/" className="px-5 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold">
+          {t('common.home')}
         </Link>
       </div>
     );
   }
 
-  if (closedReason) {
+  if (closedReason && outcome.kind === 'none' && !finished) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-center">
-        <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mb-4 text-xl">🔒</div>
-        <h2 className="text-xl font-bold text-white mb-2">Entries are closed</h2>
-        <p className="text-xs text-slate-400 mb-1">{tournament.name}</p>
-        <p className="text-xs text-slate-400 mb-6 max-w-sm">{closedReason} Contact the organizer if you think this is a mistake.</p>
-        <div className="flex items-center gap-2">
-          <Link to={`/tournaments/${tournament.slug}`} className="px-4 py-2 rounded-xl bg-slate-800 text-white text-xs font-bold">
-            View the tournament
+        <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mb-4 text-xl" aria-hidden="true">🔒</div>
+        <h1 className="text-xl font-bold text-white mb-2">{t('reg.closed.title')}</h1>
+        <p className="text-base text-slate-300 mb-1">{tournament.name}</p>
+        <p className="text-base text-slate-400 mb-6 max-w-sm">{closedReason} {t('reg.closed.contact')}</p>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <Link to={`/tournaments/${tournament.slug}`} className="px-5 py-3 rounded-xl bg-slate-800 text-white text-sm font-bold">
+            {t('reg.viewTournament')}
           </Link>
-          <Link to="/" className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold">
-            Platform home
+          <Link to="/" className="px-5 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold">
+            {t('common.home')}
           </Link>
         </div>
       </div>
@@ -329,618 +532,649 @@ export const PublicTeamRegisterPage: React.FC = () => {
   }
 
   const isFootball = tournament.sport_code === 'football';
-  const totalGroundFee = tournament.ground_fee || 0;
-  // A team pays in full, or half now when the organizer allows it.
-  const allowHalf = !!paymentOptions?.allowPartial && totalGroundFee > 0;
-  const partialAmount = allowHalf ? (paymentOptions?.partialAmount || totalGroundFee / 2) : totalGroundFee;
-  const isPayAtGround = paymentMethod === 'pay_at_ground';
-  const amountToPayNow = isPayAtGround ? 0 : (selectedPaymentOption === 'full' ? totalGroundFee : partialAmount);
-  const balanceDue = Math.max(0, totalGroundFee - amountToPayNow);
   const availablePaymentMethods: PaymentMethod[] = tournament.payment_config?.enabled_methods?.length
     ? tournament.payment_config.enabled_methods
     : ALL_PAYMENT_METHODS;
 
+  const steps = [
+    { num: 1, label: t('reg.step.team') },
+    { num: 2, label: t('reg.step.manager') },
+    { num: 3, label: t('reg.step.squad') },
+    { num: 4, label: t('reg.step.payment') },
+    { num: 5, label: t('reg.step.receipt') },
+  ];
+
+  const receipt = completed?.receipt;
+  const hasRowServerErrors = Object.keys(fields.errors).some(k => /^players\.\d+/.test(k));
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-20">
-      {/* Top Header */}
-      <div className="border-b border-slate-800 bg-slate-900/60 sticky top-0 z-30 backdrop-blur-md">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={tournament.logo} alt={tournament.name} className="w-10 h-10 rounded-xl object-cover border border-slate-700" />
-            <div>
-              <h1 className="text-sm font-bold text-white font-heading truncate max-w-xs sm:max-w-md">{tournament.name}</h1>
-              <span className="text-[11px] text-slate-400">Team Registration Portal</span>
+      {/* Header */}
+      <div className="border-b border-slate-800 bg-slate-900/80 sticky top-0 z-30 backdrop-blur-md">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <img src={tournament.logo} alt="" className="w-11 h-11 rounded-xl object-cover border border-slate-700 shrink-0" />
+            <div className="min-w-0">
+              <h1 className="text-base font-bold text-white font-heading truncate">{tournament.name}</h1>
+              <span className="text-sm text-slate-400">{t('reg.portal')}</span>
             </div>
           </div>
-          <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold font-mono">
-            Fee: ₹{totalGroundFee.toLocaleString()}
+          <span className="shrink-0 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-bold font-mono">
+            {t('reg.fee', { amount: money(totalGroundFee) })}
           </span>
         </div>
 
-        {/* 5-Step Mobile Progress Bar */}
+        {/* Progress */}
         <div className="max-w-3xl mx-auto px-4 pb-3">
-          <div className="grid grid-cols-5 gap-1.5 text-center text-[11px] font-bold">
-            {[
-              { num: 1, label: 'Team' },
-              { num: 2, label: 'Manager' },
-              { num: 3, label: 'Squad' },
-              { num: 4, label: 'Payment' },
-              { num: 5, label: 'Receipt' }
-            ].map(s => (
-              <div key={s.num} className="flex flex-col items-center gap-1">
+          <p className="sr-only" aria-live="polite">{t('reg.stepOf', { step: currentStep, total: steps.length })}</p>
+          <ol className="grid grid-cols-5 gap-1.5 text-center text-xs font-bold">
+            {steps.map(s => (
+              <li key={s.num} className="flex flex-col items-center gap-1" aria-current={currentStep === s.num ? 'step' : undefined}>
                 <div className={`w-full h-1.5 rounded-full transition-all ${
                   currentStep >= s.num ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-slate-800'
                 }`} />
-                <span className={currentStep === s.num ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
-                  {s.num}. {s.label}
+                {/* On a phone only the current step is named — five labels
+                    squeezed into one row were all cut off. */}
+                <span className={`truncate max-w-full ${currentStep === s.num ? 'text-emerald-400' : 'text-slate-500'}`}>
+                  {s.num}
+                  <span className={currentStep === s.num ? '' : 'hidden sm:inline'}>. {s.label}</span>
                 </span>
-              </div>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
       </div>
 
-      {/* Main Registration Wizard Container */}
-      <div className="max-w-3xl mx-auto px-4 pt-6">
-        <div className="glass-panel rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-2xl">
-          {/* STEP 1: TEAM DETAILS */}
+      <div className="max-w-3xl mx-auto px-4 pt-6 space-y-4">
+        {/* Restored draft */}
+        {draft.restored && !finished && outcome.kind === 'none' && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/30">
+            <p className="flex items-start gap-2 text-base text-cyan-200">
+              <Info className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
+              {t('draft.restored')}
+            </p>
+            <div className="flex items-center gap-2 shrink-0">
+              <button type="button" onClick={startOver} className="min-h-11 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-slate-200 inline-flex items-center gap-1.5">
+                <RotateCcw className="w-4 h-4" aria-hidden="true" /> {t('draft.discard')}
+              </button>
+              <button type="button" onClick={draft.dismissRestored} className="min-h-11 px-4 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200">
+                {t('common.close')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Paid, but the registration didn't finish */}
+        {outcome.kind === 'recover' && !finished && (
+          <div role="alert" className="p-5 rounded-2xl bg-amber-500/10 border-2 border-amber-500/50 space-y-3">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-amber-200">
+              <AlertTriangle className="w-5 h-5" aria-hidden="true" /> {t('reg.recover.title')}
+            </h2>
+            <p className="text-base text-amber-100 leading-relaxed">
+              {t('reg.recover.body', { amount: money(outcome.amount), ref: outcome.ref })}
+            </p>
+            <button type="button" onClick={retryWithSavedPayment} disabled={isProcessingPayment} className={primaryButton}>
+              <RotateCcw className="w-5 h-5" aria-hidden="true" />
+              {isProcessingPayment ? t('common.processing') : t('reg.recover.retry')}
+            </button>
+            <p className="text-sm text-amber-100">{t('reg.recover.help', { ref: outcome.ref })}</p>
+          </div>
+        )}
+
+        {/* Paid, and the registration was refused */}
+        {outcome.kind === 'refund' && (
+          <div role="alert" className="p-5 rounded-2xl bg-rose-500/10 border-2 border-rose-500/50 space-y-2">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-rose-200">
+              <AlertTriangle className="w-5 h-5" aria-hidden="true" /> {t('reg.refund.title')}
+            </h2>
+            <p className="text-base text-rose-100 leading-relaxed">{t('reg.refund.body', { ref: outcome.ref })}</p>
+            <p className="font-code text-base text-white bg-slate-900 rounded-lg px-3 py-2 inline-block select-all">{outcome.ref}</p>
+          </div>
+        )}
+
+        <div className="glass-panel rounded-3xl p-5 sm:p-8 border border-slate-800 shadow-2xl">
+          {/* STEP 1: TEAM */}
           {currentStep === 1 && (
-            <div className="space-y-4 animate-in fade-in">
-              <div className="border-b border-slate-800 pb-3 mb-4">
-                <h2 className="text-lg font-bold text-white font-heading">Step 1: Team Details & Identity</h2>
-                <p className="text-xs text-slate-400">Enter your official club or village team name and jersey colors</p>
+            <form
+              className="space-y-5"
+              onSubmit={e => {
+                e.preventDefault();
+                if (teamName.trim()) setCurrentStep(2);
+              }}
+            >
+              <div className="border-b border-slate-800 pb-3">
+                <h2 className="text-xl font-bold text-white font-heading">{t('reg.team.title')}</h2>
+                <p className="text-base text-slate-400">{t('reg.team.subtitle')}</p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Official Team Name *</label>
+                <label htmlFor="team-name" className={labelClass}>
+                  {t('reg.team.name')} <span className="text-rose-400" aria-hidden="true">*</span>
+                </label>
                 <input
+                  id="team-name"
                   type="text"
-                  placeholder="e.g. Malabar Blasters FC or Nilgiri Lions"
+                  autoComplete="organization"
+                  placeholder={t('reg.team.namePlaceholder')}
                   value={teamName}
-                  onChange={(e) => setTeamName(e.target.value)}
+                  onChange={e => { setTeamName(e.target.value); fields.clear('team_name'); }}
                   required
-                  className="w-full px-4 py-2.5 rounded-xl glass-input text-sm font-semibold"
+                  className={`${inputClass} font-semibold`}
+                  {...fields.inputProps('team_name')}
                 />
+                <FieldError id={fieldErrorId('team_name')} message={fields.get('team_name')} />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Short Name / Code</label>
+                  <label htmlFor="team-short" className={labelClass}>{t('reg.team.short')}</label>
                   <input
+                    id="team-short"
                     type="text"
-                    placeholder="e.g. MBFC"
+                    placeholder="MBFC"
                     maxLength={5}
                     value={shortName}
-                    onChange={(e) => setShortName(e.target.value.toUpperCase())}
-                    className="w-full px-4 py-2.5 rounded-xl glass-input text-sm uppercase font-mono"
+                    onChange={e => setShortName(e.target.value.toUpperCase())}
+                    aria-describedby="team-short-hint"
+                    className={`${inputClass} uppercase font-mono`}
                   />
+                  <p id="team-short-hint" className={hintClass}>{t('reg.team.shortHint')}</p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Primary Jersey Color</label>
-                  <div className="flex items-center gap-2">
+                  <label htmlFor="team-jersey" className={labelClass}>{t('reg.team.jersey')}</label>
+                  <div className="flex items-center gap-3">
                     <input
+                      id="team-jersey"
                       type="color"
                       value={jerseyColor}
-                      onChange={(e) => setJerseyColor(e.target.value)}
-                      className="w-10 h-10 rounded-xl bg-transparent border-0 cursor-pointer p-0"
+                      onChange={e => setJerseyColor(e.target.value)}
+                      className="w-12 h-12 rounded-xl bg-transparent border border-slate-700 cursor-pointer p-0.5"
                     />
-                    <span className="text-xs font-mono text-slate-300 uppercase">{jerseyColor}</span>
+                    <span className="text-base font-mono text-slate-300 uppercase">{jerseyColor}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Village / Town</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Nilambur"
-                    value={village}
-                    onChange={(e) => setVillage(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
-                  />
+                  <label htmlFor="team-village" className={labelClass}>{t('reg.team.village')}</label>
+                  <input id="team-village" type="text" placeholder="Nilambur" value={village} onChange={e => setVillage(e.target.value)} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Panchayat / Ward</label>
-                  <input
-                    type="text"
-                    placeholder="Nilambur Grama"
-                    value={panchayat}
-                    onChange={(e) => setPanchayat(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
-                  />
+                  <label htmlFor="team-panchayat" className={labelClass}>{t('reg.team.panchayat')}</label>
+                  <input id="team-panchayat" type="text" placeholder="Nilambur Grama" value={panchayat} onChange={e => setPanchayat(e.target.value)} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">District</label>
-                  <input
-                    type="text"
-                    placeholder="Malappuram"
-                    value={district}
-                    onChange={(e) => setDistrict(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
-                  />
+                  <label htmlFor="team-district" className={labelClass}>{t('reg.team.district')}</label>
+                  <input id="team-district" type="text" autoComplete="address-level2" placeholder="Malappuram" value={district} onChange={e => setDistrict(e.target.value)} className={inputClass} />
                 </div>
               </div>
 
-              <div className="pt-6 flex justify-end">
-                <button
-                  type="button"
-                  disabled={!teamName.trim()}
-                  onClick={() => setCurrentStep(2)}
-                  className="px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/20 disabled:opacity-40 flex items-center gap-2"
-                >
-                  <span>Continue to Manager Details</span>
-                  <ArrowRight className="w-4 h-4" />
+              <div className="pt-4 flex justify-end">
+                <button type="submit" disabled={!teamName.trim()} className={primaryButton}>
+                  <span>{t('reg.team.next')}</span>
+                  <ArrowRight className="w-5 h-5" aria-hidden="true" />
                 </button>
               </div>
-            </div>
+            </form>
           )}
 
-          {/* STEP 2: TEAM MANAGER DETAILS */}
+          {/* STEP 2: MANAGER */}
           {currentStep === 2 && (
-            <div className="space-y-4 animate-in fade-in">
-              <div className="border-b border-slate-800 pb-3 mb-4">
-                <h2 className="text-lg font-bold text-white font-heading">Step 2: Team Manager Contact</h2>
-                <p className="text-xs text-slate-400">Mobile number is the primary contact for fixtures and receipt delivery</p>
+            <form
+              className="space-y-5"
+              onSubmit={e => {
+                e.preventDefault();
+                if (managerName.trim() && managerPhone.trim()) setCurrentStep(3);
+              }}
+            >
+              <div className="border-b border-slate-800 pb-3">
+                <h2 className="text-xl font-bold text-white font-heading">{t('reg.manager.title')}</h2>
+                <p className="text-base text-slate-400">{t('reg.manager.subtitle')}</p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Manager Full Name *</label>
+                <label htmlFor="manager-name" className={labelClass}>
+                  {t('reg.manager.name')} <span className="text-rose-400" aria-hidden="true">*</span>
+                </label>
                 <input
+                  id="manager-name"
                   type="text"
-                  placeholder="e.g. Faisal Mohammed"
+                  autoComplete="name"
+                  placeholder="Faisal Mohammed"
                   value={managerName}
-                  onChange={(e) => setManagerName(e.target.value)}
+                  onChange={e => { setManagerName(e.target.value); fields.clear('manager_name'); }}
                   required
-                  className="w-full px-4 py-2.5 rounded-xl glass-input text-sm font-semibold"
+                  className={`${inputClass} font-semibold`}
+                  {...fields.inputProps('manager_name')}
                 />
+                <FieldError id={fieldErrorId('manager_name')} message={fields.get('manager_name')} />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Mobile Number (Primary) *</label>
+                  <label htmlFor="manager-phone" className={labelClass}>
+                    {t('reg.manager.phone')} <span className="text-rose-400" aria-hidden="true">*</span>
+                  </label>
                   <PhoneInput
+                    id="manager-phone"
+                    autoComplete="tel-national"
                     placeholder="97455 11223"
                     value={managerPhone}
-                    onChange={setManagerPhone}
+                    onChange={value => { setManagerPhone(value); fields.clear('manager_phone'); }}
                     required
-                    className="w-full px-4 py-2.5 rounded-xl glass-input text-sm font-mono"
+                    invalid={!!fields.get('manager_phone')}
+                    describedBy={fields.get('manager_phone') ? fieldErrorId('manager_phone') : undefined}
+                    className="w-full px-4 py-3 rounded-xl glass-input text-base font-mono"
                   />
+                  <FieldError id={fieldErrorId('manager_phone')} message={fields.get('manager_phone')} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">WhatsApp Number</label>
+                  <label htmlFor="manager-whatsapp" className={labelClass}>{t('reg.manager.whatsapp')}</label>
                   <PhoneInput
-                    placeholder="Same as mobile or custom"
+                    id="manager-whatsapp"
+                    placeholder="97455 11223"
                     value={managerWhatsapp}
                     onChange={setManagerWhatsapp}
-                    className="w-full px-4 py-2.5 rounded-xl glass-input text-sm font-mono"
+                    describedBy="manager-whatsapp-hint"
+                    className="w-full px-4 py-3 rounded-xl glass-input text-base font-mono"
                   />
+                  <p id="manager-whatsapp-hint" className={hintClass}>{t('reg.manager.whatsappHint')}</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Email Address</label>
+                  <label htmlFor="manager-email" className={labelClass}>
+                    {t('reg.manager.email')} <span className="text-sm font-normal text-slate-500">({t('common.optional')})</span>
+                  </label>
                   <input
+                    id="manager-email"
                     type="email"
-                    placeholder="manager@domain.com"
+                    autoComplete="email"
+                    placeholder="manager@example.com"
                     value={managerEmail}
-                    onChange={(e) => setManagerEmail(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl glass-input text-sm"
+                    onChange={e => { setManagerEmail(e.target.value); fields.clear('manager_email'); }}
+                    className={inputClass}
+                    {...fields.inputProps('manager_email')}
                   />
+                  <FieldError id={fieldErrorId('manager_email')} message={fields.get('manager_email')} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Address / Club House</label>
-                  <input
-                    type="text"
-                    placeholder="Kacherippadi, Manjeri"
-                    value={managerAddress}
-                    onChange={(e) => setManagerAddress(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl glass-input text-sm"
-                  />
+                  <label htmlFor="manager-address" className={labelClass}>
+                    {t('reg.manager.address')} <span className="text-sm font-normal text-slate-500">({t('common.optional')})</span>
+                  </label>
+                  <input id="manager-address" type="text" autoComplete="street-address" placeholder="Kacherippadi, Manjeri" value={managerAddress} onChange={e => setManagerAddress(e.target.value)} className={inputClass} />
                 </div>
               </div>
 
-              <div className="pt-6 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setCurrentStep(1)}
-                  className="px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 flex items-center gap-1.5"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Back</span>
+              <div className="pt-4 flex items-center justify-between gap-3">
+                <button type="button" onClick={() => setCurrentStep(1)} className={secondaryButton}>
+                  <ArrowLeft className="w-5 h-5" aria-hidden="true" />
+                  <span>{t('common.back')}</span>
                 </button>
-                <button
-                  type="button"
-                  disabled={!managerName.trim() || !managerPhone.trim()}
-                  onClick={() => setCurrentStep(3)}
-                  className="px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/20 disabled:opacity-40 flex items-center gap-2"
-                >
-                  <span>Continue to Player Roster</span>
-                  <ArrowRight className="w-4 h-4" />
+                <button type="submit" disabled={!managerName.trim() || !managerPhone.trim()} className={primaryButton}>
+                  <span>{t('reg.manager.next')}</span>
+                  <ArrowRight className="w-5 h-5" aria-hidden="true" />
                 </button>
               </div>
-            </div>
+            </form>
           )}
 
-          {/* STEP 3: SQUAD & PLAYERS (FOOTBALL POSITIONS / CRICKET ROLES) */}
+          {/* STEP 3: SQUAD */}
           {currentStep === 3 && (
-            <div className="space-y-4 animate-in fade-in">
-              <div className="border-b border-slate-800 pb-3 mb-4 flex items-center justify-between">
+            <div className="space-y-5">
+              <div className="border-b border-slate-800 pb-3 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-bold text-white font-heading">
-                    Step 3: {isFootball ? 'Football Squad Roster' : 'Cricket Squad Roster'}
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Min: {tournament.settings.squad_min_players || 7} | Max: {tournament.settings.squad_max_players || 14} players
+                  <h2 className="text-xl font-bold text-white font-heading">{t('reg.squad.title')}</h2>
+                  <p className="text-base text-slate-400">
+                    {t('reg.squad.limits', { min: minPlayers, max: maxPlayers })} · {t('reg.squad.count', { count: players.length })}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleAddPlayer}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30 text-xs font-bold flex items-center gap-1"
+                  disabled={players.length >= maxPlayers}
+                  className="min-h-11 px-4 rounded-xl bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-40"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Player</span>
+                  <Plus className="w-4 h-4" aria-hidden="true" />
+                  <span>{t('reg.squad.add')}</span>
                 </button>
               </div>
 
-              {/* Player list table */}
-              <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
-                {players.map((player, idx) => (
-                  <div key={idx} className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPhotoUploadIndex(idx)}
-                      className="relative group w-10 h-10 rounded-full overflow-hidden shrink-0 border border-slate-700"
-                      title="Add player photo (optional)"
+              {squadSummaryError && <FieldError message={squadSummaryError} />}
+              {fields.get('players') && !hasRowServerErrors && <FieldError message={fields.get('players')} />}
+
+              <ol className="space-y-3">
+                {players.map((player, idx) => {
+                  const n = idx + 1;
+                  const rowError = squadErrors[idx] ?? fields.get(`players.${idx}`);
+                  const errorId = `player-error-${idx}`;
+                  return (
+                    <li
+                      key={idx}
+                      id={`player-row-${idx}`}
+                      className={`p-3 sm:p-4 rounded-2xl bg-slate-950/80 border ${rowError ? 'border-rose-500/60' : 'border-slate-800'}`}
                     >
-                      {player.photo ? (
-                        <img src={player.photo} alt={player.full_name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className={`w-full h-full flex items-center justify-center text-xs font-bold ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}>
-                          {getInitials(player.full_name || `P${idx + 1}`)}
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <span className="text-sm font-bold text-slate-300">{t('reg.squad.player', { n })}</span>
+                        <div className="flex items-center gap-3">
+                          <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer min-h-11">
+                            <input
+                              type="radio"
+                              name="captain"
+                              checked={player.is_captain}
+                              onChange={() => handlePlayerChange(idx, 'is_captain', true)}
+                            />
+                            <span className={player.is_captain ? 'font-bold text-amber-400' : ''}>{t('reg.squad.captain')}</span>
+                          </label>
+                          {players.length > minPlayers && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePlayer(idx)}
+                              aria-label={t('reg.squad.remove', { n })}
+                              className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-900 transition-colors"
+                            >
+                              <Trash2 className="w-5 h-5" aria-hidden="true" />
+                            </button>
+                          )}
                         </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <Camera className="w-3.5 h-3.5 text-white" />
                       </div>
-                    </button>
 
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                      <span className="w-6 h-6 rounded-full bg-slate-800 text-[11px] font-bold text-slate-400 flex items-center justify-center font-mono">
-                        {idx + 1}
-                      </span>
-                      <input
-                        type="number"
-                        min="1"
-                        max="99"
-                        placeholder="Jersey"
-                        value={player.jersey_number}
-                        onChange={(e) => handlePlayerChange(idx, 'jersey_number', e.target.value)}
-                        className="w-16 px-2 py-1.5 rounded-lg glass-input text-center font-mono font-bold text-xs text-emerald-400"
-                      />
-                    </div>
-
-                    <div className="flex-1 w-full sm:w-auto">
-                      <input
-                        type="text"
-                        placeholder={`Player ${idx + 1} Full Name`}
-                        value={player.full_name}
-                        onChange={(e) => handlePlayerChange(idx, 'full_name', e.target.value)}
-                        className="w-full px-3 py-1.5 rounded-lg glass-input text-xs font-semibold"
-                      />
-                    </div>
-
-                    {/* Position / Role selection */}
-                    <div className="w-full sm:w-44">
-                      {isFootball ? (
-                        <select
-                          value={player.football_position}
-                          onChange={(e) => handlePlayerChange(idx, 'football_position', e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded-lg glass-input text-[11px] bg-slate-900 text-slate-200"
-                        >
-                          <option value="Goalkeeper">Goalkeeper (GK)</option>
-                          <option value="Centre Back">Centre Back (CB)</option>
-                          <option value="Left Back">Left Back (LB)</option>
-                          <option value="Right Back">Right Back (RB)</option>
-                          <option value="Defensive Midfielder">Def. Midfield (DM)</option>
-                          <option value="Central Midfielder">Central Mid (CM)</option>
-                          <option value="Attacking Midfielder">Attacking Mid (AM)</option>
-                          <option value="Left Wing">Left Wing (LW)</option>
-                          <option value="Right Wing">Right Wing (RW)</option>
-                          <option value="Striker">Striker / Forward</option>
-                        </select>
-                      ) : (
-                        <select
-                          value={player.cricket_role}
-                          onChange={(e) => handlePlayerChange(idx, 'cricket_role', e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded-lg glass-input text-[11px] bg-slate-900 text-slate-200"
-                        >
-                          <option value="Batter">Batter</option>
-                          <option value="Bowler">Bowler</option>
-                          <option value="All-rounder">All-rounder</option>
-                          <option value="Wicketkeeper">Wicketkeeper</option>
-                          <option value="Wicketkeeper + Batter">WK + Batter</option>
-                        </select>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                      <label className="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="captain"
-                          checked={player.is_captain}
-                          onChange={() => handlePlayerChange(idx, 'is_captain', true)}
-                          className="text-emerald-500"
-                        />
-                        <span className={player.is_captain ? 'font-bold text-amber-400' : ''}>Captain</span>
-                      </label>
-
-                      {players.length > (tournament.settings.squad_min_players || 7) && (
+                      <div className="grid grid-cols-[auto_5.5rem_1fr] sm:grid-cols-[auto_5.5rem_1fr_12rem] gap-3 items-end">
                         <button
                           type="button"
-                          onClick={() => handleRemovePlayer(idx)}
-                          className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-900 transition-colors"
+                          onClick={() => setPhotoUploadIndex(idx)}
+                          aria-label={t('reg.squad.photo', { n })}
+                          className="relative group w-12 h-12 rounded-full overflow-hidden shrink-0 border border-slate-700"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          {player.photo ? (
+                            <img src={player.photo} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className={`w-full h-full flex items-center justify-center text-sm font-bold ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}>
+                              {getInitials(player.full_name || `P${n}`)}
+                            </span>
+                          )}
+                          <span className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity flex items-center justify-center">
+                            <Camera className="w-4 h-4 text-white" aria-hidden="true" />
+                          </span>
                         </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
 
-              <div className="pt-6 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setCurrentStep(2)}
-                  className="px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 flex items-center gap-1.5"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Back</span>
+                        <div>
+                          <label htmlFor={`player-jersey-${idx}`} className="block text-xs font-semibold text-slate-400 mb-1">{t('reg.squad.jersey')}</label>
+                          <input
+                            id={`player-jersey-${idx}`}
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            max={99}
+                            value={player.jersey_number}
+                            onChange={e => handlePlayerChange(idx, 'jersey_number', e.target.value)}
+                            aria-invalid={rowError ? true : undefined}
+                            aria-describedby={rowError ? errorId : undefined}
+                            className="w-full px-2 py-2.5 rounded-lg glass-input text-center font-mono font-bold text-base"
+                          />
+                        </div>
+
+                        <div className="min-w-0">
+                          <label htmlFor={`player-name-${idx}`} className="block text-xs font-semibold text-slate-400 mb-1">{t('reg.squad.name')}</label>
+                          <input
+                            id={`player-name-${idx}`}
+                            type="text"
+                            autoComplete="off"
+                            value={player.full_name}
+                            onChange={e => handlePlayerChange(idx, 'full_name', e.target.value)}
+                            aria-invalid={rowError ? true : undefined}
+                            aria-describedby={rowError ? errorId : undefined}
+                            className="w-full px-3 py-2.5 rounded-lg glass-input text-base font-semibold"
+                          />
+                        </div>
+
+                        <div className="col-span-3 sm:col-span-1">
+                          <label htmlFor={`player-role-${idx}`} className="block text-xs font-semibold text-slate-400 mb-1">
+                            {isFootball ? t('reg.squad.position') : t('reg.squad.role')}
+                          </label>
+                          <select
+                            id={`player-role-${idx}`}
+                            value={isFootball ? player.football_position : player.cricket_role}
+                            onChange={e => handlePlayerChange(idx, isFootball ? 'football_position' : 'cricket_role', e.target.value)}
+                            className="w-full px-3 py-2.5 rounded-lg glass-input text-base"
+                          >
+                            {(isFootball ? FOOTBALL_POSITIONS : CRICKET_ROLES).map(option => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <FieldError id={errorId} message={rowError} />
+                    </li>
+                  );
+                })}
+              </ol>
+
+              <div className="pt-4 flex items-center justify-between gap-3">
+                <button type="button" onClick={() => setCurrentStep(2)} className={secondaryButton}>
+                  <ArrowLeft className="w-5 h-5" aria-hidden="true" />
+                  <span>{t('common.back')}</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (validatePlayers()) setCurrentStep(4);
-                  }}
-                  className="px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/20 flex items-center gap-2"
+                  onClick={() => { if (validatePlayers()) setCurrentStep(4); }}
+                  className={primaryButton}
                 >
-                  <span>Continue to Payment Selection</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <span>{t('reg.squad.next')}</span>
+                  <ArrowRight className="w-5 h-5" aria-hidden="true" />
                 </button>
               </div>
             </div>
           )}
 
-          {/* STEP 4: GROUND FEE & PAYMENT SUMMARY (FULL vs 50% PARTIAL) */}
+          {/* STEP 4: PAYMENT */}
           {currentStep === 4 && (
-            <div className="space-y-5 animate-in fade-in">
-              <div className="border-b border-slate-800 pb-3 mb-4">
-                <h2 className="text-lg font-bold text-white font-heading">Step 4: Ground Fee & Payment</h2>
-                <p className="text-xs text-slate-400">{allowHalf ? 'Pay the full ground fee, or half now and half later' : 'Pay the ground fee'}</p>
+            <div className="space-y-6">
+              <div className="border-b border-slate-800 pb-3">
+                <h2 className="text-xl font-bold text-white font-heading">{t('reg.pay.title')}</h2>
+                <p className="text-base text-slate-400">{allowHalf ? t('reg.pay.subtitleHalf') : t('reg.pay.subtitle')}</p>
               </div>
 
-              {/* Summary Card */}
-              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-2">
-                <div className="flex justify-between text-slate-400">
-                  <span>Tournament</span>
-                  <span className="font-semibold text-white">{tournament.name}</span>
+              <dl className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-base space-y-2">
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-400">{t('reg.pay.tournament')}</dt>
+                  <dd className="font-semibold text-white text-right">{tournament.name}</dd>
                 </div>
-                <div className="flex justify-between text-slate-400">
-                  <span>Registered Team</span>
-                  <span className="font-bold text-emerald-400">{teamName} ({players.length} Players)</span>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-400">{t('reg.pay.team')}</dt>
+                  <dd className="font-bold text-emerald-400 text-right">{teamName} · {t('reg.squad.count', { count: players.length })}</dd>
                 </div>
-                <div className="flex justify-between text-slate-400">
-                  <span>Total Ground Fee</span>
-                  <span className="font-mono font-bold text-white text-sm">₹{totalGroundFee.toLocaleString()}</span>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-400">{t('reg.pay.totalFee')}</dt>
+                  <dd className="font-mono font-bold text-white">{money(totalGroundFee)}</dd>
                 </div>
-              </div>
+              </dl>
 
-              {/* Payment Methods */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
-                  Select Payment Method
-                </label>
+              <fieldset>
+                <legend className="text-base font-bold text-slate-200 mb-3">{t('reg.pay.method')}</legend>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {availablePaymentMethods.map(id => {
-                    const info = PAYMENT_METHOD_INFO[id];
+                    const info = PAYMENT_METHOD_META[id];
                     const Icon = info.icon;
+                    const selected = paymentMethod === id;
                     return (
                       <button
                         key={id}
                         type="button"
+                        aria-pressed={selected}
                         onClick={() => setPaymentMethod(id)}
-                        className={`p-3 rounded-2xl border text-center text-xs font-semibold flex flex-col items-center gap-1.5 transition-all ${
-                          paymentMethod === id
-                            ? 'bg-slate-800 border-emerald-500 text-emerald-400'
-                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                        className={`min-h-24 p-3 rounded-2xl border-2 text-center text-sm font-semibold flex flex-col items-center justify-center gap-1.5 transition-all ${
+                          selected
+                            ? 'bg-slate-800 border-emerald-500 text-emerald-300'
+                            : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
                         }`}
                       >
-                        <Icon className="w-5 h-5" />
+                        <Icon className="w-6 h-6" aria-hidden="true" />
                         <span>{info.label}</span>
-                        <span className="text-[10px] font-normal text-slate-500">{info.blurb}</span>
+                        <span className="text-xs font-normal text-slate-400">{info.blurb}</span>
                       </button>
                     );
                   })}
                 </div>
-              </div>
+              </fieldset>
 
-              {/* Payment Options Selection — not applicable when settling at the ground */}
               {!isPayAtGround && (
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
-                    Select Ground Fee Option
-                  </label>
+                <fieldset>
+                  <legend className="text-base font-bold text-slate-200 mb-3">{t('reg.pay.option')}</legend>
                   <div className="grid sm:grid-cols-2 gap-3">
-                    {/* Full Payment Option */}
                     <button
                       type="button"
+                      aria-pressed={selectedPaymentOption === 'full'}
                       onClick={() => setSelectedPaymentOption('full')}
-                      className={`p-4 rounded-2xl border text-left transition-all ${
+                      className={`p-4 rounded-2xl border-2 text-left transition-all ${
                         selectedPaymentOption === 'full'
-                          ? 'bg-emerald-500/15 border-emerald-500 text-white shadow-md shadow-emerald-500/10'
-                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                          ? 'bg-emerald-500/15 border-emerald-500 text-white'
+                          : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-bold text-sm">Full Payment</span>
-                        <span className="font-mono text-base font-black text-emerald-400">₹{totalGroundFee.toLocaleString()}</span>
-                      </div>
-                      <p className="text-[11px] text-slate-400">Pay complete ground fee in advance. Instant fully-paid confirmation.</p>
+                      <span className="flex items-center justify-between mb-1.5">
+                        <span className="font-bold text-base">{t('reg.pay.full')}</span>
+                        <span className="font-mono text-lg font-black text-emerald-400">{money(totalGroundFee)}</span>
+                      </span>
+                      <span className="block text-sm text-slate-400">{t('reg.pay.fullHint')}</span>
                     </button>
 
-                    {/* Half now, half later — only when the organizer allows it */}
                     {allowHalf && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPaymentOption('partial')}
-                      className={`p-4 rounded-2xl border text-left transition-all ${
-                        selectedPaymentOption === 'partial'
-                          ? 'bg-amber-500/15 border-amber-500 text-white shadow-md shadow-amber-500/10'
-                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-bold text-sm">Half Payment</span>
-                        <span className="font-mono text-base font-black text-amber-400">₹{partialAmount.toLocaleString()}</span>
-                      </div>
-                      <p className="text-[11px] text-slate-400">Pay ₹{partialAmount.toLocaleString()} now. Pay the other ₹{(totalGroundFee - partialAmount).toLocaleString()} later, online or at the ground.</p>
-                    </button>
+                      <button
+                        type="button"
+                        aria-pressed={selectedPaymentOption === 'partial'}
+                        onClick={() => setSelectedPaymentOption('partial')}
+                        className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                          selectedPaymentOption === 'partial'
+                            ? 'bg-amber-500/15 border-amber-500 text-white'
+                            : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                        }`}
+                      >
+                        <span className="flex items-center justify-between mb-1.5">
+                          <span className="font-bold text-base">{t('reg.pay.half')}</span>
+                          <span className="font-mono text-lg font-black text-amber-400">{money(partialAmount)}</span>
+                        </span>
+                        <span className="block text-sm text-slate-400">
+                          {t('reg.pay.halfHint', { now: money(partialAmount), later: money(totalGroundFee - partialAmount) })}
+                        </span>
+                      </button>
                     )}
                   </div>
-                </div>
+                </fieldset>
               )}
 
               {isPayAtGround && (
-                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
-                  You'll pay the full ₹{totalGroundFee.toLocaleString()} ground fee in cash or UPI when your team arrives at the venue. Nothing is charged now.
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-base">
+                  {t('reg.pay.atGround', { amount: money(totalGroundFee) })}
                 </div>
               )}
 
-              {/* Pay Now Callout */}
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-emerald-500/30 flex items-center justify-between">
+              <div className="p-4 rounded-2xl bg-slate-900 border-2 border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <div className="text-xs text-slate-400">Amount Due Now</div>
-                  <div className="text-2xl font-black text-emerald-400 font-mono">₹{amountToPayNow.toLocaleString()}</div>
-                  {balanceDue > 0 && <div className="text-[11px] text-amber-400">Remaining Balance: ₹{balanceDue.toLocaleString()}</div>}
+                  <div className="text-sm text-slate-400">{t('reg.pay.dueNow')}</div>
+                  <div className="text-3xl font-black text-emerald-400 font-mono">{money(amountToPayNow)}</div>
+                  {balanceDue > 0 && <div className="text-sm text-amber-400">{t('reg.pay.balance', { amount: money(balanceDue) })}</div>}
                 </div>
 
                 <button
                   type="button"
-                  disabled={isProcessingPayment || paymentStage !== 'idle'}
+                  disabled={isProcessingPayment || paymentStage !== 'idle' || outcome.kind === 'recover'}
                   onClick={handlePayAndRegister}
-                  className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
+                  className="min-h-14 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-base shadow-xl shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
                 >
-                  <ShieldCheck className="w-4 h-4" />
+                  <ShieldCheck className="w-5 h-5" aria-hidden="true" />
                   <span>
-                    {isProcessingPayment || paymentStage !== 'idle'
-                      ? 'Processing...'
-                      : isPayAtGround
-                        ? 'Register — Pay at Ground'
-                        : `Pay ₹${amountToPayNow.toLocaleString()} & Register`}
+                    {paymentStage === 'checking'
+                      ? t('reg.pay.checking')
+                      : isProcessingPayment || paymentStage !== 'idle'
+                        ? t('common.processing')
+                        : isPayAtGround
+                          ? t('reg.pay.registerAtGround')
+                          : t('reg.pay.payAndRegister', { amount: money(amountToPayNow) })}
                   </span>
                 </button>
               </div>
 
               <div className="flex justify-start">
-                <button
-                  type="button"
-                  onClick={() => setCurrentStep(3)}
-                  className="px-4 py-2 rounded-2xl bg-slate-800 text-xs font-semibold text-slate-300 flex items-center gap-1.5"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Back to Squad</span>
+                <button type="button" onClick={() => setCurrentStep(3)} className={secondaryButton}>
+                  <ArrowLeft className="w-5 h-5" aria-hidden="true" />
+                  <span>{t('reg.pay.backToSquad')}</span>
                 </button>
               </div>
             </div>
           )}
 
-          {/* STEP 5: REGISTRATION CONFIRMATION & RECEIPT */}
-          {currentStep === 5 && completedReceipt && (
-            <div className="space-y-6 text-center py-4 animate-in zoom-in-95">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center mx-auto shadow-xl shadow-emerald-500/20">
-                <CheckCircle2 className="w-8 h-8" />
+          {/* STEP 5: RECEIPT */}
+          {currentStep === 5 && receipt && (
+            <div className="space-y-6 text-center py-2">
+              <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-8 h-8" aria-hidden="true" />
               </div>
 
               <div>
-                <h2 className="text-2xl font-black text-white font-heading">Registration Confirmed!</h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Team <strong className="text-emerald-400">{teamName}</strong> has been successfully registered for {tournament.name}.
+                <h2 className="text-2xl font-black text-white font-heading">{t('reg.done.title')}</h2>
+                <p className="text-base text-slate-300 mt-1">
+                  {completed?.replayed
+                    ? t('reg.done.alreadyBody', { team: teamName })
+                    : t('reg.done.body', { team: teamName, tournament: tournament.name })}
                 </p>
               </div>
 
-              {/* Receipt Summary Card */}
-              <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 max-w-md mx-auto text-left text-xs space-y-2.5">
-                <div className="flex justify-between border-b border-slate-800 pb-2">
-                  <span className="text-slate-400">Official Receipt No:</span>
-                  <span className="font-mono font-bold text-white">{completedReceipt.receipt_number}</span>
+              <dl className="p-5 rounded-2xl bg-slate-950 border border-slate-800 max-w-md mx-auto text-left text-base space-y-2.5">
+                <div className="flex justify-between gap-3 border-b border-slate-800 pb-2">
+                  <dt className="text-slate-400">{t('reg.done.receiptNo')}</dt>
+                  <dd className="font-code font-bold text-white">{receipt.receipt_number}</dd>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Total Ground Fee:</span>
-                  <span className="font-mono text-slate-200">₹{completedReceipt.receipt_data.total_fee.toLocaleString()}</span>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-400">{t('reg.done.totalFee')}</dt>
+                  <dd className="font-mono text-slate-200">{money(receipt.receipt_data.total_fee)}</dd>
                 </div>
-                <div className="flex justify-between text-emerald-400 font-bold">
-                  <span>Amount Paid:</span>
-                  <span className="font-mono">₹{completedReceipt.receipt_data.paid_amount.toLocaleString()}</span>
+                <div className="flex justify-between gap-3 text-emerald-400 font-bold">
+                  <dt>{t('reg.done.paid')}</dt>
+                  <dd className="font-mono">{money(receipt.receipt_data.paid_amount)}</dd>
                 </div>
-                <div className="flex justify-between text-amber-400 font-bold border-t border-slate-800 pt-2">
-                  <span>Remaining Balance:</span>
-                  <span className="font-mono">₹{completedReceipt.receipt_data.remaining_balance.toLocaleString()}</span>
+                <div className="flex justify-between gap-3 text-amber-400 font-bold border-t border-slate-800 pt-2">
+                  <dt>{t('reg.done.balance')}</dt>
+                  <dd className="font-mono">{money(receipt.receipt_data.remaining_balance)}</dd>
                 </div>
-              </div>
+              </dl>
 
-              {/* Player Codes — the manager passes each one on */}
-              {registeredPlayers.length > 0 && (
-                <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 max-w-md mx-auto text-left text-xs space-y-3">
+              {completed && completed.players.length > 0 && (
+                <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 max-w-md mx-auto text-left space-y-3">
                   <div>
-                    <div className="font-bold text-white">Player Codes</div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Share each code with the player. They can enter it on Player Stats to see their own stats, with no login.
-                    </p>
+                    <h3 className="text-base font-bold text-white">{t('reg.done.codes')}</h3>
+                    <p className="text-sm text-slate-400 mt-0.5">{t('reg.done.codesHint')}</p>
                   </div>
-                  <div className="divide-y divide-slate-800/70">
-                    {registeredPlayers.map(p => (
-                      <div key={p.id} className="py-2 flex items-center justify-between gap-3">
+                  <ul className="divide-y divide-slate-800/70">
+                    {completed.players.map(p => (
+                      <li key={p.id} className="py-2 flex items-center justify-between gap-3 text-base">
                         <span className="text-slate-200 truncate">
                           <span className="font-mono text-slate-500 mr-2">#{p.jersey_number}</span>
                           {p.full_name}
                         </span>
                         <PlayerCodeBadge code={p.player_code} size="sm" />
-                      </div>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </div>
               )}
 
-              {/* Action Buttons */}
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowReceiptModal(true)}
-                  className="px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-600/20"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>View & Download Official PDF Receipt</span>
+                <button type="button" onClick={() => setShowReceiptModal(true)} className={primaryButton}>
+                  <Download className="w-5 h-5" aria-hidden="true" />
+                  <span>{t('reg.done.download')}</span>
                 </button>
 
                 {isManagerAccount && (
-                  <Link
-                    to="/team/dashboard"
-                    className="px-6 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors"
-                  >
-                    Go to My Team
-                  </Link>
+                  <Link to="/team/dashboard" className={secondaryButton}>{t('reg.done.myTeam')}</Link>
                 )}
 
-                <Link
-                  to={`/tournaments/${tournament.slug}`}
-                  className="px-6 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors"
-                >
-                  View Tournament Hub ↗
+                <Link to={`/tournaments/${tournament.slug}`} className={secondaryButton}>
+                  {t('reg.done.hub')} ↗
                 </Link>
               </div>
             </div>
@@ -948,58 +1182,52 @@ export const PublicTeamRegisterPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Player Photo Upload — optional, defaults to an initials avatar */}
       {photoUploadIndex !== null && (
         <ImageUploadModal
           isOpen={photoUploadIndex !== null}
           onClose={() => setPhotoUploadIndex(null)}
-          onSuccess={(url) => {
+          onSuccess={url => {
             handlePlayerChange(photoUploadIndex, 'photo', url);
             setPhotoUploadIndex(null);
           }}
-          title="Upload Player Photo"
-          subtitle="Optional — leave unset to use a default avatar"
+          title={t('reg.photo.title')}
+          subtitle={t('reg.photo.subtitle')}
           currentImage={players[photoUploadIndex]?.photo}
           folder="players"
           aspectRatio="square"
         />
       )}
 
-      {/* Official Receipt Modal */}
-      {showReceiptModal && (
-        <ReceiptModal
-          receipt={completedReceipt}
-          onClose={() => setShowReceiptModal(false)}
-        />
+      {showReceiptModal && receipt && (
+        <ReceiptModal receipt={receipt} onClose={() => setShowReceiptModal(false)} />
       )}
 
-      {/* Shown after checkout succeeds while the registration is submitted. */}
-      {paymentStage !== 'idle' && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-4 animate-in fade-in">
+      {/* While the checkout runs, and while the paid registration is submitted. */}
+      {(paymentStage === 'verifying' || paymentStage === 'success') && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-4" role="alertdialog" aria-live="assertive">
           <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-8 text-center space-y-5">
             {paymentStage === 'success' ? (
-              <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center mx-auto animate-in zoom-in-95">
-                <CheckCircle2 className="w-8 h-8" />
+              <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-8 h-8" aria-hidden="true" />
               </div>
             ) : (
               <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center mx-auto relative">
                 {(() => {
-                  const Icon = PAYMENT_METHOD_INFO[paymentMethod].icon;
-                  return <Icon className="w-7 h-7 text-emerald-400" />;
+                  const Icon = PAYMENT_METHOD_META[paymentMethod].icon;
+                  return <Icon className="w-7 h-7 text-emerald-400" aria-hidden="true" />;
                 })()}
                 <div className="absolute inset-0 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
               </div>
             )}
 
             <div>
-              <h3 className="text-sm font-bold text-white font-heading">
-                {paymentStage === 'verifying' && 'Processing Payment...'}
-                {paymentStage === 'success' && 'Payment Confirmed!'}
+              <h3 className="text-lg font-bold text-white font-heading">
+                {paymentStage === 'verifying' ? t('reg.pay.verifying') : t('reg.pay.confirmed')}
               </h3>
-              <p className="text-xs text-slate-400 mt-1.5">
+              <p className="text-base text-slate-300 mt-1.5">
                 {paymentStage === 'success'
-                  ? `₹${amountToPayNow.toLocaleString()} received. Finishing your registration...`
-                  : `Completing your ₹${amountToPayNow.toLocaleString()} payment via ${PAYMENT_METHOD_INFO[paymentMethod].label}.`}
+                  ? t('reg.pay.confirmedBody', { amount: money(paidWith?.amount ?? amountToPayNow) })
+                  : t('reg.pay.verifyingBody', { amount: money(amountToPayNow), method: PAYMENT_METHOD_META[paymentMethod].label })}
               </p>
             </div>
           </div>

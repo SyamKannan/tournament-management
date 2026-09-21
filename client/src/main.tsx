@@ -2,6 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { applyStoredPreferences } from './i18n'
+
+// Before the first render, so nothing paints in the wrong theme or language.
+applyStoredPreferences()
 
 // Logos and photos are organizer-supplied URLs that can go dead. Hide a failed
 // image instead of showing the browser's broken-image glyph; every avatar and

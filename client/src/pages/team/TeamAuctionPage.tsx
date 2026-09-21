@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import { useRoomSocket } from '../../lib/useRoomSocket';
+import { useSingleFlight } from '../../lib/useSingleFlight';
 import { useToast } from '../../components/ui/Toast';
 import { LoadingState, ErrorState, EmptyState } from '../../components/ui/Feedback';
 import {
@@ -46,7 +47,9 @@ export const TeamAuctionPage: React.FC = () => {
   const [data, setData] = useState<MyTeamView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [bidding, setBidding] = useState(false);
+  // Ref-backed, so a double tap can't send the same bid twice before re-render.
+  const bidFlight = useSingleFlight();
+  const bidding = bidFlight.busy;
 
   // Remembers whether we held the top bid, so being outbid can be announced
   // once rather than on every refresh.
@@ -81,17 +84,17 @@ export const TeamAuctionPage: React.FC = () => {
   }, load);
 
   const placeBid = async () => {
-    if (!data || bidding) return;
-    setBidding(true);
-    try {
-      await api.post(`/auctions/${id}/place-bid`, { amount: data.bidding.next_bid });
-      toast.success(`Bid placed at ${money(data.bidding.next_bid)}`);
-      await load();
-    } catch (err: any) {
-      toast.error(err?.message || 'Bid failed');
-    } finally {
-      setBidding(false);
-    }
+    if (!data) return;
+    const amount = data.bidding.next_bid;
+    await bidFlight.run(async () => {
+      try {
+        await api.post(`/auctions/${id}/place-bid`, { amount });
+        toast.success(`Bid placed at ${money(amount)}`);
+        await load();
+      } catch (err: any) {
+        toast.error(err?.message || 'Bid failed');
+      }
+    });
   };
 
   if (loading) return <LoadingState label="Joining the auction room…" />;
@@ -109,7 +112,7 @@ export const TeamAuctionPage: React.FC = () => {
           <ArrowLeft className="w-4 h-4" aria-hidden="true" />
           My auctions
         </Link>
-        <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide ${
+        <span className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wide ${
           auction.status === 'live'
             ? 'bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/30 animate-live-blink'
             : 'bg-slate-800 text-slate-400 ring-1 ring-slate-700'
@@ -169,7 +172,7 @@ export const TeamAuctionPage: React.FC = () => {
                   {player.age ? ` · ${player.age} yrs` : ''}
                   {player.village ? ` · ${player.village}` : ''}
                 </p>
-                <span className="inline-block mt-1.5 px-2 py-0.5 rounded bg-slate-800 text-[11px] font-bold text-slate-300">
+                <span className="inline-block mt-1.5 px-2 py-0.5 rounded bg-slate-800 text-xs font-bold text-slate-300">
                   {player.category} · base {money(player.base_price)}
                 </span>
               </div>
@@ -307,7 +310,7 @@ export const TeamAuctionsListPage: React.FC = () => {
                     {team?.name}
                   </p>
                 </div>
-                <span className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase ${
+                <span className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold uppercase ${
                   auction.status === 'live'
                     ? 'bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/30'
                     : 'bg-slate-800 text-slate-400 ring-1 ring-slate-700'

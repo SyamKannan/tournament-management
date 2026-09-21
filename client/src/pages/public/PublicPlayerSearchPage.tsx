@@ -100,7 +100,7 @@ export const PublicPlayerSearchPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#070b1d] text-slate-100 px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+    <div className="min-h-screen bg-slate-950 text-slate-100 px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
       <div className="max-w-3xl mx-auto space-y-6">
         <div className="text-center space-y-2">
           <h1 className="text-3xl sm:text-4xl font-black font-heading text-white tracking-tight">Find Your Player Stats</h1>
@@ -170,7 +170,7 @@ export const PublicPlayerSearchPage: React.FC = () => {
                 <div className="text-xs text-slate-400 truncate">
                   {[r.role, r.team_name].filter(Boolean).join(' • ')}
                 </div>
-                <div className="text-[11px] text-slate-500 truncate">
+                <div className="text-xs text-slate-500 truncate">
                   {[r.tournament.name, r.organization_name].filter(Boolean).join(' • ')}
                 </div>
               </div>
@@ -226,6 +226,6 @@ export const PublicPlayerSearchPage: React.FC = () => {
 const Headline: React.FC<{ label: string; value: number | undefined }> = ({ label, value }) => (
   <div>
     <div className="text-lg font-black font-mono text-white">{value ?? 0}</div>
-    <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
+    <div className="text-xs uppercase tracking-wider text-slate-500">{label}</div>
   </div>
 );

@@ -205,7 +205,7 @@ export const OrgSponsorsAdsPage: React.FC = () => {
 
         <div className="flex items-center gap-2">
           {adLimit !== null && (
-            <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-mono font-bold text-slate-300">
+            <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono font-bold text-slate-300">
               {adsInOrg}/{adLimit} ads
             </span>
           )}
@@ -251,7 +251,7 @@ export const OrgSponsorsAdsPage: React.FC = () => {
 
             {match && (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-800">
-                <p className="text-[11px] text-slate-400">
+                <p className="text-xs text-slate-400">
                   {ads.length} ad{ads.length === 1 ? '' : 's'} for this match. Show them from the scorer console's Big Screen tab.
                 </p>
                 <Link
@@ -279,7 +279,7 @@ export const OrgSponsorsAdsPage: React.FC = () => {
                 <div key={ad.id} className="rounded-2xl bg-slate-900/90 border border-slate-800 overflow-hidden flex flex-col justify-between shadow-sm group hover:border-slate-700 transition-all">
                   <div className="relative h-44 bg-slate-950 overflow-hidden">
                     <img src={ad.media_url} alt={ad.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                    <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md text-[11px] font-mono text-cyan-400 font-bold border border-slate-700/60 flex items-center gap-1">
+                    <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md text-xs font-mono text-cyan-400 font-bold border border-slate-700/60 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {ad.duration_seconds === 0 ? 'Hold' : `${ad.duration_seconds}s`}
                     </div>
@@ -289,14 +289,14 @@ export const OrgSponsorsAdsPage: React.FC = () => {
                     <div>
                       <h4 className="font-bold text-white text-sm font-heading">{ad.business_name}</h4>
                       <div className="text-xs font-semibold text-cyan-400 mt-0.5">{ad.title}</div>
-                      <p className="text-[11px] text-slate-400 mt-2 leading-relaxed line-clamp-2">{ad.description}</p>
+                      <p className="text-xs text-slate-400 mt-2 leading-relaxed line-clamp-2">{ad.description}</p>
                     </div>
 
                     <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
                       <button
                         onClick={() => { setCopying(ad); setCopyTargets([]); }}
                         disabled={otherMatches.length === 0}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-bold flex items-center gap-1 transition-colors disabled:opacity-40"
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold flex items-center gap-1 transition-colors disabled:opacity-40"
                         title="Copy this ad to other matches"
                       >
                         <Copy className="w-3 h-3" />
@@ -327,10 +327,10 @@ export const OrgSponsorsAdsPage: React.FC = () => {
               <div>
                 <img src={sp.logo} alt={sp.name} className="w-16 h-16 rounded-2xl object-cover mx-auto mb-3 border border-slate-700 shadow-md" />
                 <div className="font-bold text-white text-xs font-heading">{sp.name}</div>
-                <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[11px] font-bold uppercase mt-1 inline-block border border-amber-500/20">
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-xs font-bold uppercase mt-1 inline-block border border-amber-500/20">
                   {sp.tier} Partner
                 </span>
-                <p className="text-[11px] text-slate-400 mt-2 leading-tight">{sp.description}</p>
+                <p className="text-xs text-slate-400 mt-2 leading-tight">{sp.description}</p>
               </div>
 
               {sp.website && (
@@ -338,7 +338,7 @@ export const OrgSponsorsAdsPage: React.FC = () => {
                   href={sp.website}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-4 text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold flex items-center justify-center gap-1"
+                  className="mt-4 text-xs text-cyan-400 hover:text-cyan-300 font-semibold flex items-center justify-center gap-1"
                 >
                   <span>Visit Website</span>
                   <ExternalLink className="w-3 h-3" />
@@ -362,7 +362,7 @@ export const OrgSponsorsAdsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCopyTargets(copyTargets.length === otherMatches.length ? [] : otherMatches.map(m => m.id))}
-                className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300"
+                className="text-xs font-bold text-cyan-400 hover:text-cyan-300"
               >
                 {copyTargets.length === otherMatches.length ? 'Clear all' : 'Select all'}
               </button>
@@ -415,26 +415,26 @@ export const OrgSponsorsAdsPage: React.FC = () => {
 
             {/* Sample Quick-Fills */}
             <div className="mb-4 p-3 rounded-2xl bg-slate-950 border border-slate-800">
-              <span className="text-[11px] font-bold uppercase text-slate-400 block mb-1.5">1-Click Sample Pre-sets:</span>
+              <span className="text-xs font-bold uppercase text-slate-400 block mb-1.5">1-Click Sample Pre-sets:</span>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => handleSampleFill('retail')}
-                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-[11px] font-bold text-amber-400 border border-slate-800 transition-colors"
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs font-bold text-amber-400 border border-slate-800 transition-colors"
                 >
                   💎 Gold & Jewellery
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSampleFill('fitness')}
-                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-[11px] font-bold text-cyan-400 border border-slate-800 transition-colors"
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs font-bold text-cyan-400 border border-slate-800 transition-colors"
                 >
                   🏋️ Gym & Fitness
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSampleFill('tech')}
-                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-[11px] font-bold text-emerald-400 border border-slate-800 transition-colors"
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs font-bold text-emerald-400 border border-slate-800 transition-colors"
                 >
                   🛒 Hypermarket Mall
                 </button>
@@ -444,8 +444,8 @@ export const OrgSponsorsAdsPage: React.FC = () => {
             <form onSubmit={handleCreateAd} className="space-y-3 text-xs">
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Business / Brand Name *</label>
-                  <input
+                  <label htmlFor="orgsponsorsads-business-brand-name" className="block text-slate-300 font-semibold mb-1">Business / Brand Name *</label>
+                  <input id="orgsponsorsads-business-brand-name"
                     type="text"
                     placeholder="e.g. Malabar Gold & Diamonds"
                     value={businessName}
@@ -456,8 +456,8 @@ export const OrgSponsorsAdsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Ad Headline / Tagline *</label>
-                  <input
+                  <label htmlFor="orgsponsorsads-ad-headline-tagline" className="block text-slate-300 font-semibold mb-1">Ad Headline / Tagline *</label>
+                  <input id="orgsponsorsads-ad-headline-tagline"
                     type="text"
                     placeholder="e.g. Special Festive Gold Offer"
                     value={adTitle}
@@ -469,8 +469,8 @@ export const OrgSponsorsAdsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Ad Image URL *</label>
-                <input
+                <label htmlFor="orgsponsorsads-ad-image-url" className="block text-slate-300 font-semibold mb-1">Ad Image URL *</label>
+                <input id="orgsponsorsads-ad-image-url"
                   type="url"
                   placeholder="https://images.unsplash.com/..."
                   value={mediaUrl}
@@ -481,8 +481,8 @@ export const OrgSponsorsAdsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Time on Big Screen</label>
-                <select
+                <label htmlFor="orgsponsorsads-time-on-big-screen" className="block text-slate-300 font-semibold mb-1">Time on Big Screen</label>
+                <select id="orgsponsorsads-time-on-big-screen"
                   value={durationSeconds}
                   onChange={(e) => setDurationSeconds(Number(e.target.value))}
                   className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none"
@@ -491,13 +491,13 @@ export const OrgSponsorsAdsPage: React.FC = () => {
                     <option key={seconds} value={seconds}>{durationLabel(seconds)}</option>
                   ))}
                 </select>
-                <p className="text-[11px] text-slate-500 mt-1">You can change this from the Big Screen Director too.</p>
+                <p className="text-xs text-slate-500 mt-1">You can change this from the Big Screen Director too.</p>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Contact Phone</label>
-                  <PhoneInput
+                  <label htmlFor="orgsponsorsads-contact-phone" className="block text-slate-300 font-semibold mb-1">Contact Phone</label>
+                  <PhoneInput id="orgsponsorsads-contact-phone"
                     placeholder="98471 22334"
                     value={phone}
                     onChange={setPhone}
@@ -506,8 +506,8 @@ export const OrgSponsorsAdsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Website URL</label>
-                  <input
+                  <label htmlFor="orgsponsorsads-website-url" className="block text-slate-300 font-semibold mb-1">Website URL</label>
+                  <input id="orgsponsorsads-website-url"
                     type="text"
                     placeholder="https://brand.com"
                     value={website}
@@ -518,8 +518,8 @@ export const OrgSponsorsAdsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Promo Description Text</label>
-                <input
+                <label htmlFor="orgsponsorsads-promo-description-text" className="block text-slate-300 font-semibold mb-1">Promo Description Text</label>
+                <input id="orgsponsorsads-promo-description-text"
                   type="text"
                   placeholder="Special 20% discount for tournament fans & players"
                   value={description}

@@ -21,6 +21,10 @@ class User extends BaseModel implements AuthenticatableContract
 
     protected $hidden = ['password_hash'];
 
+    protected $casts = [
+        'must_change_password' => 'boolean',
+    ];
+
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
@@ -39,6 +43,10 @@ class User extends BaseModel implements AuthenticatableContract
             'role' => $this->role,
             'avatar' => $this->avatar,
             'organization_id' => $this->organization_id,
+            // The client routes straight to "choose a password" when this is
+            // set, so an onboarding or admin-issued credential is never left
+            // in place as a shared secret.
+            'must_change_password' => (bool) $this->must_change_password,
         ];
     }
 }

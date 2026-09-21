@@ -109,8 +109,8 @@ export const WicketDialog: React.FC<WicketDialogProps> = ({
 
         <div className="mt-5 space-y-3 text-xs">
           <div>
-            <label className="block text-slate-400 mb-1 font-semibold">How out</label>
-            <select
+            <label htmlFor="wicketdialog-how-out" className="block text-slate-400 mb-1 font-semibold">How out</label>
+            <select id="wicketdialog-how-out"
               value={type}
               onChange={event => setType(event.target.value)}
               className="w-full px-3 py-2 rounded-xl glass-input bg-slate-950 text-white"
@@ -123,8 +123,8 @@ export const WicketDialog: React.FC<WicketDialogProps> = ({
 
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-400 mb-1 font-semibold">Batter out</label>
-              <select
+              <label htmlFor="wicketdialog-batter-out" className="block text-slate-400 mb-1 font-semibold">Batter out</label>
+              <select id="wicketdialog-batter-out"
                 value={dismissedId}
                 onChange={event => setDismissedId(event.target.value)}
                 className="w-full px-3 py-2 rounded-xl glass-input bg-slate-950 text-white"
@@ -137,10 +137,10 @@ export const WicketDialog: React.FC<WicketDialogProps> = ({
 
             {selected?.needsFielder && (
               <div>
-                <label className="block text-slate-400 mb-1 font-semibold">
+                <label htmlFor="wicketdialog-field" className="block text-slate-400 mb-1 font-semibold">
                   {type === 'stumped' ? 'Wicketkeeper' : 'Fielder'}
                 </label>
-                <select
+                <select id="wicketdialog-field"
                   value={fielderId}
                   onChange={event => setFielderId(event.target.value)}
                   className="w-full px-3 py-2 rounded-xl glass-input bg-slate-950 text-white"
@@ -156,8 +156,8 @@ export const WicketDialog: React.FC<WicketDialogProps> = ({
 
           {type === 'run_out' && (
             <div>
-              <label className="block text-slate-400 mb-1 font-semibold">Runs completed before the run out</label>
-              <input
+              <label htmlFor="wicketdialog-runs-completed-before-the-run-ou" className="block text-slate-400 mb-1 font-semibold">Runs completed before the run out</label>
+              <input id="wicketdialog-runs-completed-before-the-run-ou"
                 type="number"
                 min={0}
                 max={6}
@@ -169,8 +169,8 @@ export const WicketDialog: React.FC<WicketDialogProps> = ({
           )}
 
           <div>
-            <label className="block text-slate-400 mb-1 font-semibold">Next batter in</label>
-            <select
+            <label htmlFor="wicketdialog-next-batter-in" className="block text-slate-400 mb-1 font-semibold">Next batter in</label>
+            <select id="wicketdialog-next-batter-in"
               value={nextStrikerId}
               onChange={event => setNextStrikerId(event.target.value)}
               className="w-full px-3 py-2 rounded-xl glass-input bg-slate-950 text-white"

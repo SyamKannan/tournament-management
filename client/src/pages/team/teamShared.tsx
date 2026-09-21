@@ -94,7 +94,7 @@ export const TeamStatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const s = TEAM_STATUS[status] ?? TEAM_STATUS.pending;
   const Icon = s.icon;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-bold ${s.className}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-bold ${s.className}`}>
       <Icon className="w-3 h-3" /> {s.label}
     </span>
   );
@@ -137,11 +137,11 @@ export const TeamSwitcher: React.FC<{ teams: ManagedTeam[]; selectedId?: string;
 
 export const StatTile: React.FC<{ icon: React.ElementType; label: string; value: React.ReactNode; hint?: string; tone?: string }> = ({ icon: Icon, label, value, hint, tone }) => (
   <div className="p-4 rounded-2xl glass-card border border-slate-800">
-    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+    <p className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
       <Icon className="w-3.5 h-3.5" /> {label}
     </p>
     <p className={`mt-1.5 text-xl font-black truncate ${tone ?? 'text-white'}`}>{value}</p>
-    {hint && <p className="text-[11px] text-slate-500 mt-0.5 truncate">{hint}</p>}
+    {hint && <p className="text-xs text-slate-500 mt-0.5 truncate">{hint}</p>}
   </div>
 );
 

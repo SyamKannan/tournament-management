@@ -48,7 +48,7 @@ export const LiveMatchesMarquee: React.FC = () => {
       aria-hidden={copy === 0 ? undefined : true}
       className="shrink-0 flex items-center gap-3 px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 text-xs transition-colors"
     >
-      <span className={`px-1.5 py-0.5 rounded text-[10px] font-black uppercase ${
+      <span className={`px-1.5 py-0.5 rounded text-xs font-black uppercase ${
         match.is_live ? 'bg-rose-500 text-white animate-live-blink' : match.status === 'completed' ? 'bg-slate-700 text-slate-200' : 'bg-cyan-500/15 text-cyan-300'
       }`}>
         {match.is_live ? 'Live' : match.status === 'completed' ? 'FT' : 'Next'}
@@ -63,7 +63,7 @@ export const LiveMatchesMarquee: React.FC = () => {
 
   return (
     <div className="mt-8 sm:mt-10 max-w-5xl mx-auto">
-      <div className="flex items-center gap-2 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 justify-center">
+      <div className="flex items-center gap-2 mb-2 text-xs font-bold uppercase tracking-wider text-slate-400 justify-center">
         {liveCount > 0 && <span className="w-2 h-2 rounded-full bg-rose-500 animate-live-blink" />}
         <span>{liveCount > 0 ? `${liveCount} match${liveCount === 1 ? '' : 'es'} live now` : 'Matches'}</span>
         <span className="text-slate-600 normal-case font-normal">• tap a match for the score</span>

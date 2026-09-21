@@ -130,7 +130,7 @@ export const TeamFixturesPage: React.FC = () => {
       {/* Your next match */}
       {nextMatch && (
         <section className="p-5 rounded-2xl bg-gradient-to-br from-emerald-500/15 via-slate-900 to-slate-900 border border-emerald-500/30">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+          <p className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
             {isLive(nextMatch) ? <><Radio className="w-3.5 h-3.5" /> Playing now</> : <><Clock className="w-3.5 h-3.5" /> Your next match</>}
           </p>
           <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -192,7 +192,7 @@ export const TeamFixturesPage: React.FC = () => {
         ) : (
           Object.entries(groups).map(([key, dayMatches]) => (
             <div key={key} className="space-y-2">
-              <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{dayLabel(key)}</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">{dayLabel(key)}</h3>
               <ul className="space-y-2">
                 {dayMatches.map(m => <FixtureRow key={m.id} match={m} myTeamId={myTeamId!} mine={isMine(m)} />)}
               </ul>
@@ -228,7 +228,7 @@ const FixtureRow: React.FC<{ match: ScheduledMatch; myTeamId: string; mine: bool
     }`}>
       <div className="sm:w-24 shrink-0 flex sm:flex-col items-center sm:items-start gap-2 sm:gap-0">
         <span className="text-sm font-black text-white">{timeOf(m.scheduled_at)}</span>
-        <span className="text-[10px] text-slate-500">{m.round_name || `Match ${m.match_number}`}</span>
+        <span className="text-xs text-slate-500">{m.round_name || `Match ${m.match_number}`}</span>
       </div>
 
       <div className="flex-1 min-w-0 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -239,7 +239,7 @@ const FixtureRow: React.FC<{ match: ScheduledMatch; myTeamId: string; mine: bool
         <span className="justify-self-end min-w-0"><TeamChip team={m.team_b} highlight={m.team_b_id === myTeamId} /></span>
       </div>
 
-      <div className="sm:w-44 shrink-0 flex items-center justify-between sm:justify-end gap-2 text-[11px]">
+      <div className="sm:w-44 shrink-0 flex items-center justify-between sm:justify-end gap-2 text-xs">
         <span className="text-slate-400 truncate flex items-center gap-1">
           {m.venue?.name && <><MapPin className="w-3 h-3 shrink-0" /> {m.venue.name}</>}
         </span>

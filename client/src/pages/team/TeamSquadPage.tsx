@@ -150,7 +150,7 @@ const SquadCard: React.FC<{
 
   const picker = <T extends string>(text: string, value: T | undefined, options: T[], field: keyof Player) => (
     <label className="block min-w-0">
-      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">{text}</span>
+      <span className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">{text}</span>
       <select
         value={value ?? ''}
         disabled={saving}
@@ -188,7 +188,7 @@ const SquadCard: React.FC<{
           disabled={saving}
           title={player.is_captain ? 'Captain' : 'Make captain'}
           aria-pressed={!!player.is_captain}
-          className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
+          className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
             player.is_captain
               ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
               : 'text-slate-500 border-slate-700 hover:text-amber-300 hover:border-amber-500/40'

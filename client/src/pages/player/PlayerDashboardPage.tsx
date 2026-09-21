@@ -60,7 +60,7 @@ export const PlayerDashboardPage: React.FC = () => {
   const crickStats = stats.cricket;
 
   return (
-    <div className="min-h-screen bg-[#070b1d] text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
       {/* Player Header Banner */}
       <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-slate-800 shadow-2xl relative overflow-hidden">
         <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-6">
@@ -75,7 +75,7 @@ export const PlayerDashboardPage: React.FC = () => {
                 type="button"
                 onClick={() => setShowPhotoModal(true)}
                 title="Change Profile Photo"
-                className="absolute inset-0 bg-black/60 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[11px] font-bold gap-1 cursor-pointer"
+                className="absolute inset-0 bg-black/60 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-bold gap-1 cursor-pointer"
               >
                 <Camera className="w-5 h-5 text-emerald-400" />
                 <span>Upload</span>
@@ -87,7 +87,7 @@ export const PlayerDashboardPage: React.FC = () => {
 
             <div className="space-y-1">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-black uppercase tracking-widest">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-black uppercase tracking-widest">
                   VERIFIED PLAYER
                 </span>
                 {team && (
@@ -107,7 +107,7 @@ export const PlayerDashboardPage: React.FC = () => {
 
               <div className="pt-1 space-y-1">
                 <PlayerCodeBadge code={player.player_code} />
-                <p className="text-[11px] text-slate-500">Use this code on Player Stats to see your stats without logging in.</p>
+                <p className="text-xs text-slate-500">Use this code on Player Stats to see your stats without logging in.</p>
               </div>
             </div>
           </div>
@@ -159,39 +159,39 @@ export const PlayerDashboardPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Entitled Auction Amount</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Entitled Auction Amount</span>
               <div className="text-2xl font-black font-mono text-amber-400 mt-1">
                 ₹{(auction_entry.sold_price || auction_entry.base_price).toLocaleString()}
               </div>
-              <span className="text-[11px] text-slate-500">Base Price: ₹{auction_entry.base_price.toLocaleString()}</span>
+              <span className="text-xs text-slate-500">Base Price: ₹{auction_entry.base_price.toLocaleString()}</span>
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Drafted Squad / Team</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Drafted Squad / Team</span>
               <div className="text-lg font-bold text-emerald-400 mt-1 truncate">
                 {auction_entry.sold_to_team_name || team?.name || 'Acquiring Team'}
               </div>
-              <span className="text-[11px] text-slate-500">Category: {auction_entry.category}</span>
+              <span className="text-xs text-slate-500">Category: {auction_entry.category}</span>
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Real Payout Settlement</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Real Payout Settlement</span>
               {auction_entry.payment_status === 'paid' ? (
                 <div className="mt-1 space-y-0.5">
                   <div className="font-bold text-emerald-400">
                     Settled via {(auction_entry.payment_method || 'Cash').toUpperCase()}
                   </div>
                   {auction_entry.payment_reference && (
-                    <div className="font-code text-[11px] text-cyan-400">Ref: {auction_entry.payment_reference}</div>
+                    <div className="font-code text-xs text-cyan-400">Ref: {auction_entry.payment_reference}</div>
                   )}
                   {auction_entry.paid_at && (
-                    <div className="text-[11px] text-slate-500">Paid on {formatDate(auction_entry.paid_at)}</div>
+                    <div className="text-xs text-slate-500">Paid on {formatDate(auction_entry.paid_at)}</div>
                   )}
                 </div>
               ) : (
                 <div className="mt-1">
                   <div className="font-bold text-amber-400">Pending Committee Handover</div>
-                  <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
                     Virtual bidding points will be settled in cash/UPI by the tournament committee.
                   </p>
                 </div>
@@ -207,35 +207,35 @@ export const PlayerDashboardPage: React.FC = () => {
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">Total Goals</span>
+              <span className="text-xs font-black uppercase tracking-widest text-slate-400 block">Total Goals</span>
               <div className="text-3xl sm:text-4xl font-black font-mono text-emerald-400 mt-1">
                 {fbStats.goals}
               </div>
-              <span className="text-[11px] text-slate-500 font-semibold">{fbStats.penalties_scored} Penalties</span>
+              <span className="text-xs text-slate-500 font-semibold">{fbStats.penalties_scored} Penalties</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">Assists</span>
+              <span className="text-xs font-black uppercase tracking-widest text-slate-400 block">Assists</span>
               <div className="text-3xl sm:text-4xl font-black font-mono text-cyan-400 mt-1">
                 {fbStats.assists}
               </div>
-              <span className="text-[11px] text-slate-500 font-semibold">{fbStats.own_goals} Own Goals</span>
+              <span className="text-xs text-slate-500 font-semibold">{fbStats.own_goals} Own Goals</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">Matches Played</span>
+              <span className="text-xs font-black uppercase tracking-widest text-slate-400 block">Matches Played</span>
               <div className="text-3xl sm:text-4xl font-black font-mono text-amber-400 mt-1">
                 {fbStats.matches}
               </div>
-              <span className="text-[11px] text-slate-500 font-semibold">{stat(fbStats.goals_per_match)} Goals per Match</span>
+              <span className="text-xs text-slate-500 font-semibold">{stat(fbStats.goals_per_match)} Goals per Match</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 text-center">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400 block">Player of the Match</span>
+              <span className="text-xs font-black uppercase tracking-widest text-slate-400 block">Player of the Match</span>
               <div className="text-3xl sm:text-4xl font-black font-mono text-yellow-400 mt-1">
                 {fbStats.player_of_match_count} 🏆
               </div>
-              <span className="text-[11px] text-slate-500 font-semibold">Hero Honors</span>
+              <span className="text-xs text-slate-500 font-semibold">Hero Honors</span>
             </div>
           </div>
 
@@ -284,32 +284,32 @@ export const PlayerDashboardPage: React.FC = () => {
 
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 text-center text-xs">
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400 block text-[11px] uppercase font-bold">Total Runs</span>
+                <span className="text-slate-400 block text-xs uppercase font-bold">Total Runs</span>
                 <span className="text-2xl font-black font-mono text-amber-400">{crickStats.runs_scored}</span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400 block text-[11px] uppercase font-bold">Batting Avg</span>
+                <span className="text-slate-400 block text-xs uppercase font-bold">Batting Avg</span>
                 <span className="text-2xl font-black font-mono text-white">{stat(crickStats.batting_average)}</span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400 block text-[11px] uppercase font-bold">Strike Rate</span>
+                <span className="text-slate-400 block text-xs uppercase font-bold">Strike Rate</span>
                 <span className="text-2xl font-black font-mono text-emerald-400">{stat(crickStats.strike_rate)}</span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400 block text-[11px] uppercase font-bold">High Score</span>
+                <span className="text-slate-400 block text-xs uppercase font-bold">High Score</span>
                 <span className="text-2xl font-black font-mono text-cyan-400">{highestScore(crickStats)}</span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400 block text-[11px] uppercase font-bold">50s / 100s</span>
+                <span className="text-slate-400 block text-xs uppercase font-bold">50s / 100s</span>
                 <span className="text-2xl font-black font-mono text-yellow-400">{crickStats.fifties} / {crickStats.centuries}</span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400 block text-[11px] uppercase font-bold">4s / 6s</span>
+                <span className="text-slate-400 block text-xs uppercase font-bold">4s / 6s</span>
                 <span className="text-2xl font-black font-mono text-rose-400">{crickStats.fours} / {crickStats.sixes}</span>
               </div>
             </div>
@@ -327,32 +327,32 @@ export const PlayerDashboardPage: React.FC = () => {
 
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 text-center text-xs">
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400 block text-[11px] uppercase font-bold">Wickets Taken</span>
+                <span className="text-slate-400 block text-xs uppercase font-bold">Wickets Taken</span>
                 <span className="text-2xl font-black font-mono text-cyan-400">{crickStats.wickets_taken}</span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400 block text-[11px] uppercase font-bold">Economy Rate</span>
+                <span className="text-slate-400 block text-xs uppercase font-bold">Economy Rate</span>
                 <span className="text-2xl font-black font-mono text-emerald-400">{stat(crickStats.economy_rate)}</span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400 block text-[11px] uppercase font-bold">Bowling Avg</span>
+                <span className="text-slate-400 block text-xs uppercase font-bold">Bowling Avg</span>
                 <span className="text-2xl font-black font-mono text-white">{stat(crickStats.bowling_average)}</span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400 block text-[11px] uppercase font-bold">Best Bowling</span>
+                <span className="text-slate-400 block text-xs uppercase font-bold">Best Bowling</span>
                 <span className="text-2xl font-black font-mono text-amber-400">{bestBowling(crickStats)}</span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400 block text-[11px] uppercase font-bold">3W / 5W Hauls</span>
+                <span className="text-slate-400 block text-xs uppercase font-bold">3W / 5W Hauls</span>
                 <span className="text-2xl font-black font-mono text-yellow-400">{crickStats.three_wicket_hauls} / {crickStats.five_wicket_hauls}</span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400 block text-[11px] uppercase font-bold">Ct / St / RO</span>
+                <span className="text-slate-400 block text-xs uppercase font-bold">Ct / St / RO</span>
                 <span className="text-2xl font-black font-mono text-slate-300">{crickStats.catches} / {crickStats.stumpings} / {crickStats.run_outs}</span>
               </div>
             </div>
@@ -381,7 +381,7 @@ export const PlayerDashboardPage: React.FC = () => {
                     {perf.player_of_match && <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" aria-label="Player of the match" />}
                   </div>
                   <div className="text-slate-300 font-mono mt-0.5">{perf.summary}</div>
-                  <span className="text-[11px] text-slate-500 block mt-1">{matchDate(perf.date)}</span>
+                  <span className="text-xs text-slate-500 block mt-1">{matchDate(perf.date)}</span>
                 </div>
 
                 {perf.result && (
@@ -412,7 +412,7 @@ export const PlayerDashboardPage: React.FC = () => {
                 </div>
                 <div>
                   <h4 className="font-bold text-white text-xs">{aw.title}</h4>
-                  <p className="text-[11px] text-slate-400">{aw.tournament_name} • {matchDate(aw.date)}</p>
+                  <p className="text-xs text-slate-400">{aw.tournament_name} • {matchDate(aw.date)}</p>
                 </div>
               </div>
             ))}

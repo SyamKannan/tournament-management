@@ -119,8 +119,8 @@ export const OrgAnnouncementsPage: React.FC = () => {
 
             <form onSubmit={handleCreate} className="space-y-3.5 text-xs">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Announcement Title *</label>
-                <input
+                <label htmlFor="organnouncements-announcement-title" className="block text-slate-300 font-semibold mb-1">Announcement Title *</label>
+                <input id="organnouncements-announcement-title"
                   type="text"
                   placeholder="e.g. MATCH DELAY NOTICE"
                   value={title}
@@ -131,8 +131,8 @@ export const OrgAnnouncementsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Message Text *</label>
-                <textarea
+                <label htmlFor="organnouncements-message-text" className="block text-slate-300 font-semibold mb-1">Message Text *</label>
+                <textarea id="organnouncements-message-text"
                   rows={3}
                   placeholder="e.g. Match is delayed due to light rain. Pitch drying in progress, game resumes at 6:30 PM."
                   value={message}
@@ -144,8 +144,8 @@ export const OrgAnnouncementsPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Alert Category</label>
-                  <select
+                  <label htmlFor="organnouncements-alert-category" className="block text-slate-300 font-semibold mb-1">Alert Category</label>
+                  <select id="organnouncements-alert-category"
                     value={type}
                     onChange={(e) => setType(e.target.value as any)}
                     className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900"
@@ -157,8 +157,8 @@ export const OrgAnnouncementsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Time on Big Screen</label>
-                  <select
+                  <label htmlFor="organnouncements-time-on-big-screen" className="block text-slate-300 font-semibold mb-1">Time on Big Screen</label>
+                  <select id="organnouncements-time-on-big-screen"
                     value={durationSeconds}
                     onChange={(e) => setDurationSeconds(Number(e.target.value))}
                     className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900"
@@ -198,7 +198,7 @@ export const OrgAnnouncementsPage: React.FC = () => {
                 <div className="min-w-0">
                   <h4 className="text-sm font-bold text-white">{ann.title}</h4>
                   <p className="text-xs text-slate-300 mt-1 [overflow-wrap:anywhere]">{ann.message}</p>
-                  <div className="text-[11px] text-slate-500 mt-2 font-mono flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <div className="text-xs text-slate-500 mt-2 font-mono flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span>{TYPE_LABELS[ann.type] ?? ann.type}</span>
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />

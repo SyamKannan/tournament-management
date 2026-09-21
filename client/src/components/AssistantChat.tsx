@@ -188,7 +188,7 @@ export const AssistantChat: React.FC = () => {
         onSubmit={(e) => { e.preventDefault(); send(input); }}
         className="flex items-end gap-2 border-t border-slate-800 p-3"
       >
-        <textarea
+        <textarea aria-label="Ask Scorey anything"
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}

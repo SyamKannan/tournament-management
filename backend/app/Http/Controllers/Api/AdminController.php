@@ -14,10 +14,13 @@ use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\User;
 use App\Services\BillingService;
+use App\Services\Notifications\Channels\ChannelManager;
 use App\Services\PaymentGatewayService;
+use App\Services\TemporaryPasswordService;
 use App\Services\TokenService;
 use App\Support\Audit;
 use App\Support\Ids;
+use App\Support\Paginate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +38,7 @@ class AdminController extends Controller
         private readonly BillingService $billing,
         private readonly TokenService $tokens,
         private readonly PaymentGatewayService $gateway,
+        private readonly TemporaryPasswordService $passwords,
     ) {}
 
     public function metrics(): JsonResponse
@@ -208,25 +212,24 @@ class AdminController extends Controller
     public function listUsers(Request $request): JsonResponse
     {
         $role = $request->query('role');
-        $search = $request->query('search');
 
-        $query = User::with('organization')->orderBy('name');
+        $query = User::with('organization')->orderBy('name')->orderBy('id');
 
         if ($role && $role !== 'ALL') {
             $query->where('role', $role);
         }
 
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
-            });
-        }
+        Paginate::search($query, $request->query('search'), ['name', 'email', 'phone']);
 
-        $users = $query->get();
+        // The header cards count every account by role, independent of the
+        // page and the filter — they are the platform's totals.
+        $roleCounts = User::query()
+            ->selectRaw('role, COUNT(*) as total')
+            ->groupBy('role')
+            ->pluck('total', 'role')
+            ->map(fn ($n) => (int) $n);
 
-        return response()->json($users->map(function (User $user) {
+        return response()->json([...Paginate::query($query, $request, function (User $user) {
             return [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -235,6 +238,7 @@ class AdminController extends Controller
                 'role' => $user->role,
                 'avatar' => $user->avatar,
                 'created_at' => $user->created_at,
+                'must_change_password' => (bool) $user->must_change_password,
                 'organization' => $user->organization ? [
                     'id' => $user->organization->id,
                     'name' => $user->organization->name,
@@ -243,7 +247,63 @@ class AdminController extends Controller
                     'type' => $user->organization->type,
                 ] : null,
             ];
-        }));
+        }), 'role_counts' => $roleCounts]);
+    }
+
+    /**
+     * Get a locked-out person back into their account.
+     *
+     * Self-service recovery sends a code by SMS, and when that cannot reach
+     * them — no gateway configured, a changed number, no signal — there was
+     * no other way in. The super admin issues a temporary password here, reads
+     * it to the owner, and the owner is made to choose their own at sign-in.
+     */
+    public function resetUserPassword(Request $request, string $id): JsonResponse
+    {
+        $user = User::query()->find($id);
+
+        if (! $user) {
+            return response()->json(['error' => 'That account no longer exists.'], 404);
+        }
+
+        if ($user->id === $request->user()?->id) {
+            return response()->json([
+                'error' => 'Change your own password from My Profile instead.',
+            ], 422);
+        }
+
+        $password = $this->passwords->issue($user);
+
+        $this->audit($request, 'SUPER_ADMIN_RESET_PASSWORD', 'User', $user->id,
+            sprintf('Issued a temporary password for [%s] (%s); all their sessions were ended.', $user->name, $user->role));
+
+        return response()->json([
+            'user' => $user->fresh()->toAuthPayload(),
+            'temporary_password' => $password,
+            'message' => 'Temporary password issued. Share it with the account owner — they will be asked to choose their own when they sign in.',
+        ]);
+    }
+
+    /**
+     * Whether outbound messages are really being delivered.
+     *
+     * The super admin is the only person who can fix a gateway, so the
+     * dashboard asks this and puts anything critical in front of them rather
+     * than leaving it in a log file.
+     */
+    public function notificationHealth(ChannelManager $channels): JsonResponse
+    {
+        $issues = $channels->healthIssues();
+
+        return response()->json([
+            'ok' => collect($issues)->where('severity', 'critical')->isEmpty(),
+            'issues' => $issues,
+            'drivers' => [
+                'sms' => $channels->driverNameFor('sms'),
+                'whatsapp' => $channels->driverNameFor('whatsapp'),
+            ],
+            'available_drivers' => $channels->registered(),
+        ]);
     }
 
     /* ----------------------------------------------------------- Organizations */
@@ -309,7 +369,15 @@ class AdminController extends Controller
             'admin_password' => ['nullable', 'string', 'min:6'],
         ]);
 
-        $organization = DB::transaction(function () use ($data, $request) {
+        // Every club used to get `admin123` when no password was typed. Now a
+        // random one is generated, shown once below, and whichever it is, the
+        // organizer is made to choose their own at first sign-in — a password
+        // the super admin knows is not the organizer's password.
+        $generated = empty($data['admin_password']);
+        $initialPassword = $generated ? $this->passwords->generate() : $data['admin_password'];
+        $adminEmail = $data['admin_email'] ?? $data['email'];
+
+        $organization = DB::transaction(function () use ($data, $request, $initialPassword, $adminEmail) {
             $organizationId = Ids::timestamped('org');
             $phone = $data['phone'] ?? '';
 
@@ -340,8 +408,9 @@ class AdminController extends Controller
             User::create([
                 'id' => Ids::timestamped('user'),
                 'name' => $data['admin_name'] ?? $data['contact_person'],
-                'email' => $data['admin_email'] ?? $data['email'],
-                'password_hash' => Hash::make($data['admin_password'] ?? 'admin123'),
+                'email' => $adminEmail,
+                'password_hash' => Hash::make($initialPassword),
+                'must_change_password' => true,
                 'phone' => $phone,
                 'role' => 'ORG_ADMIN',
                 'organization_id' => $organizationId,
@@ -356,7 +425,18 @@ class AdminController extends Controller
             return $organization->fresh();
         });
 
-        return response()->json($organization, 201);
+        return response()->json([
+            ...$organization->toArray(),
+            // Returned once and never stored in the clear. Without it the
+            // super admin had created an account and had nothing to hand over.
+            'admin_credentials' => [
+                'email' => $adminEmail,
+                'phone' => $data['phone'] ?? '',
+                'temporary_password' => $initialPassword,
+                'generated' => $generated,
+                'must_change_password' => true,
+            ],
+        ], 201);
     }
 
     public function updateOrganizationStatus(Request $request, string $id): JsonResponse
@@ -415,11 +495,30 @@ class AdminController extends Controller
         return response()->json(Invoice::query()->get());
     }
 
-    public function auditLogs(): JsonResponse
+    /**
+     * The audit trail, a page at a time and searched in the database.
+     *
+     * It used to return every row ever written on every visit — fine in a
+     * demo, a frozen tab within a year — and the search box filtered only
+     * what had arrived. Investigating last month's incident needs both fixed.
+     */
+    public function auditLogs(Request $request): JsonResponse
     {
-        return response()->json(
-            AuditLog::query()->orderByDesc('created_at')->orderByDesc('id')->get()
-        );
+        $query = AuditLog::query()->orderByDesc('created_at')->orderByDesc('id');
+
+        if ($action = $request->query('action')) {
+            $query->where('action', $action);
+        }
+
+        if ($role = $request->query('role')) {
+            $query->where('user_role', $role);
+        }
+
+        Paginate::search($query, $request->query('search'), [
+            'action', 'user_name', 'details', 'entity_type', 'entity_id',
+        ]);
+
+        return response()->json(Paginate::query($query, $request, defaultPerPage: 50));
     }
 
     /* ----------------------------------------------------- Platform settings */
@@ -561,11 +660,27 @@ class AdminController extends Controller
         ]);
     }
 
-    public function impersonationTargets(): JsonResponse
+    /**
+     * Who the super admin can sign in as, found by searching the database.
+     *
+     * The lists were the first fifty names alphabetically, filtered in the
+     * browser, so anyone sorting after #50 could never be reached for
+     * support. Now the search runs here across every account, and the result
+     * says when there are more matches than were returned.
+     */
+    public function impersonationTargets(Request $request): JsonResponse
     {
-        $organizations = Organization::query()->orderBy('name')->get();
+        $search = trim((string) $request->query('search', ''));
+        $limit = 50;
+
+        $orgQuery = Organization::query()->orderBy('name');
+        Paginate::search($orgQuery, $search, ['name', 'slug', 'district']);
+        $orgTotal = (clone $orgQuery)->count();
+        $organizations = $orgQuery->limit($limit)->get();
+
         $orgAdmins = User::query()
             ->where('role', 'ORG_ADMIN')
+            ->whereIn('organization_id', $organizations->pluck('id'))
             ->get()
             ->keyBy('organization_id');
 
@@ -587,22 +702,32 @@ class AdminController extends Controller
             ];
         });
 
-        $players = User::query()
-            ->where('role', 'PLAYER')
-            ->orderBy('name')
-            ->limit(50)
-            ->get(['id', 'name', 'email', 'phone', 'role', 'avatar', 'organization_id']);
+        $users = function (string $role) use ($search, $limit) {
+            $query = User::query()->where('role', $role)->orderBy('name');
+            Paginate::search($query, $search, ['name', 'email', 'phone']);
 
-        $teamManagers = User::query()
-            ->where('role', 'TEAM_MANAGER')
-            ->orderBy('name')
-            ->limit(50)
-            ->get(['id', 'name', 'email', 'phone', 'role', 'avatar', 'organization_id']);
+            return [
+                'total' => (clone $query)->count(),
+                'rows' => $query->limit($limit)
+                    ->get(['id', 'name', 'email', 'phone', 'role', 'avatar', 'organization_id']),
+            ];
+        };
+
+        $players = $users('PLAYER');
+        $teamManagers = $users('TEAM_MANAGER');
 
         return response()->json([
             'organizations' => $orgTargets,
-            'players' => $players,
-            'team_managers' => $teamManagers,
+            'players' => $players['rows'],
+            'team_managers' => $teamManagers['rows'],
+            // How many matched in all, so the modal can say "showing 50 of
+            // 312 — keep typing" instead of implying the list is complete.
+            'totals' => [
+                'organizations' => $orgTotal,
+                'players' => $players['total'],
+                'team_managers' => $teamManagers['total'],
+            ],
+            'limit' => $limit,
         ]);
     }
 

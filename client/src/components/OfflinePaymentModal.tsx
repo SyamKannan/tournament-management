@@ -55,7 +55,7 @@ export const OfflinePaymentModal: React.FC<OfflinePaymentModalProps> = ({ team, 
             </div>
             <div>
               <h3 className="text-sm font-bold text-white font-heading">Record Ground Fee Payment</h3>
-              <p className="text-[11px] text-slate-400">For Team: <span className="text-emerald-400 font-semibold">{team.name}</span></p>
+              <p className="text-xs text-slate-400">For Team: <span className="text-emerald-400 font-semibold">{team.name}</span></p>
             </div>
           </div>
           <button
@@ -76,18 +76,18 @@ export const OfflinePaymentModal: React.FC<OfflinePaymentModalProps> = ({ team, 
           {/* Current balance display */}
           <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
             <div>
-              <span className="text-slate-400 block text-[11px]">Current Outstanding Balance</span>
+              <span className="text-slate-400 block text-xs">Current Outstanding Balance</span>
               <span className="text-sm font-bold text-amber-400 font-mono">₹{currentRemaining.toLocaleString()}</span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[11px]">Total Registration Fee</span>
+              <span className="text-slate-400 block text-xs">Total Registration Fee</span>
               <span className="text-sm font-semibold text-slate-300 font-mono">₹{(team.payment?.total_fee || currentRemaining).toLocaleString()}</span>
             </div>
           </div>
 
           <div>
-            <label className="block text-slate-300 font-medium mb-1.5">Amount Collected (₹)</label>
-            <input
+            <label htmlFor="offlinepaymentmodal-amount-collected" className="block text-slate-300 font-medium mb-1.5">Amount Collected (₹)</label>
+            <input id="offlinepaymentmodal-amount-collected"
               type="number"
               min="1"
               max={currentRemaining}
@@ -100,7 +100,7 @@ export const OfflinePaymentModal: React.FC<OfflinePaymentModalProps> = ({ team, 
               <button
                 type="button"
                 onClick={() => setAmount(currentRemaining)}
-                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 font-medium"
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium"
               >
                 Clear Full Balance ({formatMoney(currentRemaining)})
               </button>
@@ -108,7 +108,7 @@ export const OfflinePaymentModal: React.FC<OfflinePaymentModalProps> = ({ team, 
                 <button
                   type="button"
                   onClick={() => setAmount(Math.round(currentRemaining / 2))}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 font-medium"
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium"
                 >
                   Pay 50% ({formatMoney(Math.round(currentRemaining / 2))})
                 </button>
@@ -137,8 +137,8 @@ export const OfflinePaymentModal: React.FC<OfflinePaymentModalProps> = ({ team, 
           </div>
 
           <div>
-            <label className="block text-slate-300 font-medium mb-1.5">Reference / Transaction Note</label>
-            <input
+            <label htmlFor="offlinepaymentmodal-reference-transaction-note" className="block text-slate-300 font-medium mb-1.5">Reference / Transaction Note</label>
+            <input id="offlinepaymentmodal-reference-transaction-note"
               type="text"
               placeholder="e.g. UPI Ref #9847110022 or Cash received at ground"
               value={transactionId}
@@ -148,8 +148,8 @@ export const OfflinePaymentModal: React.FC<OfflinePaymentModalProps> = ({ team, 
           </div>
 
           <div>
-            <label className="block text-slate-300 font-medium mb-1.5">Admin Note</label>
-            <input
+            <label htmlFor="offlinepaymentmodal-admin-note" className="block text-slate-300 font-medium mb-1.5">Admin Note</label>
+            <input id="offlinepaymentmodal-admin-note"
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

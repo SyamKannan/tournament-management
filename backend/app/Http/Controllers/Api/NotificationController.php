@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Notification;
 use App\Models\NotificationOptOut;
+use App\Services\Notifications\Channels\ChannelManager;
 use App\Services\Notifications\NotificationService;
+use App\Support\Paginate;
 use App\Support\Audit;
 use App\Support\Phone;
 use Illuminate\Http\JsonResponse;
@@ -64,7 +66,11 @@ class NotificationController extends Controller
         $data = $request->validate([
             'status' => ['sometimes', 'string', 'in:queued,sent,failed,skipped'],
             'event' => ['sometimes', 'string', 'max:64'],
+            // Kept for older clients; `per_page` is the paging control now.
             'limit' => ['sometimes', 'integer', 'min:1', 'max:200'],
+            'search' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:200'],
         ]);
 
         $query = Notification::query()->where('organization_id', $organizationId);
@@ -77,13 +83,36 @@ class NotificationController extends Controller
             $query->where('event', $data['event']);
         }
 
-        $notifications = (clone $query)
-            ->orderByDesc('created_at')
-            ->limit((int) ($data['limit'] ?? 50))
-            ->get();
+        // "Did the Kondotty lads get told?" is answered by searching the log
+        // in the database — a filter over the newest fifty could not see
+        // anything older, which is the question an organizer usually has.
+        Paginate::search($query, $data['search'] ?? null, ['notifications.to', 'body', 'event']);
+
+        $page = Paginate::query(
+            $query->orderByDesc('created_at')->orderByDesc('id'),
+            $request,
+            defaultPerPage: (int) ($data['limit'] ?? 50),
+        );
+
+        $channels = app(ChannelManager::class);
+
+        // A `log` send is reported by the engine as sent, but nobody received
+        // it. Each row says so, and `delivery` says so for the whole setup, so
+        // no organizer is told a team was contacted when it wasn't.
+        $notifications = collect($page['data'])->map(function (Notification $n) {
+            $row = $n->toArray();
+            $row['simulated'] = $n->driver === 'log';
+
+            return $row;
+        })->values();
 
         return response()->json([
             'notifications' => $notifications,
+            'pagination' => collect($page)->except('data')->all(),
+            'delivery' => [
+                'sms_simulated' => $channels->isSimulated('sms'),
+                'whatsapp_simulated' => $channels->isSimulated('whatsapp'),
+            ],
             'counts' => [
                 'total' => Notification::query()->where('organization_id', $organizationId)->count(),
                 'sent' => $this->countByStatus($organizationId, 'sent'),

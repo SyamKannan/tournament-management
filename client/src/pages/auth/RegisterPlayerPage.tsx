@@ -239,8 +239,10 @@ export const RegisterPlayerPage: React.FC = () => {
                   className="auth-field pr-12"
                 />
               </AuthField>
-              <AuthField label="Phone / WhatsApp *">
+              <AuthField label="Phone / WhatsApp *" htmlFor="player-phone">
                 <PhoneInput
+                  id="player-phone"
+                  autoComplete="tel-national"
                   required
                   placeholder="98460 12345"
                   value={phone}

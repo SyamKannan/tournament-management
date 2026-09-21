@@ -65,7 +65,7 @@ export const PlanFeatureList: React.FC<Props> = ({ planName, features, preview =
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className={`mt-2.5 pl-[22px] text-[11px] font-semibold transition-colors ${colors.link}`}
+          className={`mt-2.5 pl-[22px] text-xs font-semibold transition-colors ${colors.link}`}
         >
           + {hidden} more {hidden === 1 ? 'feature' : 'features'}
         </button>
@@ -74,7 +74,7 @@ export const PlanFeatureList: React.FC<Props> = ({ planName, features, preview =
       {open && (
         <div className="absolute inset-0 z-20 rounded-3xl bg-slate-950/95 backdrop-blur-sm p-6 flex flex-col">
           <div className="flex items-center justify-between gap-2 mb-3">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
               {planName} · All {features.length} Features
             </span>
             <button

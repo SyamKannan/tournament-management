@@ -103,7 +103,7 @@ export const SelectPlayerDialog: React.FC<SelectPlayerDialogProps> = ({
               <span className="min-w-0 flex-1">
                 <span className="block font-bold text-white text-sm truncate">{row.player.full_name}</span>
                 {(row.player.cricket_role || row.is_captain || row.is_wicketkeeper) && (
-                  <span className="block text-[11px] text-slate-500 truncate">
+                  <span className="block text-xs text-slate-500 truncate">
                     {[
                       row.player.cricket_role,
                       row.is_captain ? 'Captain' : null,
@@ -112,7 +112,7 @@ export const SelectPlayerDialog: React.FC<SelectPlayerDialogProps> = ({
                   </span>
                 )}
               </span>
-              <span className="shrink-0 font-mono text-[11px] text-slate-600">#{row.batting_order}</span>
+              <span className="shrink-0 font-mono text-xs text-slate-600">#{row.batting_order}</span>
             </button>
           ))}
         </div>

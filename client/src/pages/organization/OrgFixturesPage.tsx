@@ -210,19 +210,19 @@ export const OrgFixturesPage: React.FC = () => {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 {activeTournament && (
-                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider ${
                     isFootball ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                   }`}>
                     {isFootball ? '⚽ Football' : '🏏 Cricket'}
                   </span>
                 )}
                 {liveCount > 0 && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] font-bold uppercase animate-pulse">
+                  <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold uppercase animate-pulse">
                     ● {liveCount} live now
                   </span>
                 )}
                 {matches.length > 0 && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[11px] font-bold">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-xs font-bold">
                     {completedCount}/{matches.length} completed
                   </span>
                 )}
@@ -276,11 +276,11 @@ export const OrgFixturesPage: React.FC = () => {
               ))}
             </div>
 
-            <p className="text-[11px] text-slate-400">{FORMAT_HELP[format]}</p>
+            <p className="text-xs text-slate-400">{FORMAT_HELP[format]}</p>
 
             <div className="flex flex-wrap items-center gap-3">
               {(format === 'group_stage' || format === 'league_knockout') && (
-                <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-300">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-300">
                   <span>Groups</span>
                   <select
                     value={groupCount}
@@ -293,7 +293,7 @@ export const OrgFixturesPage: React.FC = () => {
               )}
 
               {format === 'league' && (
-                <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-300">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-300">
                   <input
                     type="checkbox"
                     checked={doubleRound}
@@ -318,7 +318,7 @@ export const OrgFixturesPage: React.FC = () => {
               </button>
 
               {hasFixtures && (
-                <span className="text-[11px] text-slate-400">
+                <span className="text-xs text-slate-400">
                   {lockedCount > 0
                     ? `Rebuilding is blocked — ${lockedCount} match${lockedCount === 1 ? ' has' : 'es have'} already started.`
                     : 'Rebuilding replaces the current schedule.'}
@@ -358,7 +358,7 @@ export const OrgFixturesPage: React.FC = () => {
             } ${isCancelled ? 'opacity-60' : ''}`}>
               <div className="flex items-center justify-between text-xs pb-3 border-b border-slate-800">
                 <span className="font-semibold text-slate-400">{m.round_name} • Match #{m.match_number}</span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase ${
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase ${
                   isLive ? 'bg-rose-500/20 text-rose-400 animate-pulse' :
                   m.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :
                   isCancelled ? 'bg-rose-500/10 text-rose-400 line-through' : 'bg-slate-800 text-slate-300'

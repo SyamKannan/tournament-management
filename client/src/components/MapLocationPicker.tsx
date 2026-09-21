@@ -266,7 +266,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       <form onSubmit={handleSearchLocation} className="flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
+          <input aria-label="Search city, ground, stadium (e.g. Kozhikode, Manjeri, Kaloor)"
             type="text"
             placeholder="Search city, ground, stadium (e.g. Kozhikode, Manjeri, Kaloor)..."
             value={searchQuery}
@@ -295,7 +295,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       {/* Search Autocomplete Results */}
       {searchResults.length > 0 && (
         <div className="p-2 rounded-2xl bg-slate-950 border border-slate-800 space-y-1 text-xs">
-          <div className="px-2 py-1 text-[11px] font-bold text-slate-400 uppercase">Search Results:</div>
+          <div className="px-2 py-1 text-xs font-bold text-slate-400 uppercase">Search Results:</div>
           {searchResults.map((r, i) => (
             <button
               key={i}
@@ -312,7 +312,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
               <MapPin className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               <div className="truncate">
                 <div className="font-bold text-white">{r.name || 'Location Match'}</div>
-                <div className="text-[11px] text-slate-400 truncate">{r.display_name}</div>
+                <div className="text-xs text-slate-400 truncate">{r.display_name}</div>
               </div>
             </button>
           ))}
@@ -355,12 +355,12 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
           </div>
 
           {/* Live Coordinates Pill */}
-          <div className="absolute bottom-3 right-3 bg-slate-950/90 backdrop-blur-md border border-slate-800 px-2.5 py-1 rounded-lg text-[11px] font-mono text-cyan-400 font-bold flex items-center gap-1.5 pointer-events-none z-[1000]">
+          <div className="absolute bottom-3 right-3 bg-slate-950/90 backdrop-blur-md border border-slate-800 px-2.5 py-1 rounded-lg text-xs font-mono text-cyan-400 font-bold flex items-center gap-1.5 pointer-events-none z-[1000]">
             <Compass className="w-3.5 h-3.5 text-cyan-400" />
             <span>{lat.toFixed(4)}, {lng.toFixed(4)}</span>
           </div>
         </div>
-        <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
+        <p className="text-xs text-slate-500 flex items-center gap-1.5">
           <MapPin className="w-3 h-3 shrink-0" />
           <span>Click anywhere on the map, or drag the pin, to set the exact venue location.</span>
           {isResolvingAddress && <span className="text-cyan-400">Resolving address…</span>}
@@ -369,9 +369,9 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
 
       {/* Quick Venue Presets (Famous Kerala Sports Stadiums) */}
       <div>
-        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
           <span>Quick Select Famous Stadiums:</span>
-          <span className="text-[11px] text-slate-500 font-normal">1-Click Auto-Fill</span>
+          <span className="text-xs text-slate-500 font-normal">1-Click Auto-Fill</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-28 overflow-y-auto pr-1">
           {POPULAR_SPORTS_VENUES.map((v, i) => (
@@ -385,8 +385,8 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
                   : 'bg-slate-900/60 border-slate-800/80 text-slate-400 hover:text-white hover:border-slate-700'
               }`}
             >
-              <div className="truncate text-white font-semibold text-[11px]">{v.venueName}</div>
-              <div className="text-[10px] text-slate-500 truncate">{v.district}</div>
+              <div className="truncate text-white font-semibold text-xs">{v.venueName}</div>
+              <div className="text-xs text-slate-500 truncate">{v.district}</div>
             </button>
           ))}
         </div>
@@ -396,8 +396,8 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/90 space-y-3 text-xs">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-slate-400 text-[11px] font-semibold mb-1">Venue / Stadium Name *</label>
-            <input
+            <label htmlFor="maplocationpicker-venue-stadium-name" className="block text-slate-400 text-xs font-semibold mb-1">Venue / Stadium Name *</label>
+            <input id="maplocationpicker-venue-stadium-name"
               type="text"
               value={venueName}
               onChange={(e) => setVenueName(e.target.value)}
@@ -406,8 +406,8 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
             />
           </div>
           <div>
-            <label className="block text-slate-400 text-[11px] font-semibold mb-1">District</label>
-            <input
+            <label htmlFor="maplocationpicker-district" className="block text-slate-400 text-xs font-semibold mb-1">District</label>
+            <input id="maplocationpicker-district"
               type="text"
               value={district}
               onChange={(e) => setDistrict(e.target.value)}
@@ -417,8 +417,8 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
         </div>
 
         <div>
-          <label className="block text-slate-400 text-[11px] font-semibold mb-1">Full Ground Address & Directions</label>
-          <input
+          <label htmlFor="maplocationpicker-full-ground-address-directions" className="block text-slate-400 text-xs font-semibold mb-1">Full Ground Address & Directions</label>
+          <input id="maplocationpicker-full-ground-address-directions"
             type="text"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
@@ -431,7 +431,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
             href={googleMapsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-semibold hover:underline"
+            className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-semibold hover:underline"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             <span>Preview in Google Maps Directions ↗</span>

@@ -390,25 +390,25 @@ export const OrgTournamentsPage: React.FC = () => {
               <div>
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
                       isFb ? 'bg-emerald-500/20 text-emerald-400' : 'bg-cyan-500/20 text-cyan-400'
                     }`}>
                       {isFb ? '⚽ Football' : '🏏 Cricket'} • {label(t.format)}
                     </span>
 
                     {isCancelled && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] font-black uppercase tracking-wider">
+                      <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-black uppercase tracking-wider">
                         Cancelled
                       </span>
                     )}
 
                     {hasAuctionEnabled ? (
-                      <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-black uppercase tracking-wider flex items-center gap-1">
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-black uppercase tracking-wider flex items-center gap-1">
                         <Gavel className="w-3 h-3" />
                         <span>Auction: {label(t.auction_status || 'upcoming')}</span>
                       </span>
                     ) : (
-                      <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[11px] font-semibold uppercase tracking-wider">
+                      <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 text-xs font-semibold uppercase tracking-wider">
                         Direct Team Registration
                       </span>
                     )}
@@ -426,14 +426,15 @@ export const OrgTournamentsPage: React.FC = () => {
                     <span className="font-semibold text-slate-300">
                       {hasAuctionEnabled ? 'Direct Team Entry Link' : 'Public Team Registration Link'}
                     </span>
-                    <span className="shrink-0 text-[11px] text-emerald-400 font-bold">{t.teams_count || 4}/{t.max_teams} Teams</span>
+                    <span className="shrink-0 text-xs text-emerald-400 font-bold">{t.teams_count || 4}/{t.max_teams} Teams</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 min-w-0">
                     <input
                       type="text"
                       readOnly
+                      aria-label={hasAuctionEnabled ? 'Direct team entry link' : 'Public team registration link'}
                       value={`${window.location.origin}/register/team/${regToken}`}
-                      className="flex-1 min-w-0 basis-full sm:basis-auto px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-[11px] font-code text-slate-300 truncate"
+                      className="flex-1 min-w-0 basis-full sm:basis-auto px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-code text-slate-300 truncate"
                     />
                     <button
                       onClick={() => handleCopyLink(regToken)}
@@ -560,7 +561,7 @@ export const OrgTournamentsPage: React.FC = () => {
             <form onSubmit={handleCreateTournament} className="p-6 overflow-y-auto space-y-4 text-xs">
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Tournament Name *</label>
-                <input
+                <input aria-label="Tournament Name"
                   type="text"
                   placeholder="e.g. Malappuram Monsoon Premier League 2026"
                   value={name}
@@ -573,7 +574,7 @@ export const OrgTournamentsPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">Sport Type *</label>
-                  <select
+                  <select aria-label="Sport Type"
                     value={sportCode}
                     onChange={(e) => setSportCode(e.target.value as any)}
                     disabled={!!editingId}
@@ -587,13 +588,13 @@ export const OrgTournamentsPage: React.FC = () => {
                     )}
                   </select>
                   {editingId && (
-                    <p className="text-[10px] text-slate-500 mt-1">Sport type can't be changed after creation.</p>
+                    <p className="text-xs text-slate-500 mt-1">Sport type can't be changed after creation.</p>
                   )}
                 </div>
 
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">Tournament Format</label>
-                  <select
+                  <select aria-label="Tournament Format"
                     value={format}
                     onChange={(e) => setFormat(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900"
@@ -613,10 +614,10 @@ export const OrgTournamentsPage: React.FC = () => {
                       <MapPin className="w-4 h-4" />
                     </div>
                     <div>
-                      <span className="font-bold text-white uppercase text-[11px] block">
+                      <span className="font-bold text-white uppercase text-xs block">
                         Venue & Stadium Map Location *
                       </span>
-                      <span className="text-[11px] text-emerald-400 font-semibold">
+                      <span className="text-xs text-emerald-400 font-semibold">
                         {venueData.venueName}
                       </span>
                     </div>
@@ -632,7 +633,7 @@ export const OrgTournamentsPage: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800/80 flex items-center justify-between text-[11px]">
+                <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800/80 flex items-center justify-between text-xs">
                   <div className="truncate text-slate-400 pr-2">
                     <span className="text-slate-500 font-bold">Address: </span>
                     <span className="text-slate-300 font-medium">{venueData.address}</span>
@@ -656,10 +657,10 @@ export const OrgTournamentsPage: React.FC = () => {
                       <ImageIcon className="w-4 h-4" />
                     </div>
                     <div>
-                      <span className="font-bold text-white uppercase text-[11px] block">
+                      <span className="font-bold text-white uppercase text-xs block">
                         Tournament Banner / Poster
                       </span>
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-xs text-slate-400">
                         {bannerUrl ? 'Custom banner selected' : 'Default sports theme banner active'}
                       </span>
                     </div>
@@ -681,7 +682,7 @@ export const OrgTournamentsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setBannerUrl('')}
-                      className="absolute top-1.5 right-1.5 p-1 rounded-lg bg-black/70 text-slate-300 hover:text-white text-[10px] font-bold"
+                      className="absolute top-1.5 right-1.5 p-1 rounded-lg bg-black/70 text-slate-300 hover:text-white text-xs font-bold"
                     >
                       ✕ Remove
                     </button>
@@ -695,11 +696,11 @@ export const OrgTournamentsPage: React.FC = () => {
                 <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="font-bold text-white uppercase text-[11px] flex items-center gap-1.5">
+                      <span className="font-bold text-white uppercase text-xs flex items-center gap-1.5">
                         <Gavel className="w-3.5 h-3.5 text-amber-400" />
                         <span>Player Auction System (Optional)</span>
                       </span>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
+                      <p className="text-xs text-slate-400 mt-0.5">
                         {hasAuction
                           ? 'Teams acquire players through a live bidding auction with purse limits.'
                           : 'Clubs/teams directly register and manage their own squad normally without an auction.'}
@@ -720,8 +721,8 @@ export const OrgTournamentsPage: React.FC = () => {
                   {hasAuction && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80">
                       <div>
-                        <label className="block text-slate-400 text-[11px] uppercase font-bold mb-1">Auction Date & Time</label>
-                        <input
+                        <label className="block text-slate-400 text-xs uppercase font-bold mb-1">Auction Date & Time</label>
+                        <input aria-label="Auction Date & Time"
                           type="datetime-local"
                           value={auctionStartTime}
                           onChange={(e) => setAuctionStartTime(e.target.value)}
@@ -730,8 +731,8 @@ export const OrgTournamentsPage: React.FC = () => {
                       </div>
 
                       <div>
-                        <label className="block text-slate-400 text-[11px] uppercase font-bold mb-1">Team Purse (₹)</label>
-                        <input
+                        <label className="block text-slate-400 text-xs uppercase font-bold mb-1">Team Purse (₹)</label>
+                        <input aria-label="Team Purse (₹)"
                           type="number"
                           value={teamPurse}
                           onChange={(e) => setTeamPurse(Number(e.target.value))}
@@ -740,8 +741,8 @@ export const OrgTournamentsPage: React.FC = () => {
                       </div>
 
                       <div>
-                        <label className="block text-slate-400 text-[11px] uppercase font-bold mb-1">Min Bid Inc (₹)</label>
-                        <input
+                        <label className="block text-slate-400 text-xs uppercase font-bold mb-1">Min Bid Inc (₹)</label>
+                        <input aria-label="Min Bid Inc (₹)"
                           type="number"
                           value={minBidIncrement}
                           onChange={(e) => setMinBidIncrement(Number(e.target.value))}
@@ -757,7 +758,7 @@ export const OrgTournamentsPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Football Format</label>
-                    <select
+                    <select aria-label="Football Format"
                       value={footballFormat}
                       onChange={(e) => setFootballFormat(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900"
@@ -770,7 +771,7 @@ export const OrgTournamentsPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Max Teams</label>
-                    <input
+                    <input aria-label="Max Teams"
                       type="number"
                       min="2"
                       max={planTeamLimit ?? undefined}
@@ -779,7 +780,7 @@ export const OrgTournamentsPage: React.FC = () => {
                       className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
                     />
                     {planTeamLimit && (
-                      <p className="text-[11px] text-slate-500 mt-1">Plan allows up to {planTeamLimit} teams.</p>
+                      <p className="text-xs text-slate-500 mt-1">Plan allows up to {planTeamLimit} teams.</p>
                     )}
                   </div>
                 </div>
@@ -787,7 +788,7 @@ export const OrgTournamentsPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Cricket Format</label>
-                    <select
+                    <select aria-label="Cricket Format"
                       value={cricketFormat}
                       onChange={(e) => setCricketFormat(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900"
@@ -799,7 +800,7 @@ export const OrgTournamentsPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Total Overs</label>
-                    <input
+                    <input aria-label="Total Overs"
                       type="number"
                       min="5"
                       value={totalOvers}
@@ -809,7 +810,7 @@ export const OrgTournamentsPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Max Teams</label>
-                    <input
+                    <input aria-label="Max Teams"
                       type="number"
                       min="2"
                       max={planTeamLimit ?? undefined}
@@ -818,7 +819,7 @@ export const OrgTournamentsPage: React.FC = () => {
                       className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
                     />
                     {planTeamLimit && (
-                      <p className="text-[11px] text-slate-500 mt-1">Plan allows up to {planTeamLimit} teams.</p>
+                      <p className="text-xs text-slate-500 mt-1">Plan allows up to {planTeamLimit} teams.</p>
                     )}
                   </div>
                 </div>
@@ -827,13 +828,13 @@ export const OrgTournamentsPage: React.FC = () => {
               {/* Ground Fee & Payment Options Configuration */}
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-white uppercase text-[11px]">Ground Fee & Team Payment Config</span>
+                  <span className="font-bold text-white uppercase text-xs">Ground Fee & Team Payment Config</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-slate-400 text-[11px] mb-1">Total Ground Fee (₹)</label>
-                    <input
+                    <label className="block text-slate-400 text-xs mb-1">Total Ground Fee (₹)</label>
+                    <input aria-label="Total Ground Fee (₹)"
                       type="number"
                       min="0"
                       value={groundFee}
@@ -854,10 +855,10 @@ export const OrgTournamentsPage: React.FC = () => {
                 </label>
 
                 <div className="pt-3 border-t border-slate-800/80">
-                  <span className="block text-slate-300 font-semibold text-[11px]">
+                  <span className="block text-slate-300 font-semibold text-xs">
                     Payment Methods Shown to Teams (at least one required)
                   </span>
-                  <span className="block text-slate-500 text-[11px] mb-2">
+                  <span className="block text-slate-500 text-xs mb-2">
                     Teams registering for this tournament only see the methods you tick. Options your platform admin has switched off aren't listed.
                   </span>
                   <div className="grid grid-cols-2 gap-2">
@@ -870,7 +871,7 @@ export const OrgTournamentsPage: React.FC = () => {
                       return (
                         <label
                           key={m.id}
-                          className={`px-2.5 py-2 rounded-xl border text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-2 ${
+                          className={`px-2.5 py-2 rounded-xl border text-xs font-semibold cursor-pointer transition-all flex items-center gap-2 ${
                             isChecked
                               ? 'bg-emerald-500/15 border-emerald-500/60 text-emerald-300'
                               : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -887,7 +888,7 @@ export const OrgTournamentsPage: React.FC = () => {
                           <Icon className="w-4 h-4 shrink-0" />
                           <span className="text-left">
                             <span className="block">{m.label}</span>
-                            <span className="block font-normal text-[10px] text-slate-500">{m.blurb}</span>
+                            <span className="block font-normal text-xs text-slate-500">{m.blurb}</span>
                           </span>
                         </label>
                       );
@@ -898,7 +899,7 @@ export const OrgTournamentsPage: React.FC = () => {
 
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Prize Money Pool (₹)</label>
-                <input
+                <input aria-label="Prize Money Pool (₹)"
                   type="number"
                   min="0"
                   value={prizeMoney}
@@ -1018,7 +1019,7 @@ export const OrgTournamentsPage: React.FC = () => {
               </div>
 
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Design</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Design</p>
                 <div className="grid grid-cols-2 gap-2">
                   {POSTER_TEMPLATES.map(opt => (
                     <button
@@ -1039,7 +1040,7 @@ export const OrgTournamentsPage: React.FC = () => {
                     </button>
                   ))}
                 </div>
-                <p className="text-[11px] text-slate-500 mt-2">
+                <p className="text-xs text-slate-500 mt-2">
                   {posterDesignLabel
                     ? `Showing the ${posterDesignLabel} design. Regenerate redraws it in a new colour scheme.`
                     : 'Pick a design to redraw this poster.'}

@@ -8,6 +8,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { roleHome } from '../../lib/roleHome';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
+import { TemporaryPasswordDialog } from '../../components/TemporaryPasswordDialog';
 import { Skeleton, SkeletonTable } from '../../components/ui/Feedback';
 import { PhoneInput } from '../../components/PhoneInput';
 import { label } from '../../lib/labels';
@@ -32,6 +33,8 @@ export const AdminOrganizationsPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [district, _setDistrict] = useState('Malappuram');
   const [planId, setPlanId] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [issued, setIssued] = useState<{ name: string; loginId: string; password: string } | null>(null);
 
   const fetchOrgs = async () => {
     try {
@@ -77,10 +80,15 @@ export const AdminOrganizationsPage: React.FC = () => {
     }
   };
 
+  // No password is sent: the server generates a random one, returns it once,
+  // and the organizer must replace it at first sign-in. It used to be
+  // `admin` + four digits, made up here and never shown to anyone.
   const handleCreateOrg = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (creating) return;
+    setCreating(true);
     try {
-      await api.post('/admin/organizations', {
+      const res: any = await api.post('/admin/organizations', {
         name,
         type,
         contact_person: contactPerson,
@@ -90,12 +98,20 @@ export const AdminOrganizationsPage: React.FC = () => {
         plan_id: planId,
         admin_name: contactPerson,
         admin_email: email,
-        admin_password: 'admin' + Date.now().toString().slice(-4)
       });
       setShowCreateModal(false);
+      if (res?.admin_credentials?.temporary_password) {
+        setIssued({
+          name: `${contactPerson} (${name})`,
+          loginId: res.admin_credentials.email,
+          password: res.admin_credentials.temporary_password,
+        });
+      }
       fetchOrgs();
     } catch (err: any) {
       toast.error(err.message || 'Failed to create organization');
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -136,7 +152,7 @@ export const AdminOrganizationsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold uppercase tracking-wider">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase tracking-wider">
               Club Directory
             </span>
           </div>
@@ -156,7 +172,7 @@ export const AdminOrganizationsPage: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between shadow-sm">
           <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Organizations</div>
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Organizations</div>
             <div className="text-2xl font-black text-white font-mono mt-1">{counts.total}</div>
           </div>
           <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300">
@@ -166,7 +182,7 @@ export const AdminOrganizationsPage: React.FC = () => {
 
         <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between shadow-sm">
           <div>
-            <div className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Active Clubs</div>
+            <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Active Clubs</div>
             <div className="text-2xl font-black text-emerald-300 font-mono mt-1">{counts.active}</div>
           </div>
           <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
@@ -176,7 +192,7 @@ export const AdminOrganizationsPage: React.FC = () => {
 
         <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between shadow-sm">
           <div>
-            <div className="text-[11px] font-bold text-rose-400 uppercase tracking-wider">Suspended</div>
+            <div className="text-xs font-bold text-rose-400 uppercase tracking-wider">Suspended</div>
             <div className="text-2xl font-black text-rose-300 font-mono mt-1">{counts.suspended}</div>
           </div>
           <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
@@ -186,7 +202,7 @@ export const AdminOrganizationsPage: React.FC = () => {
 
         <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between shadow-sm">
           <div>
-            <div className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">Hosted Tourneys</div>
+            <div className="text-xs font-bold text-amber-400 uppercase tracking-wider">Hosted Tourneys</div>
             <div className="text-2xl font-black text-amber-300 font-mono mt-1">{counts.totalTournaments}</div>
           </div>
           <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
@@ -199,7 +215,7 @@ export const AdminOrganizationsPage: React.FC = () => {
       <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-3">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
+          <input aria-label="Search by club name, contact, email, or district"
             type="text"
             placeholder="Search by club name, contact, email, or district..."
             value={search}
@@ -249,7 +265,7 @@ export const AdminOrganizationsPage: React.FC = () => {
       <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
         <div className="overflow-x-auto">
           <table className="responsive-table w-full min-w-[860px] text-xs text-left">
-            <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
+            <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-xs font-bold tracking-wider">
               <tr>
                 <th className="px-5 py-3.5">Organization</th>
                 <th className="px-4 py-3.5">Type</th>
@@ -270,7 +286,7 @@ export const AdminOrganizationsPage: React.FC = () => {
                         <Link to={`/organizations/${org.slug}`} className="font-bold text-white text-xs hover:text-emerald-400 transition-colors">
                           {org.name}
                         </Link>
-                        <div className="text-[11px] text-slate-400">{org.district}, {org.state}</div>
+                        <div className="text-xs text-slate-400">{org.district}, {org.state}</div>
                       </div>
                     </div>
                   </td>
@@ -278,19 +294,19 @@ export const AdminOrganizationsPage: React.FC = () => {
                     {org.type}
                   </td>
                   <td data-label="Plan / Tier" className="px-4 py-4">
-                    <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold font-mono text-[11px]">
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold font-mono text-xs">
                       {org.plan?.name || 'Standard Pro'}
                     </span>
                   </td>
                   <td data-label="Admin Contact" className="rt-full px-4 py-4">
                     <div className="text-white font-medium">{org.contact_person}</div>
-                    <div className="text-[11px] text-slate-400 font-mono">{org.phone}</div>
+                    <div className="text-xs text-slate-400 font-mono">{org.phone}</div>
                   </td>
                   <td data-label="Tournaments" className="px-4 py-4 text-center font-mono font-bold text-slate-200">
                     {org.tournaments_count || 0}
                   </td>
                   <td data-label="Status" className="px-4 py-4 text-center">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase ${
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase ${
                       org.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                     }`}>
                       {label(org.status)}
@@ -344,8 +360,8 @@ export const AdminOrganizationsPage: React.FC = () => {
 
             <form onSubmit={handleCreateOrg} className="p-6 space-y-3.5 text-xs">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Organization Name *</label>
-                <input
+                <label htmlFor="adminorganizations-organization-name" className="block text-slate-300 font-semibold mb-1">Organization Name *</label>
+                <input id="adminorganizations-organization-name"
                   type="text"
                   placeholder="e.g. Kozhikode Youth Sports Association"
                   value={name}
@@ -357,8 +373,8 @@ export const AdminOrganizationsPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Organization Type</label>
-                  <select
+                  <label htmlFor="adminorganizations-organization-type" className="block text-slate-300 font-semibold mb-1">Organization Type</label>
+                  <select id="adminorganizations-organization-type"
                     value={type}
                     onChange={(e) => setType(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900"
@@ -371,8 +387,8 @@ export const AdminOrganizationsPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Assign Plan *</label>
-                  <select
+                  <label htmlFor="adminorganizations-assign-plan" className="block text-slate-300 font-semibold mb-1">Assign Plan *</label>
+                  <select id="adminorganizations-assign-plan"
                     value={planId}
                     onChange={(e) => setPlanId(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900 text-emerald-400 font-semibold"
@@ -388,8 +404,8 @@ export const AdminOrganizationsPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Admin Contact Person *</label>
-                  <input
+                  <label htmlFor="adminorganizations-admin-contact-person" className="block text-slate-300 font-semibold mb-1">Admin Contact Person *</label>
+                  <input id="adminorganizations-admin-contact-person"
                     type="text"
                     placeholder="e.g. Ramesh Nair"
                     value={contactPerson}
@@ -399,8 +415,8 @@ export const AdminOrganizationsPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Mobile Number *</label>
-                  <PhoneInput
+                  <label htmlFor="adminorganizations-mobile-number" className="block text-slate-300 font-semibold mb-1">Mobile Number *</label>
+                  <PhoneInput id="adminorganizations-mobile-number"
                     placeholder="98470 12345"
                     value={phone}
                     onChange={setPhone}
@@ -411,8 +427,8 @@ export const AdminOrganizationsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Admin Email *</label>
-                <input
+                <label htmlFor="adminorganizations-admin-email" className="block text-slate-300 font-semibold mb-1">Admin Email *</label>
+                <input id="adminorganizations-admin-email"
                   type="email"
                   placeholder="admin@sportsorg.com"
                   value={email}
@@ -432,14 +448,24 @@ export const AdminOrganizationsPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold"
+                  disabled={creating}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold disabled:opacity-50"
                 >
-                  Create & Activate Organization
+                  {creating ? 'Creating…' : 'Create & Activate Organization'}
                 </button>
               </div>
             </form>
           </div>
         </div>
+      )}
+      {issued && (
+        <TemporaryPasswordDialog
+          title="Club created — share these sign-in details"
+          name={issued.name}
+          loginId={issued.loginId}
+          password={issued.password}
+          onClose={() => setIssued(null)}
+        />
       )}
     </div>
   );

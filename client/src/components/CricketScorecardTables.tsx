@@ -35,14 +35,14 @@ export const CricketScorecardTables: React.FC<CricketScorecardTablesProps> = ({
   return (
     <div className="grid md:grid-cols-2 gap-4">
       <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 overflow-x-auto">
-        <div className="text-[11px] font-bold text-slate-400 uppercase mb-3 flex items-center justify-between">
+        <div className="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center justify-between">
           <span>Batting Card</span>
           <span className="font-mono text-slate-500">Extras {card.extras}</span>
         </div>
 
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-[10px] uppercase tracking-wider text-slate-500">
+            <tr className="text-xs uppercase tracking-wider text-slate-500">
               <th className="text-left font-bold pb-1.5">Batter</th>
               <th className="text-right font-bold pb-1.5">R</th>
               <th className="text-right font-bold pb-1.5">B</th>
@@ -59,7 +59,7 @@ export const CricketScorecardTables: React.FC<CricketScorecardTablesProps> = ({
                     {row.name}
                     {!row.is_out && row.player_id === strikerId && <span className="text-emerald-400"> *</span>}
                   </span>
-                  <div className="text-[10px] font-normal text-slate-500">{row.dismissal || 'not out'}</div>
+                  <div className="text-xs font-normal text-slate-500">{row.dismissal || 'not out'}</div>
                 </td>
                 <td className="text-right font-mono text-white">{row.runs}</td>
                 <td className="text-right font-mono text-slate-400">{row.balls}</td>
@@ -72,7 +72,7 @@ export const CricketScorecardTables: React.FC<CricketScorecardTablesProps> = ({
         </table>
 
         {yetToBat.length > 0 && (
-          <p className="text-[11px] text-slate-500 mt-2.5 pt-2 border-t border-slate-900">
+          <p className="text-xs text-slate-500 mt-2.5 pt-2 border-t border-slate-900">
             <span className="font-bold uppercase tracking-wider">Yet to bat: </span>
             {yetToBat.map(row => row.name).join(', ')}
           </p>
@@ -80,11 +80,11 @@ export const CricketScorecardTables: React.FC<CricketScorecardTablesProps> = ({
       </div>
 
       <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 overflow-x-auto">
-        <div className="text-[11px] font-bold text-slate-400 uppercase mb-3">Bowling Figures</div>
+        <div className="text-xs font-bold text-slate-400 uppercase mb-3">Bowling Figures</div>
 
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-[10px] uppercase tracking-wider text-slate-500">
+            <tr className="text-xs uppercase tracking-wider text-slate-500">
               <th className="text-left font-bold pb-1.5">Bowler</th>
               <th className="text-right font-bold pb-1.5">O</th>
               <th className="text-right font-bold pb-1.5">M</th>

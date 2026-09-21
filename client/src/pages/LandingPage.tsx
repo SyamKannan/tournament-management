@@ -139,7 +139,7 @@ export const LandingPage: React.FC = () => {
           <ImageCarouselBackdrop images={SPORTS_CAROUSELS.hero} activeIndex={heroSlide} className="opacity-25" />
           <div className="absolute inset-0 bg-gradient-to-b from-slate-950/40 via-slate-950/85 to-slate-950" />
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-violet-500/10" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgb(2_6_23)_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,var(--surface-page)_100%)]" />
         </div>
 
         <motion.div
@@ -238,7 +238,7 @@ export const LandingPage: React.FC = () => {
                   style={{ backgroundImage: `url(${item.image})`, backgroundPosition: item.position }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/30 to-transparent" />
-                <span className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-slate-950/70 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold uppercase tracking-wider backdrop-blur">
+                <span className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-slate-950/70 border border-emerald-500/30 text-emerald-300 text-xs font-bold uppercase tracking-wider backdrop-blur">
                   {item.tag}
                 </span>
               </div>
@@ -337,7 +337,7 @@ export const LandingPage: React.FC = () => {
                   }`}
                 >
                   {isPopular && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-emerald-500 text-slate-950 font-black text-[11px] uppercase tracking-wider shadow-md">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-emerald-500 text-slate-950 font-black text-xs uppercase tracking-wider shadow-md">
                       Most Popular
                     </div>
                   )}
@@ -350,7 +350,7 @@ export const LandingPage: React.FC = () => {
                         {plan.name}
                       </div>
                       {isFree && (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-black uppercase">
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-black uppercase">
                           Free Tournament
                         </span>
                       )}
@@ -387,7 +387,7 @@ export const LandingPage: React.FC = () => {
 
                     {/* Features List */}
                     <div className="mt-5 pt-4 border-t border-slate-800/80">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
                         Included Features:
                       </span>
                       <PlanFeatureList

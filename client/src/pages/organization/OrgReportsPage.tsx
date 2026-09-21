@@ -195,7 +195,7 @@ export const OrgReportsPage: React.FC = () => {
               <div className="text-2xl font-black text-emerald-400 font-heading font-mono mt-1">
                 ₹{reportData.summary.total_collected.toLocaleString()}
               </div>
-              <div className="text-[11px] text-emerald-400 mt-0.5">{reportData.summary.collection_percentage}% Collected</div>
+              <div className="text-xs text-emerald-400 mt-0.5">{reportData.summary.collection_percentage}% Collected</div>
             </div>
 
             <div className="p-5 rounded-2xl glass-card border border-slate-800">
@@ -217,7 +217,7 @@ export const OrgReportsPage: React.FC = () => {
           <div className="border border-slate-800 rounded-2xl overflow-hidden glass-card">
             <div className="overflow-x-auto">
               <table className="responsive-table w-full min-w-[820px] text-xs text-left">
-                <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[11px] font-bold tracking-wider">
+                <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-xs font-bold tracking-wider">
                   <tr>
                     <th className="px-5 py-3.5">Team Name</th>
                     <th className="px-4 py-3.5">Manager Contact</th>
@@ -236,9 +236,9 @@ export const OrgReportsPage: React.FC = () => {
                       <td data-label="Total Fee" className="px-4 py-3.5 font-mono text-slate-200">₹{r.total_fee.toLocaleString()}</td>
                       <td data-label="Paid Amount" className="px-4 py-3.5 font-mono font-bold text-emerald-400">₹{r.paid_amount.toLocaleString()}</td>
                       <td data-label="Remaining" className="px-4 py-3.5 font-mono font-bold text-amber-400">₹{r.remaining_amount.toLocaleString()}</td>
-                      <td data-label="Method" className="px-4 py-3.5 uppercase font-mono text-[11px] text-slate-400">{r.payment_method}</td>
+                      <td data-label="Method" className="px-4 py-3.5 uppercase font-mono text-xs text-slate-400">{r.payment_method}</td>
                       <td data-label="Status" className="px-4 py-3.5 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase ${
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase ${
                           r.status === 'fully_paid' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
                         }`}>
                           {label(r.status)}

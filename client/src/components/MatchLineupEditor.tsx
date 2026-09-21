@@ -124,7 +124,7 @@ export const MatchLineupEditor: React.FC<MatchLineupEditorProps> = ({
             {isFootball ? 'Team Sheets & Starting Line-up' : 'Team Sheets & Batting Order'}
           </span>
         </div>
-        <span className="text-[11px] font-mono text-slate-500">{playingCount} playing</span>
+        <span className="text-xs font-mono text-slate-500">{playingCount} playing</span>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -155,7 +155,7 @@ export const MatchLineupEditor: React.FC<MatchLineupEditorProps> = ({
 
             <button
               onClick={() => toggle(index, 'is_playing')}
-              className={`w-9 shrink-0 py-1 rounded-lg text-[10px] font-black uppercase border ${
+              className={`w-9 shrink-0 py-1 rounded-lg text-xs font-black uppercase border ${
                 row.is_playing
                   ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
                   : 'bg-slate-900 border-slate-800 text-slate-500'

@@ -28,7 +28,7 @@ const FACE_CLASSES: Record<'md' | 'lg', string> = {
 };
 
 const LABEL_CLASSES: Record<'md' | 'lg', string> = {
-  md: 'text-[9px] tracking-[0.2em]',
+  md: 'text-xs tracking-[0.2em]',
   lg: 'text-xs sm:text-sm tracking-[0.3em]',
 };
 

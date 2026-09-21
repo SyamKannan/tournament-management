@@ -6,6 +6,7 @@ import type {
   MatchLineupEntry, ScorecardInnings, ScorecardBattingRow, ScoreboardState,
 } from '../../types';
 import { websocketUrl } from '../../config';
+import { useWakeLock } from '../../lib/useWakeLock';
 import { CoinFlip, COIN_FLIP_MS } from '../../components/CoinFlip';
 import { LineupReveal, LINEUP_REVEAL_SECONDS } from '../../components/LineupReveal';
 import { BigScreenScorecard } from '../../components/BigScreenScorecard';
@@ -117,6 +118,8 @@ const runNote = (extrasRuns: number): string | undefined =>
  */
 export const ScoreboardTVPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  // A display nobody touches for the length of a match: it must not sleep.
+  useWakeLock(true);
   const [data, setData] = useState<{
     match: Match;
     tournament: Tournament;
@@ -399,7 +402,7 @@ export const ScoreboardTVPage: React.FC = () => {
 
   if (loading || !data) {
     return (
-      <div className="h-screen bg-slate-950 flex items-center justify-center p-6 text-white">
+      <div data-theme="dark" className="h-screen bg-slate-950 flex items-center justify-center p-6 text-white">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           <span className="tv-sub font-bold font-heading tracking-wider">CONNECTING TO STADIUM FEED...</span>
@@ -511,7 +514,7 @@ export const ScoreboardTVPage: React.FC = () => {
   const itemSecondsLeft = endsAt ? Math.max(0, Math.ceil((Date.parse(endsAt) - Date.now()) / 1000)) : null;
 
   return (
-    <div className="h-screen w-screen bg-[#070b1d] text-white flex flex-col select-none overflow-hidden p-3 sm:p-4 lg:p-6 font-sans relative">
+    <div data-theme="dark" className="h-screen w-screen bg-[#070b1d] text-white flex flex-col select-none overflow-hidden p-3 sm:p-4 lg:p-6 font-sans relative">
       {/* The call for the ball just bowled — over everything, including a
           break takeover, because it is the thing the crowd looked up for. It
           clears itself and the scoreline is straight back underneath. */}

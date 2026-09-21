@@ -76,7 +76,7 @@ export const DemoCheckoutModal: React.FC<DemoCheckoutModalProps> = ({ order, nam
               )}
               <div className="min-w-0">
                 <div className="text-sm font-bold text-white truncate">{name}</div>
-                <div className="text-[11px] text-slate-400 truncate">{description}</div>
+                <div className="text-xs text-slate-400 truncate">{description}</div>
               </div>
             </div>
             <button onClick={onDismiss} disabled={processing} className="p-1 rounded-lg text-slate-400 hover:text-white disabled:opacity-40">
@@ -85,10 +85,10 @@ export const DemoCheckoutModal: React.FC<DemoCheckoutModalProps> = ({ order, nam
           </div>
           <div className="mt-3 flex items-end justify-between">
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-slate-400">Amount to pay</div>
+              <div className="text-xs uppercase tracking-wider text-slate-400">Amount to pay</div>
               <div className="text-2xl font-black text-white font-mono">{amountLabel}</div>
             </div>
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold uppercase">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold uppercase">
               <FlaskConical className="w-3 h-3" /> Test mode
             </span>
           </div>
@@ -123,7 +123,7 @@ export const DemoCheckoutModal: React.FC<DemoCheckoutModalProps> = ({ order, nam
                       </span>
                       <span className="flex-1">
                         <span className="block text-sm font-semibold text-white">{meta.label}</span>
-                        <span className="block text-[11px] text-slate-500">{meta.blurb}</span>
+                        <span className="block text-xs text-slate-500">{meta.blurb}</span>
                       </span>
                       <ChevronLeft className="w-4 h-4 text-slate-500 rotate-180" />
                     </button>
@@ -136,8 +136,8 @@ export const DemoCheckoutModal: React.FC<DemoCheckoutModalProps> = ({ order, nam
               {method === 'card' && (
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Card number</label>
-                    <input
+                    <label htmlFor="democheckoutmodal-card-number" className="block text-xs font-semibold text-slate-400 mb-1">Card number</label>
+                    <input id="democheckoutmodal-card-number"
                       inputMode="numeric"
                       autoComplete="cc-number"
                       placeholder="1234 5678 9012 3456"
@@ -148,17 +148,17 @@ export const DemoCheckoutModal: React.FC<DemoCheckoutModalProps> = ({ order, nam
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Name on card</label>
-                    <input autoComplete="cc-name" value={card.name} onChange={e => setCard({ ...card, name: e.target.value })} className={inputClass} placeholder="Full name" />
+                    <label htmlFor="democheckoutmodal-name-on-card" className="block text-xs font-semibold text-slate-400 mb-1">Name on card</label>
+                    <input id="democheckoutmodal-name-on-card" autoComplete="cc-name" value={card.name} onChange={e => setCard({ ...card, name: e.target.value })} className={inputClass} placeholder="Full name" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Expiry</label>
-                      <input inputMode="numeric" autoComplete="cc-exp" placeholder="MM/YY" value={card.expiry} onChange={e => setCard({ ...card, expiry: formatExpiry(e.target.value) })} className={`${inputClass} font-mono`} />
+                      <label htmlFor="democheckoutmodal-expiry" className="block text-xs font-semibold text-slate-400 mb-1">Expiry</label>
+                      <input id="democheckoutmodal-expiry" inputMode="numeric" autoComplete="cc-exp" placeholder="MM/YY" value={card.expiry} onChange={e => setCard({ ...card, expiry: formatExpiry(e.target.value) })} className={`${inputClass} font-mono`} />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">CVV</label>
-                      <input inputMode="numeric" type="password" autoComplete="cc-csc" placeholder="•••" maxLength={4} value={card.cvv} onChange={e => setCard({ ...card, cvv: e.target.value.replace(/\D/g, '') })} className={`${inputClass} font-mono`} />
+                      <label htmlFor="democheckoutmodal-cvv" className="block text-xs font-semibold text-slate-400 mb-1">CVV</label>
+                      <input id="democheckoutmodal-cvv" inputMode="numeric" type="password" autoComplete="cc-csc" placeholder="•••" maxLength={4} value={card.cvv} onChange={e => setCard({ ...card, cvv: e.target.value.replace(/\D/g, '') })} className={`${inputClass} font-mono`} />
                     </div>
                   </div>
                 </div>
@@ -166,22 +166,22 @@ export const DemoCheckoutModal: React.FC<DemoCheckoutModalProps> = ({ order, nam
 
               {method === 'upi' && (
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">UPI ID</label>
-                  <input placeholder="yourname@okbank" value={upiId} onChange={e => setUpiId(e.target.value.trim())} className={inputClass} autoFocus />
-                  <p className="text-[11px] text-slate-500 mt-1.5">A collect request is sent to your UPI app — in test mode it's approved instantly.</p>
+                  <label htmlFor="democheckoutmodal-upi-id" className="block text-xs font-semibold text-slate-400 mb-1">UPI ID</label>
+                  <input id="democheckoutmodal-upi-id" placeholder="yourname@okbank" value={upiId} onChange={e => setUpiId(e.target.value.trim())} className={inputClass} autoFocus />
+                  <p className="text-xs text-slate-500 mt-1.5">A collect request is sent to your UPI app — in test mode it's approved instantly.</p>
                 </div>
               )}
 
               {method === 'netbanking' && (
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Select your bank</label>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Select your bank</label>
                   <div className="grid grid-cols-2 gap-2">
                     {BANKS.map(b => (
                       <button
                         key={b}
                         type="button"
                         onClick={() => setBank(b)}
-                        className={`px-3 py-2.5 rounded-xl border text-[11px] font-semibold text-left transition-all ${
+                        className={`px-3 py-2.5 rounded-xl border text-xs font-semibold text-left transition-all ${
                           bank === b ? 'border-emerald-500 bg-emerald-500/10 text-white' : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700'
                         }`}
                       >
@@ -208,14 +208,14 @@ export const DemoCheckoutModal: React.FC<DemoCheckoutModalProps> = ({ order, nam
                 <span>{processing ? 'Processing...' : `Pay ${amountLabel}`}</span>
               </button>
               {method === 'netbanking' && (
-                <button onClick={() => pay('failure')} disabled={processing} className="w-full text-[11px] text-slate-500 hover:text-rose-300">
+                <button onClick={() => pay('failure')} disabled={processing} className="w-full text-xs text-slate-500 hover:text-rose-300">
                   Simulate a failed bank authorisation
                 </button>
               )}
 
               {/* Test credentials */}
-              <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-[11px] text-slate-400 space-y-1">
-                <div className="font-bold text-amber-300 uppercase tracking-wider text-[10px]">Test details — no real money</div>
+              <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-xs text-slate-400 space-y-1">
+                <div className="font-bold text-amber-300 uppercase tracking-wider text-xs">Test details — no real money</div>
                 {method === 'card' && (
                   <>
                     <div>Success: <button className="font-mono text-slate-200 hover:text-emerald-300" onClick={() => setCard({ number: '4111 1111 1111 1111', name: card.name || 'Test User', expiry: '12/30', cvv: '123' })}>4111 1111 1111 1111</button> · any future expiry · any CVV</div>
@@ -232,7 +232,7 @@ export const DemoCheckoutModal: React.FC<DemoCheckoutModalProps> = ({ order, nam
           )}
         </div>
 
-        <div className="px-5 py-2.5 border-t border-slate-800 bg-slate-950/60 flex items-center justify-center gap-1.5 text-[10px] text-slate-500">
+        <div className="px-5 py-2.5 border-t border-slate-800 bg-slate-950/60 flex items-center justify-center gap-1.5 text-xs text-slate-500">
           <Lock className="w-3 h-3" /> Secured demo checkout · switch to Razorpay in Platform Settings for real payments
         </div>
       </div>

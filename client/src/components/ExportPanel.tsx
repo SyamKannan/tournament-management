@@ -100,7 +100,7 @@ export const ExportPanel: React.FC<{ tournamentId: string; includePrivate?: bool
               : <Download className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />}
             <span className="min-w-0">
               <span className="block text-xs font-bold text-white">{item.label}</span>
-              <span className="block text-[11px] text-slate-400 mt-0.5">{item.hint}</span>
+              <span className="block text-xs text-slate-400 mt-0.5">{item.hint}</span>
             </span>
           </button>
         ))}

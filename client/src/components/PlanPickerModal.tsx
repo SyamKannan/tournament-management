@@ -105,12 +105,12 @@ export const PlanPickerModal: React.FC<PlanPickerModalProps> = ({
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-white text-sm">{p.name}</span>
                         {p.id === currentPlanId && (
-                          <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[11px] font-bold uppercase">
+                          <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-xs font-bold uppercase">
                             Current
                           </span>
                         )}
                         {p.price === 0 && (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase">
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold uppercase">
                             Free
                           </span>
                         )}
@@ -122,7 +122,7 @@ export const PlanPickerModal: React.FC<PlanPickerModalProps> = ({
                     <div className="text-right shrink-0">
                       <div className="text-base font-black text-cyan-400 font-mono">
                         ₹{p.price.toLocaleString()}
-                        <span className="text-[11px] text-slate-400 font-normal">
+                        <span className="text-xs text-slate-400 font-normal">
                           {isOneTime ? '/event' : `/${p.billing_interval || 'mo'}`}
                         </span>
                       </div>

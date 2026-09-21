@@ -73,8 +73,8 @@ export const MatchPicker: React.FC<MatchPickerProps> = ({ onChange }) => {
   return (
     <div className="grid sm:grid-cols-2 gap-3 text-xs">
       <div>
-        <label className="block text-slate-400 font-semibold mb-1">Tournament</label>
-        <select
+        <label htmlFor="matchpicker-tournament" className="block text-slate-400 font-semibold mb-1">Tournament</label>
+        <select id="matchpicker-tournament"
           value={tournamentId}
           onChange={e => setTournamentId(e.target.value)}
           className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none"
@@ -87,8 +87,8 @@ export const MatchPicker: React.FC<MatchPickerProps> = ({ onChange }) => {
       </div>
 
       <div>
-        <label className="block text-slate-400 font-semibold mb-1">Match</label>
-        <select
+        <label htmlFor="matchpicker-match" className="block text-slate-400 font-semibold mb-1">Match</label>
+        <select id="matchpicker-match"
           value={matchId}
           onChange={e => selectMatch(e.target.value)}
           className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none"

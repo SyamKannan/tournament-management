@@ -166,7 +166,7 @@ export const BigScreenDirector: React.FC<BigScreenDirectorProps> = ({
             Big Screen Director
           </span>
         </div>
-        <span className="text-[11px] font-mono text-slate-500">
+        <span className="text-xs font-mono text-slate-500">
           {scoreboard?.stage === 'auto' ? 'following the match' : 'held by you'}
         </span>
       </div>
@@ -241,12 +241,12 @@ export const BigScreenDirector: React.FC<BigScreenDirectorProps> = ({
       {onScreenId && (
         <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+            <div className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
               <MonitorPlay className="w-3.5 h-3.5" />
               <span>{activeStage === 'ad' ? 'Ad' : 'Announcement'} on the big screen</span>
             </div>
             <div className="text-sm font-bold text-white truncate">{onScreenName}</div>
-            <div className="text-[11px] font-mono text-slate-400 flex items-center gap-1 mt-0.5">
+            <div className="text-xs font-mono text-slate-400 flex items-center gap-1 mt-0.5">
               <Clock className="w-3 h-3" />
               {secondsLeft !== null ? `${clock(secondsLeft)} left, then back to the match` : 'Held until you switch back'}
             </div>
@@ -325,7 +325,7 @@ const ItemSection: React.FC<{
       </span>
       <Link
         to={createTo}
-        className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+        className="text-xs font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
       >
         <Plus className="w-3 h-3" />
         {createLabel}
@@ -333,7 +333,7 @@ const ItemSection: React.FC<{
     </div>
 
     {children.length === 0 ? (
-      <div className="p-3 rounded-xl bg-slate-950 border border-dashed border-slate-800 text-[11px] text-slate-500 text-center">
+      <div className="p-3 rounded-xl bg-slate-950 border border-dashed border-slate-800 text-xs text-slate-500 text-center">
         {emptyText}
       </div>
     ) : (
@@ -369,10 +369,10 @@ const ItemRow: React.FC<{
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-white truncate">{name}</span>
           {onScreen && (
-            <span className="px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 text-[10px] font-black uppercase shrink-0">On screen</span>
+            <span className="px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 text-xs font-black uppercase shrink-0">On screen</span>
           )}
         </div>
-        {detail && <div className="text-[11px] text-slate-400 truncate">{detail}</div>}
+        {detail && <div className="text-xs text-slate-400 truncate">{detail}</div>}
       </div>
 
       <label className="flex items-center gap-1 shrink-0" title="How long it stays on the big screen">
@@ -380,7 +380,7 @@ const ItemRow: React.FC<{
         <select
           value={duration}
           onChange={e => onDuration(Number(e.target.value))}
-          className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-white text-[11px] font-mono font-bold outline-none"
+          className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-white text-xs font-mono font-bold outline-none"
         >
           {choices.map(seconds => (
             <option key={seconds} value={seconds}>{durationLabel(seconds)}</option>
@@ -391,7 +391,7 @@ const ItemRow: React.FC<{
       <button
         disabled={busy || onScreen}
         onClick={onShow}
-        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1 disabled:opacity-40 shrink-0"
+        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1 disabled:opacity-40 shrink-0"
       >
         <MonitorPlay className="w-3.5 h-3.5" />
         <span>Show</span>

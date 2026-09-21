@@ -67,7 +67,7 @@ export const MatchStatusPopup: React.FC<{ summary: TickerMatch; onClose: () => v
       <div className="relative w-full sm:max-w-lg max-h-[85vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl text-left">
         <div className="sticky top-0 bg-slate-900/95 backdrop-blur px-5 py-3 border-b border-slate-800 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] text-slate-400 truncate">
+            <div className="text-xs text-slate-400 truncate">
               {[summary.tournament?.name, summary.round_name].filter(Boolean).join(' • ')}
             </div>
             <div className="flex items-center gap-1.5 text-xs font-bold">
@@ -111,7 +111,7 @@ export const MatchStatusPopup: React.FC<{ summary: TickerMatch; onClose: () => v
             if (batted.length === 0 && card.bowling.length === 0) return null;
             return (
               <div key={card.innings} className="space-y-2">
-                <div className="font-bold text-slate-300 uppercase text-[11px] tracking-wider">
+                <div className="font-bold text-slate-300 uppercase text-xs tracking-wider">
                   {teamName(card.batting_team_id)} innings
                 </div>
                 <div className="rounded-2xl bg-slate-950 border border-slate-800 divide-y divide-slate-800/70">
@@ -119,7 +119,7 @@ export const MatchStatusPopup: React.FC<{ summary: TickerMatch; onClose: () => v
                     <div key={row.player_id} className="px-3 py-2 flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <PlayerLink id={row.player_id} name={row.name} />
-                        <div className="text-[11px] text-slate-500 truncate">{row.is_out ? row.dismissal : 'not out'}</div>
+                        <div className="text-xs text-slate-500 truncate">{row.is_out ? row.dismissal : 'not out'}</div>
                       </div>
                       <span className="font-mono text-slate-200 shrink-0">
                         <strong className="text-white">{row.runs}</strong> ({row.balls})

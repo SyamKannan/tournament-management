@@ -2,13 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { 
   Building2, CreditCard, DollarSign, TrendingUp, 
-  Trophy, ArrowUpRight
+  Trophy, ArrowUpRight, TriangleAlert
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const AdminDashboard: React.FC = () => {
   const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  // Only the super admin can connect a messaging gateway, so a setup that is
+  // not really sending — above all, password reset codes — is put here.
+  const [health, setHealth] = useState<{ ok: boolean; issues: { channel: string; severity: string; message: string }[] } | null>(null);
+
+  useEffect(() => {
+    api.get('/admin/notification-health').then(setHealth).catch(() => setHealth(null));
+  }, []);
 
   useEffect(() => {
     const fetchMetrics = async () => {
@@ -35,14 +42,34 @@ export const AdminDashboard: React.FC = () => {
   }
 
   const { organizations, subscriptions, revenue, activity } = metrics;
+  const deliveryIssues = (health?.issues ?? []).filter(issue => issue.severity !== 'info');
+  const simulatedOnly = health && deliveryIssues.length === 0 && (health.issues ?? []).length > 0;
 
   return (
     <div className="space-y-8 animate-fade-in">
+      {deliveryIssues.length > 0 && (
+        <div role="alert" className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/40 flex items-start gap-3">
+          <TriangleAlert className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="text-sm space-y-1">
+            <p className="font-bold text-rose-200">WhatsApp / SMS are not being delivered</p>
+            {deliveryIssues.map((issue, i) => <p key={i} className="text-rose-100">{issue.message}</p>)}
+            <p className="text-rose-100">
+              Configure a gateway (see <code className="font-code">SMS_DRIVER</code> in the deployment guide). Until then, locked-out
+              users can be helped from <Link to="/admin/users" className="underline font-semibold">Users → Reset password</Link>.
+            </p>
+          </div>
+        </div>
+      )}
+      {simulatedOnly && (
+        <p className="text-sm text-slate-400">
+          Messages are being recorded, not sent — no WhatsApp/SMS gateway is configured in this environment.
+        </p>
+      )}
       {/* Top Header with live status badge */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold uppercase tracking-wider">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase tracking-wider">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Platform Overview
             </span>

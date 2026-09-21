@@ -1,16 +1,29 @@
 @import "tailwindcss";
+@import "./theme.css";
 
 /* Registered with Tailwind so `font-sans` / `font-mono` utilities resolve to
    the loaded Google fonts instead of the platform defaults. */
 @theme {
-  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Noto Sans Malayalam picks up any Malayalam text — the Latin faces have no
+     Malayalam glyphs, and the system fallback differs from phone to phone. */
+  --font-sans: 'Plus Jakarta Sans', 'Noto Sans Malayalam', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   /* `font-mono` is used across the app for figures (scores, money, phones,
      clocks). It resolves to the UI sans with tabular numerals so digits line
      up without the terminal look; `font-code` is the real monospace, kept for
      URLs, player codes and reference numbers. */
-  --font-mono: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Plus Jakarta Sans', 'Noto Sans Malayalam', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-code: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
-  --font-heading: 'Barlow Semi Condensed', 'Outfit', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Barlow Semi Condensed', 'Outfit', 'Plus Jakarta Sans', 'Noto Sans Malayalam', ui-sans-serif, system-ui, sans-serif;
+
+  /* Type scale. The two smallest steps are larger than Tailwind's stock 12px
+     and 14px: they carried most of this app's text (and the 10-11px values
+     that were folded into them), and it is read on phones, outdoors, by
+     people who are not all twenty-five. Everything is in rem, so the Display
+     setting's "Large" / "Larger" scale it along with the rest of the page. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.35;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.45;
 
   /* "Volt & Midnight" theme. Pages use the stock palette names, so the theme
      is set by re-pointing them here instead of editing every screen:
@@ -79,7 +92,7 @@
 .hover\:bg-emerald-500.hover\:text-white:hover,
 .hover\:bg-emerald-600.hover\:text-white:hover,
 .hover\:bg-emerald-600:hover .text-white {
-  color: var(--color-slate-950);
+  color: var(--ink-on-accent);
 }
 
 @layer base {
@@ -91,15 +104,39 @@
     color-scheme: dark;
   }
 
+  /* The Display setting. Root size scales every rem — text, spacing and tap
+     targets together — like browser zoom, without breaking layouts. */
+  html[data-text-size="large"] {
+    font-size: 112.5%;
+  }
+
+  html[data-text-size="larger"] {
+    font-size: 125%;
+  }
+
+  html[data-theme="light"] {
+    color-scheme: light;
+  }
+
   body {
-    background-color: #070b1d;
-    color: #f1f5f9;
+    background-color: var(--surface-page);
+    color: var(--surface-text);
     font-family: var(--font-sans);
     overflow-x: hidden;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Malayalam glyphs are taller than Latin ones and have no case: give lines
+     room, and drop the letter-spacing the uppercase labels use. */
+  html[lang="ml"] body {
+    line-height: 1.6;
+  }
+
+  html[lang="ml"] .uppercase {
+    letter-spacing: 0;
   }
 
   /* Headlines break into even lines instead of leaving one orphaned word. */
@@ -112,24 +149,40 @@
   }
 
   ::selection {
-    background: rgba(200, 245, 53, 0.35);
-    color: #fff;
+    background: var(--selection-bg);
+    color: var(--selection-text);
   }
 
   /* Visible keyboard focus everywhere, without drawing rings for mouse users. */
   :focus-visible {
-    outline: 2px solid #c8f535;
+    outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
     border-radius: 6px;
   }
 
-  /* Tap targets on touch devices should never fall below the ~44px guideline. */
+  /* Tap targets on touch devices never fall below the 44px guideline — a
+     scorer tapping between balls, with a thumb, in a hurry. Links styled as
+     buttons and form fields count too, and an icon-only button gets the width
+     as well as the height. */
   @media (pointer: coarse) {
     button,
     a[role="button"],
     [type="button"],
-    [type="submit"] {
-      min-height: 42px;
+    [type="submit"],
+    select,
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]) {
+      min-height: 44px;
+    }
+
+    button:has(> svg:only-child),
+    a:has(> svg:only-child) {
+      min-width: 44px;
+    }
+
+    input[type="checkbox"],
+    input[type="radio"] {
+      width: 1.25rem;
+      height: 1.25rem;
     }
 
     /* iOS zooms the whole page when a field under 16px takes focus, which
@@ -137,7 +190,7 @@
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
     select,
     textarea {
-      font-size: 16px !important;
+      font-size: max(16px, 1rem) !important;
     }
   }
 
@@ -161,8 +214,8 @@
   /* The dropdown list itself is drawn by the OS, so its options need a colour
      of their own or they fall back to white-on-white on some platforms. */
   select option {
-    background-color: #111834;
-    color: #f1f5f9;
+    background-color: var(--option-bg);
+    color: var(--option-text);
   }
 
   input[type="checkbox"],
@@ -192,7 +245,7 @@
 .auth-stage {
   position: relative;
   isolation: isolate;
-  background-color: #070b1d;
+  background-color: var(--surface-page);
 }
 
 /* Soft aurora behind the form, plus a faint grid so the empty side of the
@@ -223,13 +276,13 @@
 }
 
 .auth-card {
-  background: linear-gradient(180deg, rgba(17, 24, 52, 0.78), rgba(9, 13, 32, 0.86));
+  background: var(--auth-card-bg);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-panel-border);
   box-shadow:
     0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
-    0 30px 60px -25px rgba(0, 0, 0, 0.75);
+    0 30px 60px -25px rgba(0, 0, 0, 0.35);
 }
 
 /* Floating-label-free field: icon on the left, 48px tall on every device. */
@@ -239,15 +292,15 @@
   padding-left: 2.75rem;
   padding-right: 1rem;
   border-radius: 0.875rem;
-  background: rgba(7, 11, 29, 0.6);
-  border: 1px solid rgba(142, 155, 200, 0.16);
-  color: #fff;
-  font-size: 0.9rem;
+  background: var(--auth-field-bg);
+  border: 1px solid var(--glass-input-border);
+  color: var(--auth-field-text);
+  font-size: 1rem;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
 .auth-field::placeholder {
-  color: #636f9e;
+  color: var(--placeholder, var(--color-slate-500));
 }
 
 .auth-field:hover {
@@ -256,8 +309,8 @@
 
 .auth-field:focus {
   outline: none;
-  background: rgba(7, 11, 29, 0.85);
-  border-color: var(--auth-accent, #c8f535);
+  background: var(--auth-field-bg-focus);
+  border-color: var(--auth-accent, var(--focus-ring));
   box-shadow: 0 0 0 4px var(--auth-ring, rgba(200, 245, 53, 0.18));
 }
 }
@@ -279,13 +332,13 @@
 
 /* App-shell backdrop: a faint pitch-light glow behind every workspace page. */
 .app-shell {
-  background-color: #070b1d;
+  background-color: var(--surface-page);
   /* Floodlight glows over faint diagonal pitch stripes. */
   background-image:
-    radial-gradient(60rem 30rem at 10% -10%, rgba(200, 245, 53, 0.08), transparent 60%),
-    radial-gradient(50rem 28rem at 100% 0%, rgba(56, 189, 248, 0.08), transparent 60%),
-    radial-gradient(60rem 40rem at 50% 120%, rgba(99, 102, 241, 0.07), transparent 60%),
-    repeating-linear-gradient(135deg, rgba(142, 155, 200, 0.022) 0 2px, transparent 2px 84px);
+    radial-gradient(60rem 30rem at 10% -10%, var(--shell-glow-a), transparent 60%),
+    radial-gradient(50rem 28rem at 100% 0%, var(--shell-glow-b), transparent 60%),
+    radial-gradient(60rem 40rem at 50% 120%, var(--shell-glow-c), transparent 60%),
+    repeating-linear-gradient(135deg, var(--shell-stripe) 0 2px, transparent 2px 84px);
   background-attachment: fixed;
 }
 
@@ -341,11 +394,11 @@
     content: attr(data-label);
     display: block;
     margin-bottom: 0.3rem;
-    font-size: 10px;
+    font-size: 0.75rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: #636f9e;
+    color: var(--table-label);
   }
 
   .responsive-table td.rt-full {
@@ -359,7 +412,7 @@
 
 /* Ambient Radial Mesh Gradients */
 .bg-mesh-dark {
-  background-color: #070b1d;
+  background-color: var(--surface-page);
   background-image: 
     radial-gradient(at 0% 0%, rgba(200, 245, 53, 0.08) 0px, transparent 50%),
     radial-gradient(at 100% 0%, rgba(56, 189, 248, 0.08) 0px, transparent 50%),
@@ -389,21 +442,19 @@
 
 /* Premium Glassmorphism Styles */
 .glass-panel {
-  background: linear-gradient(135deg, rgba(17, 24, 52, 0.82) 0%, rgba(11, 16, 38, 0.75) 100%);
+  background: var(--glass-panel-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--glass-panel-border);
+  box-shadow: var(--glass-panel-shadow);
 }
 
 .glass-card {
-  background: linear-gradient(180deg, rgba(29, 37, 70, 0.55) 0%, rgba(17, 24, 52, 0.72) 100%);
+  background: var(--glass-card-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(142, 155, 200, 0.12);
-  box-shadow:
-    0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
-    0 12px 32px -12px rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--glass-card-border);
+  box-shadow: var(--glass-card-shadow);
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -417,26 +468,46 @@
 }
 
 .glass-card-static {
-  background: linear-gradient(180deg, rgba(29, 37, 70, 0.55) 0%, rgba(17, 24, 52, 0.72) 100%);
+  background: var(--glass-card-bg);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(142, 155, 200, 0.12);
-  box-shadow:
-    0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
-    0 12px 32px -12px rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--glass-card-border);
+  box-shadow: var(--glass-card-shadow);
 }
 
 .glass-input {
-  background: rgba(11, 16, 38, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #fff;
+  background: var(--glass-input-bg);
+  border: 1px solid var(--glass-input-border);
+  color: var(--glass-input-text);
   transition: all 0.2s ease;
 }
 
+.glass-input::placeholder {
+  color: var(--placeholder, var(--color-slate-500));
+}
+
+/* On white, the body-text grey made an example read like something already
+   typed. Placeholders sit a clear step lighter than entered text. */
+:root[data-theme="light"] {
+  --placeholder: #7d87a6;
+}
+
+[data-theme="dark"] {
+  --placeholder: #636f9e;
+}
+
 .glass-input:focus {
-  border-color: #c8f535;
-  background: rgba(17, 24, 52, 0.85);
+  border-color: var(--focus-ring);
+  background: var(--glass-input-bg-focus);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(200, 245, 53, 0.25), 0 0 20px -5px rgba(200, 245, 53, 0.3);
+  box-shadow: 0 0 0 3px var(--glass-input-ring);
+}
+
+/* A field the server rejected. Set by `aria-invalid`, so marking a field
+   invalid for screen readers and showing it are the same act. */
+.glass-input[aria-invalid="true"],
+.auth-field[aria-invalid="true"] {
+  border-color: #f43f5e;
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.18);
 }
 
 /* Vibrant Glow Effects */
@@ -458,7 +529,7 @@
 
 /* Gradient Text */
 .text-gradient-emerald {
-  background: linear-gradient(135deg, #d6f95a 0%, #38bdf8 100%);
+  background: var(--gradient-brand-text);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -482,16 +553,16 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #070b1d;
+  background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1d2546;
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #2f385e;
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Horizontally scrollable regions (wide tables, fixture rows) should not show

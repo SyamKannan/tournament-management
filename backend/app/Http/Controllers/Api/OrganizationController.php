@@ -7,11 +7,15 @@ use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Sponsor;
+use App\Models\Team;
+use App\Models\User;
 use App\Models\Tournament;
 use App\Services\BillingService;
 use App\Services\PaymentGatewayService;
+use App\Services\TemporaryPasswordService;
 use App\Support\Audit;
 use App\Support\Ids;
+use App\Support\Paginate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -200,5 +204,90 @@ class OrganizationController extends Controller
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 400);
         }
+    }
+
+    /* ------------------------------------------------------------- Members */
+
+    /**
+     * The accounts that work for this club: its own staff (scorers, other
+     * admins) and the managers of teams entered in its tournaments. The
+     * organizer is who a manager phones when they cannot sign in, so this
+     * is the list they help from.
+     */
+    public function members(Request $request, string $id): JsonResponse
+    {
+        $query = $this->memberQuery($id)->orderBy('name')->orderBy('id');
+
+        if ($role = $request->query('role')) {
+            $query->where('role', $role);
+        }
+
+        Paginate::search($query, $request->query('search'), ['name', 'email', 'phone']);
+
+        return response()->json(Paginate::query($query, $request, fn (User $u) => [
+            'id' => $u->id,
+            'name' => $u->name,
+            'email' => $u->email,
+            'phone' => $u->phone,
+            'role' => $u->role,
+            'avatar' => $u->avatar,
+            'must_change_password' => (bool) $u->must_change_password,
+        ]));
+    }
+
+    /**
+     * Issue a temporary password to one of this club's members.
+     *
+     * Limited to people below the organizer: another organizer of the same
+     * club, or a super admin, is not theirs to reset — that would let one
+     * admin lock another out.
+     */
+    public function resetMemberPassword(Request $request, string $id, string $userId, TemporaryPasswordService $passwords): JsonResponse
+    {
+        $member = $this->memberQuery($id)->whereKey($userId)->first();
+
+        if (! $member) {
+            return response()->json(['error' => 'That person is not a member of this organization.'], 404);
+        }
+
+        if (in_array($member->role, ['ORG_ADMIN', 'SUPER_ADMIN'], true)) {
+            return response()->json([
+                'error' => 'Another administrator\'s password can only be reset by platform support.',
+            ], 403);
+        }
+
+        $password = $passwords->issue($member);
+
+        $actor = $request->user();
+        Audit::log([
+            'organization_id' => $id,
+            'user_id' => $actor->id,
+            'user_name' => $actor->name,
+            'user_role' => $actor->role,
+            'action' => 'RESET_MEMBER_PASSWORD',
+            'entity_type' => 'User',
+            'entity_id' => $member->id,
+            'details' => sprintf('Issued a temporary password for [%s] (%s); all their sessions were ended.', $member->name, $member->role),
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'user' => $member->fresh()->toAuthPayload(),
+            'temporary_password' => $password,
+            'message' => 'Temporary password issued. Share it with them — they will choose their own when they sign in.',
+        ]);
+    }
+
+    private function memberQuery(string $organizationId): \Illuminate\Database\Eloquent\Builder
+    {
+        $managerIds = Team::query()
+            ->where('organization_id', $organizationId)
+            ->whereNotNull('manager_user_id')
+            ->pluck('manager_user_id');
+
+        return User::query()->where(function ($q) use ($organizationId, $managerIds) {
+            $q->where('organization_id', $organizationId)
+                ->orWhereIn('id', $managerIds);
+        })->where('role', '!=', 'SUPER_ADMIN');
     }
 }

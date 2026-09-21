@@ -148,6 +148,18 @@ export interface User {
   role: UserRole;
   avatar: string;
   organization_id?: string;
+  /** Password was set by someone else (onboarding, an admin reset); must be replaced at sign-in. */
+  must_change_password?: boolean;
+}
+
+/** The server's list envelope: one page plus what is needed to draw a pager. */
+export interface Paginated<T> {
+  data: T[];
+  page: number;
+  per_page: number;
+  total: number;
+  total_pages: number;
+  has_more: boolean;
 }
 
 export interface Subscription {

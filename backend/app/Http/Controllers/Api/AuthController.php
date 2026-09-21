@@ -405,6 +405,8 @@ class AuthController extends Controller
                 return response()->json(['error' => 'Current password is incorrect'], 422);
             }
             $user->password_hash = Hash::make($data['new_password']);
+            // Their own choice now, so the "set by someone else" flag goes.
+            $user->must_change_password = false;
 
             // Changing a password has to end the sessions opened with the old
             // one — otherwise whoever the change was meant to shut out keeps

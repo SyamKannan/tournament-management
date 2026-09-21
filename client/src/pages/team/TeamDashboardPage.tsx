@@ -96,7 +96,7 @@ export const TeamDashboardPage: React.FC = () => {
             <h2 className="text-sm font-bold text-white font-heading flex items-center gap-2">
               <Calendar className="w-4 h-4 text-cyan-400" /> Next matches
             </h2>
-            <Link to="/team/fixtures" className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1">
+            <Link to="/team/fixtures" className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1">
               All fixtures <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
@@ -108,14 +108,14 @@ export const TeamDashboardPage: React.FC = () => {
                 <li key={m.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-900/70 border border-slate-800">
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-white truncate">{m.entry.team.name} <span className="text-slate-500 font-medium">vs</span> {m.opponent_name}</p>
-                    <p className="text-[11px] text-slate-400 truncate">{m.round_name || `Match ${m.match_number}`} · {formatWhen(m.scheduled_at)}</p>
+                    <p className="text-xs text-slate-400 truncate">{m.round_name || `Match ${m.match_number}`} · {formatWhen(m.scheduled_at)}</p>
                   </div>
                   {isLiveStatus(m.status) ? (
-                    <Link to={`/scoreboard/match/${m.id}`} className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-500/15 text-rose-400 text-[11px] font-black uppercase">
+                    <Link to={`/scoreboard/match/${m.id}`} className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-500/15 text-rose-400 text-xs font-black uppercase">
                       <Radio className="w-3 h-3" /> Live
                     </Link>
                   ) : (
-                    <span className="shrink-0 text-[11px] font-bold uppercase text-slate-500">{label(m.status)}</span>
+                    <span className="shrink-0 text-xs font-bold uppercase text-slate-500">{label(m.status)}</span>
                   )}
                 </li>
               ))}
@@ -137,7 +137,7 @@ export const TeamDashboardPage: React.FC = () => {
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-white">{text}</span>
-                <span className="block text-[11px] text-slate-400 truncate">{hint}</span>
+                <span className="block text-xs text-slate-400 truncate">{hint}</span>
               </span>
               <ArrowRight className="w-4 h-4 shrink-0 text-slate-600 group-hover:text-emerald-400" />
             </Link>
@@ -170,15 +170,15 @@ export const TeamDashboardPage: React.FC = () => {
                 </div>
                 <dl className="grid grid-cols-3 gap-2 text-center">
                   <div className="p-2 rounded-xl bg-slate-900/70">
-                    <dt className="text-[10px] uppercase font-bold text-slate-500">Squad</dt>
+                    <dt className="text-xs uppercase font-bold text-slate-500">Squad</dt>
                     <dd className="text-sm font-black text-white">{t.players.length}</dd>
                   </div>
                   <div className="p-2 rounded-xl bg-slate-900/70 min-w-0">
-                    <dt className="text-[10px] uppercase font-bold text-slate-500">Next</dt>
+                    <dt className="text-xs uppercase font-bold text-slate-500">Next</dt>
                     <dd className="text-sm font-black text-white truncate">{next ? `vs ${next.opponent_name}` : '—'}</dd>
                   </div>
                   <div className="p-2 rounded-xl bg-slate-900/70">
-                    <dt className="text-[10px] uppercase font-bold text-slate-500">Fee</dt>
+                    <dt className="text-xs uppercase font-bold text-slate-500">Fee</dt>
                     <dd className={`text-sm font-black ${fee.due > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>{fee.due > 0 ? `${money(fee.due)} due` : 'Paid'}</dd>
                   </div>
                 </dl>

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, CreditCard, Building2, Trophy, Users, Calendar,
   Radio, Megaphone, FileText, Settings, History, X, Gamepad2, Image as ImageIcon,
-  Receipt, PlusCircle, BellRing, MapPin
+  Receipt, PlusCircle, BellRing, MapPin, UserCog
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -35,6 +35,7 @@ const ORG_LINKS = [
   { to: '/organization/sponsors', label: 'Sponsors & Ads', icon: Megaphone },
   { to: '/organization/announcements', label: 'Announcements', icon: Radio },
   { to: '/organization/notifications', label: 'WhatsApp & SMS', icon: BellRing },
+  { to: '/organization/members', label: 'People & Sign-in', icon: UserCog },
   { to: '/organization/reports', label: 'Financials & Reports', icon: FileText },
   { to: '/organization/billing', label: 'Billing & Plan', icon: CreditCard },
 ];
@@ -101,7 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ type, open, onClose }) => {
         <div>
           <div className="flex items-start justify-between gap-2 mb-4">
             <div className="flex-1 min-w-0 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
-              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 {type === 'admin' ? 'Platform Control' : type === 'team' ? 'Team Manager' : 'Active Organization'}
               </div>
               <div className="text-sm font-bold text-white truncate mt-0.5">
@@ -110,7 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ type, open, onClose }) => {
               {type === 'organization' && organization?.type && (
                 <div className="flex items-center gap-1.5 mt-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400" aria-hidden="true" />
-                  <span className="text-[11px] text-emerald-400 font-medium capitalize truncate">
+                  <span className="text-xs text-emerald-400 font-medium capitalize truncate">
                     {organization.type}
                   </span>
                 </div>
