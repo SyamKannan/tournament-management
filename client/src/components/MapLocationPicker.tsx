@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, LayersControl, LayerGroup, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -9,6 +9,12 @@ import {
   MapPin, Search,
   Check, Compass, LocateFixed, ExternalLink
 } from 'lucide-react';
+
+// Esri's World Imagery needs no key; it backs both the Satellite and Hybrid views.
+const ESRI_IMAGERY_URL =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const ESRI_IMAGERY_ATTRIBUTION =
+  'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community';
 
 // Vite bundles Leaflet's default marker images under hashed URLs, which breaks
 // the library's built-in lookup — point it at the imported assets instead.
@@ -328,12 +334,43 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
             scrollWheelZoom
             style={{ width: '100%', height: '100%' }}
           >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-              subdomains="abcd"
-              maxZoom={19}
-            />
+            <LayersControl position="topright">
+              <LayersControl.BaseLayer checked name="Street">
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  maxZoom={19}
+                />
+              </LayersControl.BaseLayer>
+              <LayersControl.BaseLayer name="Satellite">
+                <TileLayer
+                  attribution={ESRI_IMAGERY_ATTRIBUTION}
+                  url={ESRI_IMAGERY_URL}
+                  maxZoom={19}
+                />
+              </LayersControl.BaseLayer>
+              <LayersControl.BaseLayer name="Hybrid">
+                <LayerGroup>
+                  <TileLayer
+                    attribution={ESRI_IMAGERY_ATTRIBUTION}
+                    url={ESRI_IMAGERY_URL}
+                    maxZoom={19}
+                  />
+                  <TileLayer
+                    url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+                    maxZoom={19}
+                  />
+                </LayerGroup>
+              </LayersControl.BaseLayer>
+              <LayersControl.BaseLayer name="Terrain">
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | &copy; <a href="https://opentopomap.org">OpenTopoMap</a>'
+                  url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+                  subdomains="abc"
+                  maxZoom={17}
+                />
+              </LayersControl.BaseLayer>
+            </LayersControl>
             <Marker
               position={[lat, lng]}
               draggable
