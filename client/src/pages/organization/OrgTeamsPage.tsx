@@ -133,16 +133,6 @@ export const OrgTeamsPage: React.FC = () => {
     fetchTeams(selectedTourneyId);
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-72" />
-        <SkeletonTable rows={6} />
-      </div>
-    );
-  }
-
-  const isFootball = activeTournament?.sport_code === 'football';
   const visibleTeams = useMemo(() => {
     const q = teamSearch.trim().toLowerCase();
     const digits = q.replace(/\D+/g, '');
@@ -157,6 +147,17 @@ export const OrgTeamsPage: React.FC = () => {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teams, teamSearch, teamStatus]);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-72" />
+        <SkeletonTable rows={6} />
+      </div>
+    );
+  }
+
+  const isFootball = activeTournament?.sport_code === 'football';
 
   const pendingCount = teams.filter(t => t.status === 'pending').length;
   const approvedCount = teams.filter(t => t.status === 'approved').length;
