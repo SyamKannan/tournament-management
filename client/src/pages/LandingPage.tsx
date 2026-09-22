@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SportsLoader } from '../components/ui/SportsLoader';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { api } from '../services/api';
@@ -298,7 +299,7 @@ export const LandingPage: React.FC = () => {
         {/* Dynamic Plans Grid */}
         {loadingPlans ? (
           <div className="flex justify-center items-center py-16">
-            <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            <SportsLoader size="md" />
           </div>
         ) : (
           <motion.div

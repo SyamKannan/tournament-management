@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { SportsLoader } from '../../components/ui/SportsLoader';
 import { useParams } from 'react-router-dom';
 import { api } from '../../services/api';
 import type {
@@ -404,7 +405,7 @@ export const ScoreboardTVPage: React.FC = () => {
     return (
       <div data-theme="dark" className="h-screen bg-slate-950 flex items-center justify-center p-6 text-white">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <SportsLoader size="lg" />
           <span className="tv-sub font-bold font-heading tracking-wider">CONNECTING TO STADIUM FEED...</span>
         </div>
       </div>

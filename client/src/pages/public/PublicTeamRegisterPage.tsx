@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { SportsLoader } from '../../components/ui/SportsLoader';
 import { useParams, Link } from 'react-router-dom';
 import { api, ApiError } from '../../services/api';
 import type { Tournament } from '../../types';
@@ -492,7 +493,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4" role="status">
         <div className="flex items-center gap-3 text-emerald-400">
-          <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <SportsLoader size="sm" />
           <span className="font-semibold text-base">{t('reg.loading')}</span>
         </div>
       </div>

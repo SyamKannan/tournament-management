@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SportsLoader } from '../../components/ui/SportsLoader';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import type { Player, PlayerStats, Team, Tournament, Organization, AuctionPlayer } from '../../types';
@@ -47,7 +48,7 @@ export const PlayerDashboardPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-white">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <SportsLoader size="lg" />
           <span className="text-sm font-semibold text-slate-400">Loading Player Career Statistics...</span>
         </div>
       </div>

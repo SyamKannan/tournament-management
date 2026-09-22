@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
+import { PageLoader } from './components/ui/SportsLoader';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { PlatformConfigProvider } from './context/PlatformConfigContext';
@@ -21,12 +22,6 @@ import { LandingPage } from './pages/LandingPage';
 function lazyPage<K extends string>(load: () => Promise<Record<K, React.ComponentType>>, name: K) {
   return lazy(() => load().then(module => ({ default: module[name] })));
 }
-
-const PageLoader: React.FC = () => (
-  <div className="min-h-[60vh] flex items-center justify-center" role="status" aria-label="Loading">
-    <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-  </div>
-);
 
 const LoginPage = lazyPage(() => import('./pages/auth/LoginPage'), 'LoginPage');
 const RegisterClubPage = lazyPage(() => import('./pages/auth/RegisterClubPage'), 'RegisterClubPage');

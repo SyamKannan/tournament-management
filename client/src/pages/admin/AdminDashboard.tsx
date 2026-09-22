@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SportsLoader } from '../../components/ui/SportsLoader';
 import { api } from '../../services/api';
 import { 
   Building2, CreditCard, DollarSign, TrendingUp, 
@@ -34,8 +35,8 @@ export const AdminDashboard: React.FC = () => {
 
   if (loading || !metrics) {
     return (
-      <div className="p-8 text-center text-slate-400">
-        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+      <div className="p-8 flex flex-col items-center gap-3 text-slate-400">
+        <SportsLoader size="md" />
         <span>Loading Platform Metrics...</span>
       </div>
     );

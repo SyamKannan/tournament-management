@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SportsLoader } from '../../components/ui/SportsLoader';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import type { Tournament, Organization, Match, Standing, Sponsor, Announcement, Team } from '../../types';
@@ -74,7 +75,7 @@ export const PublicTournamentPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
         <div className="flex items-center gap-3 text-emerald-400">
-          <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <SportsLoader size="sm" />
           <span className="font-semibold text-sm">Loading Tournament Hub...</span>
         </div>
       </div>

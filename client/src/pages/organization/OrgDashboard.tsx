@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SportsLoader } from '../../components/ui/SportsLoader';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { 
@@ -59,7 +60,7 @@ export const OrgDashboard: React.FC = () => {
     return (
       <div className="min-h-[50vh] flex items-center justify-center text-slate-400">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+          <SportsLoader size="md" />
           <span className="text-xs font-medium">Loading club dashboard...</span>
         </div>
       </div>

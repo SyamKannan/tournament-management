@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { SportsLoader } from '../../components/ui/SportsLoader';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import { SHOW_DEMO_ACCOUNTS } from '../../config';
@@ -185,7 +186,7 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6" role="status">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <SportsLoader size="lg" />
           <span className="text-base font-semibold text-slate-400">{t('pa.loading')}</span>
         </div>
       </div>

@@ -614,6 +614,101 @@
   }
 }
 
+/* Loading animation (components/ui/SportsLoader.tsx). One bounce is 0.8s;
+   the faces swap over two bounces, crossing at the apex so the change reads
+   as a flip in the air rather than a pop on the ground. */
+.sports-loader {
+  --ball: 44px;
+  position: relative;
+  width: calc(var(--ball) * 1.6);
+  height: calc(var(--ball) * 2.4);
+}
+
+.sports-loader-ball {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--ball) * 0.12);
+  width: var(--ball);
+  height: var(--ball);
+  margin-left: calc(var(--ball) / -2);
+  transform-origin: 50% 100%;
+  animation: sports-loader-bounce 0.8s infinite;
+}
+
+.sports-loader-spin {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  animation: sports-loader-spin 1.6s linear infinite;
+}
+
+.sports-loader-face {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--color-emerald-500) 40%, transparent));
+}
+
+.sports-loader-football { animation: sports-loader-football 1.6s infinite; }
+.sports-loader-cricket  { animation: sports-loader-cricket 1.6s infinite; }
+
+.sports-loader-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: var(--ball);
+  height: calc(var(--ball) * 0.18);
+  margin-left: calc(var(--ball) / -2);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--color-emerald-500) 55%, transparent), transparent);
+  animation: sports-loader-shadow 0.8s infinite;
+}
+
+@keyframes sports-loader-bounce {
+  0%   { transform: translateY(0) scale(1.18, 0.82); animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1); }
+  12%  { transform: translateY(-8%) scale(0.92, 1.08); }
+  50%  { transform: translateY(calc(var(--ball) * -1.15)) scale(1); animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.3); }
+  94%  { transform: translateY(0) scale(0.95, 1.05); }
+  100% { transform: translateY(0) scale(1.18, 0.82); }
+}
+
+@keyframes sports-loader-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes sports-loader-football {
+  0%, 20%   { opacity: 1; transform: scaleX(1); }
+  25%       { opacity: 0; transform: scaleX(0.1); }
+  30%, 70%  { opacity: 0; }
+  75%       { opacity: 0; transform: scaleX(0.1); }
+  80%, 100% { opacity: 1; transform: scaleX(1); }
+}
+
+@keyframes sports-loader-cricket {
+  0%, 20%   { opacity: 0; }
+  25%       { opacity: 0; transform: scaleX(0.1); }
+  30%, 70%  { opacity: 1; transform: scaleX(1); }
+  75%       { opacity: 0; transform: scaleX(0.1); }
+  80%, 100% { opacity: 0; }
+}
+
+@keyframes sports-loader-shadow {
+  0%, 100% { transform: scaleX(1.1); opacity: 1; }
+  50%      { transform: scaleX(0.45); opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sports-loader-ball,
+  .sports-loader-spin,
+  .sports-loader-shadow {
+    animation: none;
+  }
+  /* Still show life without movement: the football pulses gently. */
+  .sports-loader-football { animation: live-blink 3s infinite ease-in-out; }
+  .sports-loader-cricket  { opacity: 0; }
+}
+
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(12px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }

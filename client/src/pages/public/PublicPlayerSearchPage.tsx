@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { SportsLoader } from '../../components/ui/SportsLoader';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, ChevronRight } from 'lucide-react';
 import { api } from '../../services/api';
@@ -215,7 +216,7 @@ export const PublicPlayerSearchPage: React.FC = () => {
 
         {loading && results.length === 0 && (
           <div className="flex justify-center py-6">
-            <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            <SportsLoader size="md" />
           </div>
         )}
       </div>

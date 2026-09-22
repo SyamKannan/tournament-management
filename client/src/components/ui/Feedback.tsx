@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { SportsLoader } from './SportsLoader';
 import type { LucideIcon } from 'lucide-react';
 
 /**
@@ -54,10 +54,7 @@ export const LoadingState: React.FC<{ label?: string; className?: string }> = ({
   className = 'min-h-[50vh]',
 }) => (
   <div className={`flex items-center justify-center ${className}`} role="status" aria-live="polite">
-    <div className="flex flex-col items-center gap-3">
-      <Loader2 className="w-7 h-7 text-emerald-400 animate-spin" aria-hidden="true" />
-      <span className="text-sm text-slate-400 font-medium">{label}</span>
-    </div>
+    <SportsLoader label={label} />
   </div>
 );
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { SportsLoader } from './ui/SportsLoader';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { X } from 'lucide-react';
@@ -173,7 +174,7 @@ export const MatchStatusPopup: React.FC<{ summary: TickerMatch; onClose: () => v
 
           {started && !detail && (
             <div className="flex justify-center py-2">
-              <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              <SportsLoader size="sm" />
             </div>
           )}
 

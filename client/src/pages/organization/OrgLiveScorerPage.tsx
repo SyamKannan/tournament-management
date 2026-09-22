@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { SportsLoader } from '../../components/ui/SportsLoader';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import type {
@@ -407,8 +408,8 @@ export const OrgLiveScorerPage: React.FC = () => {
 
   if (loading || !matchData) {
     return (
-      <div className="p-8 text-center text-slate-400">
-        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+      <div className="p-8 flex flex-col items-center gap-3 text-slate-400">
+        <SportsLoader size="md" />
         <span>Connecting to Scorer Engine...</span>
       </div>
     );
