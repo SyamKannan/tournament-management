@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { SportsLoader } from './ui/SportsLoader';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
@@ -311,8 +312,8 @@ export const ImpersonateModal: React.FC<ImpersonateModalProps> = ({ isOpen, onCl
         {/* Content list */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-6">
           {loading ? (
-            <div className="py-16 text-center text-slate-400">
-              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-amber-400" />
+            <div className="py-16 flex flex-col items-center gap-3 text-slate-400">
+              <SportsLoader size="md" />
               <p className="text-sm">Loading available accounts & clubs...</p>
             </div>
           ) : (

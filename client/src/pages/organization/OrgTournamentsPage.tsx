@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SportsLoader } from '../../components/ui/SportsLoader';
 import { useAuth } from '../../context/AuthContext';
 import { usePlatformConfig } from '../../context/PlatformConfigContext';
 import { api, ApiError } from '../../services/api';
@@ -1012,7 +1013,7 @@ export const OrgTournamentsPage: React.FC = () => {
                 />
                 {generatingPosterId === posterTournament.id && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/40">
-                    <Loader2 className="w-7 h-7 animate-spin text-fuchsia-300" />
+                    <SportsLoader size="sm" />
                     <span className="text-xs font-bold text-fuchsia-100">Designing…</span>
                   </div>
                 )}
