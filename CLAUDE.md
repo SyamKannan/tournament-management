@@ -101,6 +101,10 @@ fail a team approval, same rule as `RealtimeBroadcaster`.
   user-facing must ask `ChannelManager::isSimulated()` — the org log flags those rows
   "Recorded, not delivered", and `GET /api/admin/notification-health` puts a `log` driver in
   production in front of the super admin (password reset codes can't reach anyone).
+  Twilio also takes `TWILIO_MESSAGING_SERVICE_SID` (DLT senders for Indian SMS) and
+  WhatsApp Content SIDs per event (`TWILIO_WA_*`). Stored numbers are bare digits; the
+  Twilio driver adds the `+`. `php artisan notifications:test <phone> [--channel=whatsapp]`
+  sends one real message straight through the driver and prints the gateway's answer.
 - Scheduled messages pass a `dedupeKey`; the unique index turns at-least-once scheduling
   into exactly-once delivery. Always pass one from a command.
 - Per-org switches live in `organizations.notification_settings`; `config('notifications.defaults')`
@@ -299,6 +303,8 @@ switches, both scheduled sweeps and their dedupe), `BracketTest` (seeding, byes,
 progression and its undo, groups feeding a bracket, ground clashes, venue CRUD),
 `HumanFacingFixesTest` (error envelope, delivery honesty and drivers, temporary passwords,
 paging and search, auction undo, pay-then-register safety, poster job status),
+`TwilioDriverTest` (the exact request Twilio receives: E.164 `+`, Messaging Service,
+WhatsApp templates, refusal handling, the test command),
 `CachingTest` (hits, invalidation by scoring/edits/reorder, staff/public separation, after-commit
 flush, Redis outage; one test runs against a live Redis if `REDIS_TEST_HOST`:`REDIS_TEST_PORT` answers).
 

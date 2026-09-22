@@ -145,14 +145,15 @@ class ChannelManager
     private function missingCredentials(string $driver, string $channel): array
     {
         $required = match ($driver) {
-            'twilio' => [
+            'twilio' => array_filter([
                 'TWILIO_SID' => 'notifications.twilio.sid',
                 'TWILIO_TOKEN' => 'notifications.twilio.token',
-                $channel === 'whatsapp' ? 'TWILIO_WHATSAPP_FROM' : 'TWILIO_SMS_FROM'
-                    => $channel === 'whatsapp'
-                        ? 'notifications.twilio.whatsapp_from'
-                        : 'notifications.twilio.sms_from',
-            ],
+                // A Messaging Service stands in for the per-channel sender.
+                ($channel === 'whatsapp' ? 'TWILIO_WHATSAPP_FROM' : 'TWILIO_SMS_FROM').' or TWILIO_MESSAGING_SERVICE_SID'
+                    => blank(config('notifications.twilio.messaging_service_sid'))
+                        ? ($channel === 'whatsapp' ? 'notifications.twilio.whatsapp_from' : 'notifications.twilio.sms_from')
+                        : null,
+            ]),
             'meta_whatsapp' => [
                 'META_WHATSAPP_PHONE_NUMBER_ID' => 'notifications.meta.phone_number_id',
                 'META_WHATSAPP_TOKEN' => 'notifications.meta.token',

@@ -38,6 +38,28 @@ return [
         'token' => env('TWILIO_TOKEN'),
         'sms_from' => env('TWILIO_SMS_FROM'),
         'whatsapp_from' => env('TWILIO_WHATSAPP_FROM'),
+        // Replaces `From` on both channels when set — the usual way a
+        // DLT-registered sender ID is attached for Indian SMS.
+        'messaging_service_sid' => env('TWILIO_MESSAGING_SERVICE_SID'),
+        // Approved WhatsApp Content templates, event => Content SID (HX…).
+        // The rendered message is passed as variable {{1}}, so each template
+        // should be a single-variable body. Unmapped events go as free text,
+        // which WhatsApp only delivers inside a 24-hour customer window.
+        'whatsapp_content' => array_filter([
+            'password_reset_code' => env('TWILIO_WA_PASSWORD_RESET'),
+            'match_reminder' => env('TWILIO_WA_MATCH_REMINDER'),
+            'fee_due_reminder' => env('TWILIO_WA_FEE_DUE'),
+            'team_registered' => env('TWILIO_WA_TEAM_REGISTERED'),
+            'team_approved' => env('TWILIO_WA_TEAM_APPROVED'),
+            'team_rejected' => env('TWILIO_WA_TEAM_REJECTED'),
+            'payment_received' => env('TWILIO_WA_PAYMENT_RECEIVED'),
+            'fixtures_published' => env('TWILIO_WA_FIXTURES_PUBLISHED'),
+            'match_result' => env('TWILIO_WA_MATCH_RESULT'),
+            'tournament_cancelled' => env('TWILIO_WA_TOURNAMENT_CANCELLED'),
+            'auction_player_sold' => env('TWILIO_WA_AUCTION_PLAYER_SOLD'),
+            'subscription_expiring' => env('TWILIO_WA_SUBSCRIPTION_EXPIRING'),
+            'subscription_expired' => env('TWILIO_WA_SUBSCRIPTION_EXPIRED'),
+        ]),
     ],
 
     'meta' => [
