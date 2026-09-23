@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
+import { usePlatformConfig } from '../../context/PlatformConfigContext';
 import { roleHome } from '../../lib/roleHome';
 import { SHOW_ADMIN_LOGIN, SHOW_DEMO_ACCOUNTS } from '../../config';
 import { AuthShowcase } from '../../components/AuthShowcase';
@@ -33,6 +34,7 @@ export const LoginPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { login, isAuthenticated, role } = useAuth();
+  const { messagingEnabled } = usePlatformConfig();
 
   const redirectUrl = searchParams.get('redirect');
   const initialRoleParam = searchParams.get('role');
@@ -196,10 +198,19 @@ export const LoginPage: React.FC = () => {
 
           <div className="pt-2 space-y-3">
             <AuthSubmit accent={accent} loading={isLoading}>Sign in</AuthSubmit>
+            {/* Recovering a password means a code by SMS. With no gateway
+                connected there is nothing to offer, so say who can help
+                instead of sending people to a code that never arrives. */}
             <div className="text-center">
-              <Link to="/forgot-password" className="text-xs font-semibold text-slate-400 hover:text-white">
-                Forgotten your password?
-              </Link>
+              {messagingEnabled ? (
+                <Link to="/forgot-password" className="text-sm font-semibold text-slate-400 hover:text-white">
+                  Forgotten your password?
+                </Link>
+              ) : (
+                <p className="text-sm text-slate-400">
+                  Forgotten your password? Ask your club organizer to issue you a new one.
+                </p>
+              )}
             </div>
           </div>
         </form>

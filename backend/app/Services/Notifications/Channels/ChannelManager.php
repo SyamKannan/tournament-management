@@ -73,6 +73,24 @@ class ChannelManager
     }
 
     /**
+     * Whether the product offers messaging at all.
+     *
+     * False hides every WhatsApp/SMS surface and the SMS password-reset route,
+     * because none of it can work: a `log` driver delivers nothing. Explicit
+     * config wins; otherwise it is on as soon as a channel names a real driver.
+     */
+    public function featureEnabled(): bool
+    {
+        $configured = config('notifications.feature_enabled');
+
+        if ($configured !== null && $configured !== '') {
+            return filter_var($configured, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        return ! $this->isSimulated('sms') || ! $this->isSimulated('whatsapp');
+    }
+
+    /**
      * What is wrong with the current notification setup, in words an operator
      * can act on. Empty means messages are really going out.
      *
@@ -81,6 +99,12 @@ class ChannelManager
     public function healthIssues(): array
     {
         $issues = [];
+
+        // Hidden on purpose: nothing is being sent, and nothing in the product
+        // offers to send it. That is a setup state, not a fault.
+        if (! $this->featureEnabled()) {
+            return [];
+        }
 
         if (! config('notifications.enabled')) {
             $issues[] = [

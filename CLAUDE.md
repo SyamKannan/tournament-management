@@ -101,6 +101,13 @@ fail a team approval, same rule as `RealtimeBroadcaster`.
   user-facing must ask `ChannelManager::isSimulated()` — the org log flags those rows
   "Recorded, not delivered", and `GET /api/admin/notification-health` puts a `log` driver in
   production in front of the super admin (password reset codes can't reach anyone).
+- **The whole feature hides itself until a gateway exists.** `ChannelManager::featureEnabled()`
+  (config `notifications.feature_enabled`, env `MESSAGING_ENABLED`) is false while both
+  channels are on `log`. `GET /api/features` reports it, and the client drops the
+  "WhatsApp & SMS" nav item, the `/organization/notifications` and `/forgot-password`
+  routes, and the "forgot password" link — a code by SMS that cannot be delivered is worse
+  than not offering it. The API itself stays open, and `healthIssues()` is empty (off is a
+  setup state, not a fault).
   Twilio also takes `TWILIO_MESSAGING_SERVICE_SID` (DLT senders for Indian SMS) and
   WhatsApp Content SIDs per event (`TWILIO_WA_*`). Stored numbers are bare digits; the
   Twilio driver adds the `+`. `php artisan notifications:test <phone> [--channel=whatsapp]`
@@ -280,6 +287,7 @@ routes/api.php               the entire route table, single file
 | `NOTIFICATIONS_ENABLED` | `true` | off queues nothing at all — set it on any copy of production data |
 | `WHATSAPP_DRIVER` / `SMS_DRIVER` | `log` | `log`, `twilio` or `meta_whatsapp`; `log` in production means reset codes never arrive |
 | `TWILIO_*`, `META_WHATSAPP_*` | — | gateway credentials, see `backend/.env.example` |
+| `MESSAGING_ENABLED` | auto | forces the WhatsApp/SMS feature (and SMS password reset) visible or hidden; unset = visible once a real driver is configured |
 | `CACHE_STORE` | `database` | `redis` turns on the public read cache (needs `REDIS_*`, client `predis`) |
 | `RESPONSE_CACHE_ENABLED` | on iff store is redis | force the public read cache on/off |
 | `CACHE_TTL_HUB` / `_STATS` / `_PLATFORM` | 300 / 600 / 3600 s | ceiling only — writes invalidate at once |

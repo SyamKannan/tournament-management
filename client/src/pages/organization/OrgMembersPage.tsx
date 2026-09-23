@@ -8,6 +8,7 @@ import { SkeletonTable, ErrorState, EmptyState } from '../../components/ui/Feedb
 import { Pager } from '../../components/ui/Pager';
 import { TemporaryPasswordDialog } from '../../components/TemporaryPasswordDialog';
 import { usePaginatedList } from '../../lib/usePaginatedList';
+import { usePlatformConfig } from '../../context/PlatformConfigContext';
 import { label } from '../../lib/labels';
 
 interface Member {
@@ -38,6 +39,7 @@ const ROLE_FILTERS = [
  */
 export const OrgMembersPage: React.FC = () => {
   const { organization, user } = useAuth();
+  const { messagingEnabled } = usePlatformConfig();
   const toast = useToast();
   const confirm = useConfirm();
   const [role, setRole] = useState('');
@@ -84,7 +86,8 @@ export const OrgMembersPage: React.FC = () => {
         </h1>
         <p className="text-sm text-slate-400 mt-1 max-w-2xl">
           Everyone who signs in to work with your club. If a team manager or scorer cannot get into their
-          account and the SMS code is not reaching them, issue a temporary password here and read it to them.
+          account{messagingEnabled ? ' and the SMS code is not reaching them' : ''}, issue a temporary
+          password here and read it to them.
         </p>
       </div>
 

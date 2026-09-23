@@ -11,6 +11,7 @@ use App\Models\Player;
 use App\Models\Sport;
 use App\Models\Team;
 use App\Models\Tournament;
+use App\Services\Notifications\Channels\ChannelManager;
 use App\Support\Cached;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
@@ -49,6 +50,20 @@ class PlatformController extends Controller
     public function paymentMethods(): JsonResponse
     {
         return Cached::json('platform', 'payment-methods', 'platform', fn () => PlatformSetting::current()->enabled_payment_methods ?? []);
+    }
+
+    /**
+     * Which optional parts of the product are switched on for this
+     * deployment. Public, because the client needs it before anyone signs in
+     * (the sign-in page decides whether to offer "forgot password", which
+     * depends on a working SMS gateway).
+     */
+    public function features(ChannelManager $channels): JsonResponse
+    {
+        return response()->json([
+            // WhatsApp/SMS, and the SMS password-reset flow that rides on it.
+            'messaging' => $channels->featureEnabled(),
+        ]);
     }
 
     /** Landing-page footer: admin-edited content plus the public support contact. */

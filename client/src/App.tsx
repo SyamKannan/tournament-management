@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { PageLoader } from './components/ui/SportsLoader';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
-import { PlatformConfigProvider } from './context/PlatformConfigContext';
+import { PlatformConfigProvider, usePlatformConfig } from './context/PlatformConfigContext';
 import { Navbar } from './components/Navbar';
 import { AssistantChat } from './components/AssistantChat';
 import { Sidebar } from './components/Sidebar';
@@ -22,6 +22,23 @@ import { LandingPage } from './pages/LandingPage';
 function lazyPage<K extends string>(load: () => Promise<Record<K, React.ComponentType>>, name: K) {
   return lazy(() => load().then(module => ({ default: module[name] })));
 }
+
+/**
+ * A route that only exists where this deployment can send WhatsApp/SMS.
+ *
+ * Both routes behind it are useless without a gateway: the club's message log,
+ * and "forgot password", which sends a code by SMS. Typing the URL lands on
+ * the sign-in page rather than a screen that cannot work. The check waits for
+ * the platform config so a slow answer doesn't bounce someone out of a page
+ * they are allowed to see.
+ */
+const MessagingRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { messagingEnabled, isLoading } = usePlatformConfig();
+
+  if (isLoading) return <PageLoader />;
+
+  return messagingEnabled ? <>{children}</> : <Navigate to="/login" replace />;
+};
 
 const LoginPage = lazyPage(() => import('./pages/auth/LoginPage'), 'LoginPage');
 const RegisterClubPage = lazyPage(() => import('./pages/auth/RegisterClubPage'), 'RegisterClubPage');
@@ -155,7 +172,11 @@ export const App: React.FC = () => {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register-club" element={<RegisterClubPage />} />
                 <Route path="/register-player" element={<RegisterPlayerPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/forgot-password" element={
+                  <MessagingRoute>
+                    <ForgotPasswordPage />
+                  </MessagingRoute>
+                } />
                 <Route path="/tournaments/:slug" element={<PublicTournamentPage />} />
                 <Route path="/organizations/:slug" element={<PublicOrganizationPage />} />
                 <Route path="/register/team/:token" element={<PublicTeamRegisterPage />} />
@@ -301,9 +322,11 @@ export const App: React.FC = () => {
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/notifications" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
-                    <OrgNotificationsPage />
-                  </ProtectedRoute>
+                  <MessagingRoute>
+                    <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                      <OrgNotificationsPage />
+                    </ProtectedRoute>
+                  </MessagingRoute>
                 } />
                 <Route path="/organization/members" element={
                   <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>

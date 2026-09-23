@@ -44,6 +44,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('plans', [PlatformController::class, 'plans']);
 Route::get('sports', [PlatformController::class, 'sports']);
 Route::get('payment-methods', [PlatformController::class, 'paymentMethods']);
+Route::get('features', [PlatformController::class, 'features']);
 Route::get('footer', [PlatformController::class, 'footer']);
 Route::get('health', [PlatformController::class, 'health']);
 // Headline counts for the sign-in / sign-up pages (cached).

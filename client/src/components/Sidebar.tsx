@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePlatformConfig } from '../context/PlatformConfigContext';
 import {
   LayoutDashboard, CreditCard, Building2, Trophy, Users, Calendar,
   Radio, Megaphone, FileText, Settings, History, X, Gamepad2, Image as ImageIcon,
@@ -34,7 +35,8 @@ const ORG_LINKS = [
   { to: '/organization/posters', label: 'Posters', icon: ImageIcon },
   { to: '/organization/sponsors', label: 'Sponsors & Ads', icon: Megaphone },
   { to: '/organization/announcements', label: 'Announcements', icon: Radio },
-  { to: '/organization/notifications', label: 'WhatsApp & SMS', icon: BellRing },
+  // Hidden until a gateway is connected — see `requiresMessaging`.
+  { to: '/organization/notifications', label: 'WhatsApp & SMS', icon: BellRing, requiresMessaging: true },
   { to: '/organization/members', label: 'People & Sign-in', icon: UserCog },
   { to: '/organization/reports', label: 'Financials & Reports', icon: FileText },
   { to: '/organization/billing', label: 'Billing & Plan', icon: CreditCard },
@@ -58,7 +60,12 @@ const WORKSPACE_LINKS = { admin: ADMIN_LINKS, organization: ORG_LINKS, team: TEA
  */
 export const Sidebar: React.FC<SidebarProps> = ({ type, open, onClose }) => {
   const { organization, user } = useAuth();
-  const links = WORKSPACE_LINKS[type];
+  const { messagingEnabled } = usePlatformConfig();
+  // A section that cannot do anything is not shown at all: with no gateway
+  // connected, "WhatsApp & SMS" would only ever report messages nobody got.
+  const links = WORKSPACE_LINKS[type].filter(
+    (link: { requiresMessaging?: boolean }) => !link.requiresMessaging || messagingEnabled,
+  );
 
   // While the drawer covers the page, Escape closes it and the page behind
   // must not scroll underneath.

@@ -8,6 +8,13 @@ interface PlatformConfigContextType {
   isSportEnabled: (code: SportCode | string) => boolean;
   enabledPaymentMethods: PaymentMethod[];
   isPaymentMethodEnabled: (method: PaymentMethod | string) => boolean;
+  /**
+   * Whether this deployment can actually send WhatsApp/SMS. False hides every
+   * messaging surface and the "forgot password" route, which sends a code by
+   * SMS — offering either when nothing can be delivered only wastes the
+   * reader's time. Assumed false until the server answers.
+   */
+  messagingEnabled: boolean;
   isLoading: boolean;
 }
 
@@ -22,16 +29,19 @@ const PlatformConfigContext = createContext<PlatformConfigContextType | undefine
 export const PlatformConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [enabledSports, setEnabledSports] = useState<Sport[]>([]);
   const [enabledPaymentMethods, setEnabledPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [messagingEnabled, setMessagingEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchConfig = useCallback(async () => {
     try {
-      const [sports, paymentMethods] = await Promise.all([
+      const [sports, paymentMethods, features] = await Promise.all([
         api.get<Sport[]>('/sports'),
         api.get<PaymentMethod[]>('/payment-methods'),
+        api.get<{ messaging: boolean }>('/features').catch(() => ({ messaging: false })),
       ]);
       setEnabledSports(sports);
       setEnabledPaymentMethods(paymentMethods);
+      setMessagingEnabled(Boolean(features?.messaging));
     } catch (err) {
       console.warn('Failed to fetch platform config, falling back to none', err);
     } finally {
@@ -47,7 +57,7 @@ export const PlatformConfigProvider: React.FC<{ children: ReactNode }> = ({ chil
   const isPaymentMethodEnabled = (method: PaymentMethod | string) => enabledPaymentMethods.includes(method as PaymentMethod);
 
   return (
-    <PlatformConfigContext.Provider value={{ enabledSports, isSportEnabled, enabledPaymentMethods, isPaymentMethodEnabled, isLoading }}>
+    <PlatformConfigContext.Provider value={{ enabledSports, isSportEnabled, enabledPaymentMethods, isPaymentMethodEnabled, messagingEnabled, isLoading }}>
       {children}
     </PlatformConfigContext.Provider>
   );

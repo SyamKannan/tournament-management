@@ -16,6 +16,22 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Is messaging offered at all?
+    |--------------------------------------------------------------------------
+    |
+    | Until a real gateway is connected, nothing is actually delivered — so the
+    | product should not show organizers a WhatsApp/SMS section, or send anyone
+    | to a password-reset code that cannot arrive. Left unset, this answers
+    | itself: messaging appears once a channel uses something other than `log`.
+    | Set MESSAGING_ENABLED=true to show it anyway (a gateway in staging), or
+    | false to keep it hidden even with one configured.
+    |
+    */
+
+    'feature_enabled' => env('MESSAGING_ENABLED'),
+
     'channels' => [
         'whatsapp' => env('WHATSAPP_DRIVER', 'log'),
         'sms' => env('SMS_DRIVER', 'log'),

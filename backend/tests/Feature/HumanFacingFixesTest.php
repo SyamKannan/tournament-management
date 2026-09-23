@@ -73,7 +73,26 @@ class HumanFacingFixesTest extends TestCase
         $channels = app(ChannelManager::class);
 
         $this->assertTrue($channels->isSimulated('sms'));
+
+        // With no gateway the messaging feature is hidden altogether, so there
+        // is nothing to warn about; forced on, the `log` driver is the warning.
+        $this->assertFalse($channels->featureEnabled());
+        $this->assertSame([], $channels->healthIssues());
+
+        config(['notifications.feature_enabled' => true]);
         $this->assertNotEmpty($channels->healthIssues());
+    }
+
+    public function test_messaging_is_hidden_until_a_gateway_is_configured(): void
+    {
+        $this->getJson('/api/features')->assertOk()->assertJsonPath('messaging', false);
+
+        // A real driver on either channel brings the whole feature back.
+        config(['notifications.channels.sms' => 'twilio']);
+        $this->assertTrue(app(ChannelManager::class)->featureEnabled());
+
+        config(['notifications.channels.sms' => 'log', 'notifications.feature_enabled' => true]);
+        $this->getJson('/api/features')->assertOk()->assertJsonPath('messaging', true);
     }
 
     public function test_notification_health_is_visible_to_the_super_admin(): void
