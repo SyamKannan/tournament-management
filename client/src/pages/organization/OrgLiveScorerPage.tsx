@@ -409,7 +409,7 @@ export const OrgLiveScorerPage: React.FC = () => {
   if (loading || !matchData) {
     return (
       <div className="p-8 flex flex-col items-center gap-3 text-slate-400">
-        <SportsLoader size="md" />
+        <SportsLoader />
         <span>Connecting to Scorer Engine...</span>
       </div>
     );

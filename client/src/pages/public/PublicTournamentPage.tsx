@@ -75,7 +75,7 @@ export const PublicTournamentPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
         <div className="flex items-center gap-3 text-emerald-400">
-          <SportsLoader size="sm" />
+          <SportsLoader />
           <span className="font-semibold text-sm">Loading Tournament Hub...</span>
         </div>
       </div>

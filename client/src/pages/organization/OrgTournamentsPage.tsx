@@ -1013,7 +1013,7 @@ export const OrgTournamentsPage: React.FC = () => {
                 />
                 {generatingPosterId === posterTournament.id && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/40">
-                    <SportsLoader size="sm" />
+                    <SportsLoader />
                     <span className="text-xs font-bold text-fuchsia-100">Designing…</span>
                   </div>
                 )}

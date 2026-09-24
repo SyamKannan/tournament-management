@@ -313,7 +313,7 @@ export const ImpersonateModal: React.FC<ImpersonateModalProps> = ({ isOpen, onCl
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-6">
           {loading ? (
             <div className="py-16 flex flex-col items-center gap-3 text-slate-400">
-              <SportsLoader size="md" />
+              <SportsLoader />
               <p className="text-sm">Loading available accounts & clubs...</p>
             </div>
           ) : (

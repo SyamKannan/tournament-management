@@ -71,7 +71,7 @@ export const AuctionTVPage: React.FC = () => {
     return (
       <div data-theme="dark" className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-white">
         <div className="flex flex-col items-center gap-3">
-          <SportsLoader size="lg" />
+          <SportsLoader />
           <span className="text-lg font-bold font-heading tracking-wider">CONNECTING TO STADIUM AUCTION FEED...</span>
         </div>
       </div>

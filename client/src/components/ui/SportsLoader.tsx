@@ -5,7 +5,8 @@ import React from 'react';
  * football into a cricket ball at the top of every bounce — KickWick runs both.
  * Motion lives in index.css (`.sports-loader*`) and stops under reduced motion.
  */
-const SIZES = { sm: 28, md: 44, lg: 64 } as const;
+/** One size everywhere, so the loader never jumps between screens. */
+const BALL_PX = 48;
 
 const rad = (deg: number) => (deg * Math.PI) / 180;
 
@@ -62,16 +63,15 @@ const CricketBall: React.FC = () => (
 );
 
 interface SportsLoaderProps {
-  size?: keyof typeof SIZES;
   label?: string;
   className?: string;
 }
 
-export const SportsLoader: React.FC<SportsLoaderProps> = ({ size = 'md', label, className = '' }) => (
+export const SportsLoader: React.FC<SportsLoaderProps> = ({ label, className = '' }) => (
   <div className={`inline-flex flex-col items-center gap-3 ${className}`}>
     <div
       className="sports-loader"
-      style={{ '--ball': `${SIZES[size]}px` } as React.CSSProperties}
+      style={{ '--ball': `${BALL_PX}px` } as React.CSSProperties}
       aria-hidden="true"
     >
       <div className="sports-loader-ball">
@@ -97,6 +97,6 @@ export const PageLoader: React.FC<{ label?: string; className?: string }> = ({
     aria-live="polite"
     aria-label={label ?? 'Loading'}
   >
-    <SportsLoader size="lg" label={label} />
+    <SportsLoader label={label} />
   </div>
 );

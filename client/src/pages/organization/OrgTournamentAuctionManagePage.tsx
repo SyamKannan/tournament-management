@@ -324,7 +324,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-6 text-white">
         <div className="flex flex-col items-center gap-3">
-          <SportsLoader size="lg" />
+          <SportsLoader />
           <span className="text-sm font-semibold text-slate-400">Loading Tournament Auction Management...</span>
         </div>
       </div>

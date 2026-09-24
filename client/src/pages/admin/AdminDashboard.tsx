@@ -36,7 +36,7 @@ export const AdminDashboard: React.FC = () => {
   if (loading || !metrics) {
     return (
       <div className="p-8 flex flex-col items-center gap-3 text-slate-400">
-        <SportsLoader size="md" />
+        <SportsLoader />
         <span>Loading Platform Metrics...</span>
       </div>
     );

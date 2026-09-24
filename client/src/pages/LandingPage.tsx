@@ -299,7 +299,7 @@ export const LandingPage: React.FC = () => {
         {/* Dynamic Plans Grid */}
         {loadingPlans ? (
           <div className="flex justify-center items-center py-16">
-            <SportsLoader size="md" />
+            <SportsLoader />
           </div>
         ) : (
           <motion.div

@@ -405,7 +405,7 @@ export const ScoreboardTVPage: React.FC = () => {
     return (
       <div data-theme="dark" className="h-screen bg-slate-950 flex items-center justify-center p-6 text-white">
         <div className="flex flex-col items-center gap-4">
-          <SportsLoader size="lg" />
+          <SportsLoader />
           <span className="tv-sub font-bold font-heading tracking-wider">CONNECTING TO STADIUM FEED...</span>
         </div>
       </div>

@@ -186,7 +186,7 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6" role="status">
         <div className="flex flex-col items-center gap-3">
-          <SportsLoader size="lg" />
+          <SportsLoader />
           <span className="text-base font-semibold text-slate-400">{t('pa.loading')}</span>
         </div>
       </div>

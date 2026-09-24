@@ -499,7 +499,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4" role="status">
         <div className="flex items-center gap-3 text-emerald-400">
-          <SportsLoader size="sm" />
+          <SportsLoader />
           <span className="font-semibold text-base">{t('reg.loading')}</span>
         </div>
       </div>

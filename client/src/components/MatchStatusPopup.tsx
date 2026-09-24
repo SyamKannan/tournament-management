@@ -174,7 +174,7 @@ export const MatchStatusPopup: React.FC<{ summary: TickerMatch; onClose: () => v
 
           {started && !detail && (
             <div className="flex justify-center py-2">
-              <SportsLoader size="sm" />
+              <SportsLoader />
             </div>
           )}
 

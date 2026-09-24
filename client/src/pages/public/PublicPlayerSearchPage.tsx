@@ -216,7 +216,7 @@ export const PublicPlayerSearchPage: React.FC = () => {
 
         {loading && results.length === 0 && (
           <div className="flex justify-center py-6">
-            <SportsLoader size="md" />
+            <SportsLoader />
           </div>
         )}
       </div>
