@@ -52,10 +52,11 @@ class TournamentPaymentService
      * Repeat calls accumulate onto the existing payment record, which is how a
      * team that paid a deposit online later settles the balance in cash.
      *
-     * @param  array{teamId: string, tournamentId: string, organizationId: string, paymentOption?: string, paymentMethod?: string, customAmount?: float|null, transactionId?: string|null, notes?: string|null, recordedByAdmin?: bool, adminUserId?: string|null}  $params
+     * @param  array{teamId: string, tournamentId: string, organizationId: string, paymentOption?: string, paymentMethod?: string, customAmount?: float|null, transactionId?: string|null, notes?: string|null, recordedByAdmin?: bool, adminUserId?: string|null, rejectOverpayment?: bool}  $params
      * @return array{payment: RegistrationPayment, receipt: RegistrationReceipt}
      *
      * @throws \RuntimeException when the tournament, team or organization is missing
+     * @throws \DomainException when `rejectOverpayment` is set and the amount exceeds what is owed
      */
     public function processPayment(array $params): array
     {
@@ -84,7 +85,29 @@ class TournamentPaymentService
             $payment = RegistrationPayment::query()
                 ->where('team_id', $team->id)
                 ->where('tournament_id', $tournament->id)
+                // Two instalments recorded at once (a double tap, two organizers)
+                // must add up, not both start from the same paid_amount.
+                ->lockForUpdate()
                 ->first();
+
+            // Cash counted at the ground can't exceed what the team owes: a
+            // repeated "Confirm" would otherwise book the fee twice and every
+            // collection report would overstate what the club holds. Money a
+            // gateway already captured is never refused, so this is opt-in.
+            if ($params['rejectOverpayment'] ?? false) {
+                $owed = $payment ? (float) $payment->remaining_amount : (float) $options['totalFee'];
+
+                // No amount given means "settle up": take what is still owed.
+                if ($customAmount === null) {
+                    $amountToPay = min($amountToPay, $owed);
+                }
+
+                if ($amountToPay > $owed + 0.005) {
+                    throw new \DomainException($owed <= 0
+                        ? "{$team->name} has already paid the full ground fee."
+                        : sprintf('%s owes only ₹%s. Enter that amount or less.', $team->name, $this->money($owed)));
+                }
+            }
 
             if ($payment) {
                 $paidAmount = (float) $payment->paid_amount + $amountToPay;

@@ -36,6 +36,9 @@ class PaymentGatewayService
 
     private const DEMO_ORDER_TTL_MINUTES = 60;
 
+    /** Long enough for a captain to come back and finish after a dropped connection. */
+    private const RAZORPAY_ORDER_TTL_HOURS = 48;
+
     public function __construct(private readonly RazorpayGatewayService $razorpay) {}
 
     /**
@@ -117,7 +120,16 @@ class PaymentGatewayService
         ];
 
         if ($config['provider'] === 'razorpay') {
-            return [...$common, ...$this->razorpay->createOrder($amount, $currency, $receipt, $notes, $config['key_id'], $config['key_secret'])];
+            // The flow rides on the order so verify() can tell a ground-fee
+            // order from a plan order even when the cache has lost it.
+            $order = $this->razorpay->createOrder($amount, $currency, $receipt, [...$notes, 'kk_flow' => $flow], $config['key_id'], $config['key_secret']);
+
+            Cache::put($this->razorpayCacheKey($order['order_id']), [
+                'flow' => $flow,
+                'amount' => (int) $order['amount'],
+            ], now()->addHours(self::RAZORPAY_ORDER_TTL_HOURS));
+
+            return [...$common, ...$order];
         }
 
         $orderId = 'demo_order_'.Ids::token(14);
@@ -150,7 +162,17 @@ class PaymentGatewayService
         $config = $this->config($flow);
 
         if ($config['provider'] === 'razorpay') {
-            return $this->razorpay->verifyPaymentSignature($orderId, $paymentId, $signature, $config['key_secret']);
+            if (! $this->razorpay->verifyPaymentSignature($orderId, $paymentId, $signature, $config['key_secret'])) {
+                return false;
+            }
+
+            // The signature only proves *an* order was paid. Without checking
+            // what that order was for, paying the cheapest plan's checkout (or
+            // half a ground fee) could be presented as paying for anything.
+            // The order is not spent here: a payment lost to a dropped
+            // connection must verify again, and each flow refuses a payment
+            // id it has already recorded.
+            return $this->razorpayOrderMatches($config, $flow, $orderId, $expectedAmount);
         }
 
         if (app()->isProduction() || ! hash_equals($this->demoSignature($flow, $orderId, $paymentId), $signature)) {
@@ -170,6 +192,39 @@ class PaymentGatewayService
         Cache::forget($this->demoCacheKey($orderId));
 
         return true;
+    }
+
+    /**
+     * Whether a Razorpay order was opened for this flow and amount — read from
+     * the cache written at creation, else from Razorpay itself. An order that
+     * can't be read is refused, not waved through.
+     *
+     * @param  array{provider: string, key_id: string, key_secret: string}  $config
+     */
+    private function razorpayOrderMatches(array $config, string $flow, string $orderId, ?float $expectedAmount): bool
+    {
+        $order = Cache::get($this->razorpayCacheKey($orderId));
+
+        if (! $order) {
+            $remote = $this->razorpay->fetchOrder($orderId, $config['key_id'], $config['key_secret']);
+
+            if (! $remote) {
+                return false;
+            }
+
+            $order = ['flow' => $remote['notes']['kk_flow'] ?? $flow, 'amount' => $remote['amount']];
+        }
+
+        if ($order['flow'] !== $flow) {
+            return false;
+        }
+
+        return $expectedAmount === null || $order['amount'] === (int) round($expectedAmount * 100);
+    }
+
+    private function razorpayCacheKey(string $orderId): string
+    {
+        return 'razorpay_order:'.$orderId;
     }
 
     /**

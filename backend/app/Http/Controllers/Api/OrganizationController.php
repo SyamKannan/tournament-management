@@ -194,6 +194,12 @@ class OrganizationController extends Controller
                 return response()->json(['error' => 'Payment verification failed. Please try again.'], 400);
             }
 
+            // One payment buys one period. A signed result stays valid forever,
+            // so without this it could be sent again next month to renew free.
+            if (Invoice::query()->where('transaction_reference', $data['razorpay_payment_id'])->exists()) {
+                return response()->json(['error' => 'This payment has already been used to activate a plan. Refresh the page to see your current plan.'], 409);
+            }
+
             $verifiedTransactionReference = $data['razorpay_payment_id'];
         }
 

@@ -4,6 +4,7 @@ import { api, ApiError } from '../../services/api';
 import type { Organization, Player, RegistrationPayment, Team, Tournament } from '../../types';
 import { useToast } from '../../components/ui/Toast';
 import { openCheckout } from '../../utils/checkout';
+import { useSingleFlight } from '../../lib/useSingleFlight';
 import type { RazorpayOrder } from '../../utils/razorpay';
 
 /* Shared by the team manager workspace pages (overview, squad, fixtures, join, payments). */
@@ -162,12 +163,14 @@ export function feeState(entry: ManagedTeam) {
 export const PayFeeButtons: React.FC<{ entry: ManagedTeam; onPaid: () => void }> = ({ entry, onPaid }) => {
   const toast = useToast();
   const [paying, setPaying] = useState<'half' | 'full' | null>(null);
+  // Opens a gateway order: a second tap before the first renders must not open another.
+  const flight = useSingleFlight();
   const { due, half, canPayHalf, canPay } = feeState(entry);
   const { team, tournament } = entry;
 
   if (!canPay) return null;
 
-  const pay = async (option: 'half' | 'full') => {
+  const pay = (option: 'half' | 'full') => flight.run(async () => {
     setPaying(option);
     try {
       const order: RazorpayOrder & { amount_due: number; amount: number } =
@@ -191,7 +194,7 @@ export const PayFeeButtons: React.FC<{ entry: ManagedTeam; onPaid: () => void }>
     } finally {
       setPaying(null);
     }
-  };
+  });
 
   return (
     <div className="flex flex-wrap gap-2">

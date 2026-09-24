@@ -700,28 +700,33 @@ class AuctionController extends Controller
             return $denied;
         }
 
-        if (! $auction->current_player_id) {
-            return response()->json(['error' => 'No player on the hammer'], 400);
-        }
+        // Checked and sold under the same lock a bid takes: a double tap on
+        // SOLD must not put the player on the roster twice, and a bid landing
+        // mid-sale must not be sold at the price before it.
+        $sale = DB::transaction(function () use ($auction) {
+            $auction = Auction::query()->whereKey($auction->id)->lockForUpdate()->first();
 
-        $player = AuctionPlayer::find($auction->current_player_id);
+            if (! $auction->current_player_id) {
+                return response()->json(['error' => 'No player on the hammer'], 400);
+            }
 
-        if (! $player) {
-            return response()->json(['error' => 'Player not found'], 404);
-        }
+            $player = AuctionPlayer::query()->whereKey($auction->current_player_id)->lockForUpdate()->first();
 
-        if ($auction->hammer_state !== 'bidding' || $player->status !== 'in_hammer') {
-            return response()->json(['error' => 'This player has already been sold or marked unsold. Call the next player.'], 400);
-        }
+            if (! $player) {
+                return response()->json(['error' => 'Player not found'], 404);
+            }
 
-        if (! $auction->current_bid_team_id) {
-            return response()->json(['error' => 'No bids placed. Use unsold button instead.'], 400);
-        }
+            if ($auction->hammer_state !== 'bidding' || $player->status !== 'in_hammer') {
+                return response()->json(['error' => 'This player has already been sold or marked unsold. Call the next player.'], 400);
+            }
 
-        $team = Team::find($auction->current_bid_team_id);
-        $finalPrice = $auction->current_bid_amount ?: $player->base_price;
+            if (! $auction->current_bid_team_id) {
+                return response()->json(['error' => 'No bids placed. Use unsold button instead.'], 400);
+            }
 
-        DB::transaction(function () use ($auction, $player, $team, $finalPrice) {
+            $team = Team::find($auction->current_bid_team_id);
+            $finalPrice = $auction->current_bid_amount ?: $player->base_price;
+
             $player->fill([
                 'status' => 'sold',
                 'sold_price' => $finalPrice,
@@ -756,7 +761,15 @@ class AuctionController extends Controller
 
             $auction->hammer_state = 'sold';
             $auction->save();
+
+            return [$auction, $player, $team, $finalPrice];
         });
+
+        if ($sale instanceof JsonResponse) {
+            return $sale;
+        }
+
+        [$auction, $player, $team, $finalPrice] = $sale;
 
         $auction->refresh();
         $purses = $this->auctions->teamPurses($auction);

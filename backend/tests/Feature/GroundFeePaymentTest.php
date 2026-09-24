@@ -82,6 +82,28 @@ class GroundFeePaymentTest extends TestCase
         $this->assertTrue($result['payment']->recorded_by_admin);
     }
 
+    public function test_an_organizer_cannot_record_more_than_the_team_owes(): void
+    {
+        $team = $this->registerTestTeam();
+        $headers = ['x-demo-role' => 'ORG_ADMIN', 'x-demo-org-id' => $team->organization_id];
+        $cash = ['payment_method' => 'cash', 'amount' => 5000, 'payment_option' => 'full'];
+
+        $this->withHeaders($headers)->postJson("/api/teams/{$team->id}/record-payment", ['amount' => 6000] + $cash)
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'Phoenix Kerala FC owes only ₹5000. Enter that amount or less.');
+
+        $this->withHeaders($headers)->postJson("/api/teams/{$team->id}/record-payment", $cash)->assertOk();
+
+        // The repeated "Confirm" of a double tap is refused, not booked twice.
+        $this->withHeaders($headers)->postJson("/api/teams/{$team->id}/record-payment", $cash)
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'Phoenix Kerala FC has already paid the full ground fee.');
+
+        $payment = $team->fresh()->payment;
+        $this->assertSame(5000.0, (float) $payment->paid_amount);
+        $this->assertSame(1, \App\Models\RegistrationReceipt::query()->where('team_id', $team->id)->count());
+    }
+
     public function test_public_registration_creates_the_squad_and_collects_the_fee(): void
     {
         $tournament = Tournament::find('tourney-football-sevens');

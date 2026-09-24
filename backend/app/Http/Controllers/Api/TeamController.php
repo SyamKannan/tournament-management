@@ -1148,7 +1148,10 @@ class TeamController extends Controller
                 'notes' => $data['notes'] ?? 'Recorded by tournament administrator',
                 'recordedByAdmin' => true,
                 'adminUserId' => $request->user()->id,
+                'rejectOverpayment' => true,
             ]);
+        } catch (\DomainException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 400);
         }

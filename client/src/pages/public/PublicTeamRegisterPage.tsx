@@ -20,6 +20,7 @@ import type { RazorpayOrder, RazorpayVerifiedPayment } from '../../utils/razorpa
 import { openCheckout } from '../../utils/checkout';
 import { PAYMENT_METHOD_META, ALL_PAYMENT_METHODS, isOnlineMethod } from '../../lib/paymentMethods';
 import { useDraft, useLeaveWarning } from '../../lib/useDraft';
+import { useSingleFlight } from '../../lib/useSingleFlight';
 import { usePreferences } from '../../i18n';
 
 const AVATAR_COLORS = [
@@ -172,6 +173,9 @@ export const PublicTeamRegisterPage: React.FC = () => {
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<'full' | 'partial'>(saved?.paymentOption ?? 'partial');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(saved?.paymentMethod ?? 'upi');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  // State alone lets a same-frame double tap through, and each tap would
+  // register the team (and open a checkout) again.
+  const flight = useSingleFlight();
   const [paymentStage, setPaymentStage] = useState<'idle' | 'checking' | 'verifying' | 'success'>('idle');
   const [paidWith, setPaidWith] = useState<PaidWith | null>(saved?.paidWith ?? null);
   const [outcome, setOutcome] = useState<Outcome>(
@@ -430,7 +434,9 @@ export const PublicTeamRegisterPage: React.FC = () => {
   // netbanking open the checkout — but only once the server has said the entry
   // would be accepted, so nobody pays for a registration that was always going
   // to be refused.
-  const handlePayAndRegister = async () => {
+  const handlePayAndRegister = () => flight.run(payAndRegister);
+
+  const payAndRegister = async () => {
     if (isProcessingPayment || !tournament) return;
     setIsProcessingPayment(true);
     setPaymentStage('checking');
@@ -486,7 +492,7 @@ export const PublicTeamRegisterPage: React.FC = () => {
   const retryWithSavedPayment = () => {
     if (!paidWith || isProcessingPayment) return;
     setPaymentStage('success');
-    submitRegistration(paidWith);
+    void flight.run(() => submitRegistration(paidWith));
   };
 
   if (loading) {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Team } from '../types';
 import { api } from '../services/api';
 import { formatMoney } from '../lib/format';
+import { useSingleFlight } from '../lib/useSingleFlight';
 import { X, CheckCircle, IndianRupee } from 'lucide-react';
 
 interface OfflinePaymentModalProps {
@@ -12,37 +13,41 @@ interface OfflinePaymentModalProps {
   onSuccess: (payment: any, receipt: any) => void;
 }
 
-export const OfflinePaymentModal: React.FC<OfflinePaymentModalProps> = ({ team, totalFee = 0, onClose, onSuccess }) => {
+export const OfflinePaymentModal: React.FC<OfflinePaymentModalProps> = ({ team, ...rest }) => {
   if (!team) return null;
 
+  // Keyed by team so opening it for another team starts from that team's balance.
+  return <OfflinePaymentForm key={team.id} team={team} {...rest} />;
+};
+
+const OfflinePaymentForm: React.FC<OfflinePaymentModalProps & { team: Team }> = ({ team, totalFee = 0, onClose, onSuccess }) => {
   const currentRemaining = team.payment ? team.payment.remaining_amount : totalFee;
   const [amount, setAmount] = useState<number>(currentRemaining);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'bank_transfer' | 'other'>('upi');
   const [transactionId, setTransactionId] = useState<string>('');
   const [notes, setNotes] = useState<string>('Ground fee payment collected by organizer');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Records money: a second tap before the first answer must not book it twice.
+  const { run, busy: isSubmitting } = useSingleFlight();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    setError(null);
+    void run(async () => {
+      setError(null);
+      try {
+        const res = await api.post(`/teams/${team.id}/record-payment`, {
+          payment_method: paymentMethod,
+          amount: Number(amount),
+          transaction_id: transactionId || `OFFLINE-${paymentMethod.toUpperCase()}-${Date.now().toString(36).toUpperCase()}`,
+          notes,
+          payment_option: amount >= currentRemaining ? 'full' : 'partial'
+        });
 
-    try {
-      const res = await api.post(`/teams/${team.id}/record-payment`, {
-        payment_method: paymentMethod,
-        amount: Number(amount),
-        transaction_id: transactionId || `OFFLINE-${paymentMethod.toUpperCase()}-${Date.now().toString(36).toUpperCase()}`,
-        notes,
-        payment_option: amount >= currentRemaining ? 'full' : 'partial'
-      });
-
-      onSuccess(res.payment, res.receipt);
-    } catch (err: any) {
-      setError(err.message || 'Failed to record offline payment');
-    } finally {
-      setIsSubmitting(false);
-    }
+        await onSuccess(res.payment, res.receipt);
+      } catch (err: any) {
+        setError(err.message || 'Failed to record offline payment');
+      }
+    });
   };
 
   return (

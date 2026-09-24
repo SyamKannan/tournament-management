@@ -161,6 +161,54 @@ class BillingTest extends TestCase
         $this->assertSame('plan-premium', \App\Models\Subscription::query()->where('organization_id', $org)->value('plan_id'));
     }
 
+    public function test_a_razorpay_payment_buys_only_the_plan_it_was_opened_for_and_only_once(): void
+    {
+        $this->actingAsUser('syamdas@gmail.com');
+        $this->putJson('/api/admin/settings', [
+            'payment_gateways' => ['subscription' => ['provider' => 'razorpay', 'key_id' => 'rzp_test_abc', 'key_secret' => 'super-secret']],
+        ])->assertOk();
+
+        $orders = [];
+        \Illuminate\Support\Facades\Http::fake(function (\Illuminate\Http\Client\Request $request) use (&$orders) {
+            if ($request->method() === 'POST') {
+                $id = 'order_'.(count($orders) + 1);
+                $orders[$id] = ['id' => $id, 'amount' => $request['amount'], 'currency' => 'INR', 'notes' => $request['notes']];
+
+                return \Illuminate\Support\Facades\Http::response($orders[$id]);
+            }
+
+            return \Illuminate\Support\Facades\Http::response($orders[basename($request->url())] ?? [], isset($orders[basename($request->url())]) ? 200 : 404);
+        });
+
+        $this->actingAsUser('admin@greenvalley.com');
+        $org = 'org-green-valley';
+        $pay = function (string $orderId): array {
+            $paymentId = 'pay_'.$orderId;
+
+            return [
+                'payment_method' => 'upi',
+                'razorpay_order_id' => $orderId,
+                'razorpay_payment_id' => $paymentId,
+                'razorpay_signature' => hash_hmac('sha256', "{$orderId}|{$paymentId}", 'super-secret'),
+            ];
+        };
+
+        $cheap = $this->postJson("/api/organizations/{$org}/subscribe/order", ['plan_id' => 'plan-basic'])->assertOk()->json('order_id');
+
+        // Paying the cheap plan's checkout doesn't switch on the expensive one.
+        $this->postJson("/api/organizations/{$org}/subscribe", ['plan_id' => 'plan-premium', ...$pay($cheap)])->assertStatus(400);
+
+        // Nor once the order has fallen out of the cache — Razorpay is asked.
+        \Illuminate\Support\Facades\Cache::forget("razorpay_order:{$cheap}");
+        $this->postJson("/api/organizations/{$org}/subscribe", ['plan_id' => 'plan-premium', ...$pay($cheap)])->assertStatus(400);
+
+        $this->postJson("/api/organizations/{$org}/subscribe", ['plan_id' => 'plan-basic', ...$pay($cheap)])->assertOk();
+
+        // The same signed result, sent again, doesn't renew the plan for free.
+        $this->postJson("/api/organizations/{$org}/subscribe", ['plan_id' => 'plan-basic', ...$pay($cheap)])->assertStatus(409);
+        $this->assertSame(1, \App\Models\Invoice::query()->where('transaction_reference', "pay_{$cheap}")->count());
+    }
+
     public function test_admin_payment_gateway_settings_never_return_the_saved_secret(): void
     {
         $this->actingAsUser('syamdas@gmail.com');

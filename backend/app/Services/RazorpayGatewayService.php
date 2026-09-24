@@ -48,6 +48,32 @@ class RazorpayGatewayService
     }
 
     /**
+     * An order as Razorpay holds it — what it was opened for, which a signed
+     * checkout result says nothing about. Null when it can't be read.
+     *
+     * @return array{amount: int, notes: array<string, mixed>}|null
+     */
+    public function fetchOrder(string $orderId, string $keyId, string $keySecret): ?array
+    {
+        try {
+            $response = Http::withBasicAuth($keyId, $keySecret)
+                ->timeout(15)
+                ->get('https://api.razorpay.com/v1/orders/'.rawurlencode($orderId));
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (! $response->successful() || ! is_numeric($response->json('amount'))) {
+            return null;
+        }
+
+        return [
+            'amount' => (int) $response->json('amount'),
+            'notes' => (array) ($response->json('notes') ?? []),
+        ];
+    }
+
+    /**
      * Verify the signature Razorpay Checkout returns after a successful
      * payment, per Razorpay's documented HMAC-SHA256 scheme.
      */

@@ -77,6 +77,8 @@ class ScoringEngine
         $this->assertNotCompleted($match);
 
         return DB::transaction(function () use ($params, $match) {
+            $this->lockMatch($match->id);
+
             $state = $this->footballState($match->id);
             $params = $this->validateFootballEvent($match, $state, $params);
 
@@ -235,6 +237,8 @@ class ScoringEngine
         $match = $this->findFootballMatch($matchId);
 
         return DB::transaction(function () use ($match) {
+            $this->lockMatch($match->id);
+
             $state = $this->footballState($match->id);
 
             $last = FootballEvent::query()
@@ -325,6 +329,8 @@ class ScoringEngine
         }
 
         return DB::transaction(function () use ($match, $action, $payload) {
+            $this->lockMatch($match->id);
+
             $state = $this->footballState($match->id);
 
             switch ($action) {
@@ -621,6 +627,8 @@ class ScoringEngine
         $this->assertNotCompleted($match);
 
         return DB::transaction(function () use ($params, $match) {
+            $this->lockMatch($match->id);
+
             $state = $this->cricketState($params['matchId']);
             $innings = $params['innings'];
             $extras = $params['extras'] ?: 'none';
@@ -792,6 +800,8 @@ class ScoringEngine
     public function undoLastCricketBall(string $matchId): ?CricketMatchState
     {
         return DB::transaction(function () use ($matchId) {
+            $this->lockMatch($matchId);
+
             $match = GameMatch::find($matchId);
 
             // Reading the state would create a cricket row for a football match.
@@ -893,6 +903,8 @@ class ScoringEngine
         $this->assertNotCancelled($match);
 
         return DB::transaction(function () use ($matchId, $match) {
+            $this->lockMatch($matchId);
+
             $state = $this->cricketState($matchId);
 
             if ($state->current_innings === 2) {
@@ -1401,6 +1413,21 @@ class ScoringEngine
     private function oversNotation(int $legalBalls): float
     {
         return (float) (intdiv($legalBalls, 6).'.'.($legalBalls % 6));
+    }
+
+    /**
+     * Serialize every write to one match.
+     *
+     * Each action reads the state row and the log's last sequence, then writes
+     * both back. Two consoles scoring at once (scorer and organizer, or a retry
+     * after a slow answer) would otherwise read the same state: one ball's runs
+     * vanish from the score while both rows stay in the log under one sequence
+     * number, and undo reverses the wrong one. Called first inside the
+     * transaction, so the lock is held until it commits.
+     */
+    private function lockMatch(string $matchId): void
+    {
+        GameMatch::query()->whereKey($matchId)->lockForUpdate()->first(['id']);
     }
 
     private function nextFootballSequence(string $matchId): int
