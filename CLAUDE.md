@@ -165,9 +165,9 @@ searched in SQL. Don't `->get()` a whole table for a list screen, and don't cap 
 `limit(50)` and let the browser filter. Client side: `usePaginatedList` + `<Pager>`.
 
 **Rate limiting.** Use a **named** limiter from `AppServiceProvider::registerRateLimiters()`
-for anything that needs a real budget. An inline `throttle:5,10` keys on route+IP — the same
-key the global `throttleApi` uses — so both middlewares increment one counter and a request
-costs two attempts. `throttle:5,10` actually allows about 2.
+for anything that needs a real budget. An inline `throttle:5,10` keys on the IP alone (not the route) — the same
+key the global `throttleApi` uses — so it counts every API call that browser makes. A login page
+that loaded ten things is already "too many attempts". Never add one.
 
 **Storage quota.** `plans.storage_limit_mb` is measured off the `uploads` table
 (`BillingService::storageUsedMb`), enforced in `UploadController` and reported by
@@ -216,7 +216,7 @@ public read-only API is `GET /api/players/search?q=` (the no-login "Player Stats
 `/api/players/tournament/{idOrSlug}/stats|leaderboard` (throttled, no mobile/dob/age,
 draft tournaments 404). Careers join squad entries through the user account (id or phone).
 
-**AI assistant (Scorey).** `POST /api/assistant/chat` (public, `throttle:10,1`) — `AssistantService` runs a model
+**AI assistant (Scorey).** `POST /api/assistant/chat` (public, `throttle:assistant`) — `AssistantService` runs a model
 tool loop over raw HTTP: Gemini when `GEMINI_API_KEY` is set (free tier, `GEMINI_MODEL`), else Claude via
 `ANTHROPIC_API_KEY` (`ASSISTANT_MODEL`). Both share one tool list, whose tools
 read only public data: non-draft tournaments, and the public `PlayerController`/`MatchController` actions.

@@ -49,7 +49,7 @@ Route::get('footer', [PlatformController::class, 'footer']);
 Route::get('health', [PlatformController::class, 'health']);
 // Headline counts for the sign-in / sign-up pages (cached).
 Route::get('platform-stats', [PlatformController::class, 'stats']);
-Route::post('payments/demo/{orderId}/pay', [PaymentController::class, 'demoPay'])->middleware('throttle:30,1');
+Route::post('payments/demo/{orderId}/pay', [PaymentController::class, 'demoPay'])->middleware('throttle:demo-pay');
 
 // Restores the demo dataset. Local and staging only — never expose in production.
 Route::post('dev/reset-seed', function () {
@@ -66,10 +66,10 @@ Route::post('dev/reset-seed', function () {
 
 Route::prefix('auth')->group(function () {
     // Tighter limits on credential and signup endpoints than the API default.
-    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
-    Route::post('switch-demo-role', [AuthController::class, 'switchDemoRole'])->middleware('throttle:20,1');
-    Route::post('register-org', [AuthController::class, 'registerOrganization'])->middleware('throttle:5,1');
-    Route::post('register-player', [AuthController::class, 'registerPlayer'])->middleware('throttle:10,1');
+    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:login');
+    Route::post('switch-demo-role', [AuthController::class, 'switchDemoRole'])->middleware('throttle:demo-switch');
+    Route::post('register-org', [AuthController::class, 'registerOrganization'])->middleware('throttle:register-org');
+    Route::post('register-player', [AuthController::class, 'registerPlayer'])->middleware('throttle:register-player');
     Route::get('me', [AuthController::class, 'me']);
     Route::put('me', [AuthController::class, 'updateProfile'])->middleware('auth.required');
 
@@ -185,9 +185,9 @@ Route::prefix('tournaments')->group(function () {
 Route::prefix('teams')->group(function () {
     Route::get('public/registration/{token}', [TeamController::class, 'registrationPage']);
     // Checked before the checkout opens, so nobody pays for an entry that would be refused.
-    Route::post('public/registration/{token}/validate', [TeamController::class, 'validateRegistration'])->middleware('throttle:30,1');
-    Route::post('public/registration/{token}/payment-order', [TeamController::class, 'paymentOrder'])->middleware('throttle:10,1');
-    Route::post('public/registration/{token}', [TeamController::class, 'register'])->middleware('throttle:10,1');
+    Route::post('public/registration/{token}/validate', [TeamController::class, 'validateRegistration'])->middleware('throttle:registration-validate');
+    Route::post('public/registration/{token}/payment-order', [TeamController::class, 'paymentOrder'])->middleware('throttle:registration');
+    Route::post('public/registration/{token}', [TeamController::class, 'register'])->middleware('throttle:registration');
 
     // Carries every team's manager contacts and fees, so it stays with the
     // people running the tournament rather than everyone in the organization.
@@ -219,7 +219,7 @@ Route::prefix('teams')->group(function () {
 Route::prefix('matches')->group(function () {
     Route::get('tournament/{tournamentId}', [MatchController::class, 'forTournament']);
     // The home-page ticker. Declared before `{id}` so "current" isn't read as a match id.
-    Route::get('current', [MatchController::class, 'current'])->middleware('throttle:60,1');
+    Route::get('current', [MatchController::class, 'current'])->middleware('throttle:match-current');
     Route::get('scoreboard/match/{id}', [MatchController::class, 'scoreboard']);
     // Public, like the fixture list and the table: the hub and the stadium
     // screen both show the bracket without anyone signing in.
@@ -321,7 +321,7 @@ Route::prefix('posters')->group(function () {
 
 Route::prefix('auctions')->group(function () {
     Route::get('public/registration/{token}', [AuctionController::class, 'publicRegistrationPage']);
-    Route::post('public/registration/{token}', [AuctionController::class, 'publicRegister'])->middleware('throttle:10,1');
+    Route::post('public/registration/{token}', [AuctionController::class, 'publicRegister'])->middleware('throttle:registration');
 
     Route::get('tournament/{tournamentId}', [AuctionController::class, 'forTournament']);
 
@@ -393,7 +393,7 @@ Route::prefix('sponsors')->group(function () {
 
 /* ------------------------------------------------------------------- Media Uploads */
 
-Route::post('upload', [UploadController::class, 'upload'])->middleware('throttle:60,1');
+Route::post('upload', [UploadController::class, 'upload'])->middleware('throttle:upload');
 
 /* ------------------------------------------------------------------- Players */
 
@@ -403,7 +403,7 @@ Route::prefix('players')->group(function () {
 
     // Public, read-only statistics — no login, so share links and outside
     // sites can read them. Throttled because each one is computed on request.
-    Route::middleware('throttle:60,1')->group(function () {
+    Route::middleware('throttle:public-stats')->group(function () {
         Route::get('search', [PlayerController::class, 'search']);
         Route::get('code/{code}', [PlayerController::class, 'byCode']);
         Route::get('tournament/{tournamentId}/leaderboard', [PlayerController::class, 'leaderboard']);
@@ -418,7 +418,7 @@ Route::prefix('players')->group(function () {
 
 // Public AI chat about tournaments, scores and stats. Each turn is a paid model
 // call with several lookups, so it is throttled well below the API default.
-Route::post('assistant/chat', [AssistantController::class, 'chat'])->middleware('throttle:10,1');
+Route::post('assistant/chat', [AssistantController::class, 'chat'])->middleware('throttle:assistant');
 
 /* ------------------------------------------------------------------- Reports */
 
