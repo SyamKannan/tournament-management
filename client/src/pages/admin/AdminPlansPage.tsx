@@ -7,7 +7,7 @@ import { Skeleton, SkeletonStats } from '../../components/ui/Feedback';
 import { PlanFeatureList } from '../../components/PlanFeatureList';
 import {
   Plus, Edit2, Trash2,
-  X, Check, Power, PowerOff, GripVertical, ChevronLeft, ChevronRight
+  X, Check, Power, PowerOff, GripVertical, ChevronLeft, ChevronRight, Flame, Award
 } from 'lucide-react';
 
 export const AdminPlansPage: React.FC = () => {
@@ -150,6 +150,16 @@ export const AdminPlansPage: React.FC = () => {
       fetchPlans();
     } catch (err: any) {
       toast.error(err.message || 'Failed to update plan status');
+    }
+  };
+
+  // Each badge belongs to one plan at a time; the server takes it off the previous holder.
+  const handleToggleBadge = async (plan: Plan, badge: 'is_popular' | 'is_best_value') => {
+    try {
+      await api.put(`/admin/plans/${plan.id}`, { [badge]: !plan[badge] });
+      fetchPlans();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update plan badge');
     }
   };
 
@@ -325,6 +335,36 @@ export const AdminPlansPage: React.FC = () => {
                 </div>
 
                 <h3 className="text-xl font-bold text-white font-heading">{plan.name}</h3>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleBadge(plan, 'is_popular')}
+                    aria-pressed={!!plan.is_popular}
+                    title={plan.is_popular ? 'Remove the Most popular badge' : 'Show this plan as Most popular'}
+                    className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 border transition-colors ${
+                      plan.is_popular
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                        : 'text-slate-500 border-slate-800 hover:text-slate-300 hover:border-slate-700'
+                    }`}
+                  >
+                    <Flame className="w-3.5 h-3.5" aria-hidden="true" />
+                    Most popular
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleBadge(plan, 'is_best_value')}
+                    aria-pressed={!!plan.is_best_value}
+                    title={plan.is_best_value ? 'Remove the Best value badge' : 'Show this plan as Best value'}
+                    className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 border transition-colors ${
+                      plan.is_best_value
+                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                        : 'text-slate-500 border-slate-800 hover:text-slate-300 hover:border-slate-700'
+                    }`}
+                  >
+                    <Award className="w-3.5 h-3.5" aria-hidden="true" />
+                    Best value
+                  </button>
+                </div>
                 <div className="mt-2 flex items-baseline gap-1">
                   <span className="text-3xl font-black text-white font-heading font-mono">{plan.currency}{plan.price.toLocaleString()}</span>
                   <span className="text-xs text-slate-400">/{isRecurring ? (plan.billing_interval || 'mo') : 'package'}</span>

@@ -60,4 +60,23 @@ class PlanOrderTest extends TestCase
 
         $this->assertSame($plan['id'], Plan::query()->ordered()->pluck('id')->last());
     }
+
+    public function test_each_badge_moves_to_the_plan_it_is_given_to(): void
+    {
+        $headers = $this->demoHeaders('SUPER_ADMIN');
+
+        $this->withHeaders($headers)->putJson('/api/admin/plans/plan-basic', ['is_popular' => true])
+            ->assertOk()->assertJsonPath('is_popular', true);
+        $this->withHeaders($headers)->putJson('/api/admin/plans/plan-premium', ['is_popular' => true])->assertOk();
+        $this->withHeaders($headers)->putJson('/api/admin/plans/plan-premium', ['is_best_value' => true])->assertOk();
+
+        $this->assertSame(['plan-premium'], Plan::query()->where('is_popular', true)->pluck('id')->all());
+        $this->assertSame(['plan-premium'], Plan::query()->where('is_best_value', true)->pluck('id')->all());
+
+        $this->getJson('/api/plans')->assertOk()->assertJsonFragment(['id' => 'plan-premium', 'is_popular' => true, 'is_best_value' => true]);
+
+        $this->withHeaders($headers)->putJson('/api/admin/plans/plan-premium', ['is_popular' => false])->assertOk();
+        $this->assertFalse(Plan::query()->where('is_popular', true)->exists());
+        $this->assertTrue(Plan::find('plan-premium')->is_best_value);
+    }
 }

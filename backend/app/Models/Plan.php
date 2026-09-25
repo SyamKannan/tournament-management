@@ -24,6 +24,8 @@ class Plan extends BaseModel
         'ad_limit' => 'integer',
         'features' => 'array',
         'sort_order' => 'integer',
+        'is_popular' => 'boolean',
+        'is_best_value' => 'boolean',
     ];
 
     /** Display order set by the super admin; ties (e.g. freshly seeded plans) fall back to price. */
@@ -31,4 +33,7 @@ class Plan extends BaseModel
     {
         return $query->orderBy('sort_order')->orderBy('price')->orderBy('id');
     }
+
+    /** The badges a plan card can carry. At most one plan holds each. */
+    public const BADGES = ['is_popular', 'is_best_value'];
 }

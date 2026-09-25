@@ -102,9 +102,11 @@ class AdminController extends Controller
             'ad_limit' => ['nullable', 'integer', 'min:0'],
             'features' => ['nullable', 'array'],
             'features.*' => ['string'],
+            'is_popular' => ['sometimes', 'boolean'],
+            'is_best_value' => ['sometimes', 'boolean'],
         ]);
 
-        $plan = Plan::create([
+        $plan = DB::transaction(fn () => $this->claimBadges($data, Plan::create([
             'id' => Ids::timestamped('plan'),
             'name' => $data['name'],
             'description' => $data['description'] ?? '',
@@ -122,7 +124,9 @@ class AdminController extends Controller
             'features' => $data['features'] ?? [],
             'status' => 'active',
             'sort_order' => (int) Plan::query()->max('sort_order') + 1,
-        ]);
+            'is_popular' => (bool) ($data['is_popular'] ?? false),
+            'is_best_value' => (bool) ($data['is_best_value'] ?? false),
+        ])));
 
         $this->audit($request, 'CREATED_PLAN', 'Plan', $plan->id,
             sprintf('Created plan [%s] with price %s%s', $plan->name, $plan->currency, $plan->price));
@@ -153,13 +157,38 @@ class AdminController extends Controller
             'features' => ['sometimes', 'array'],
             'features.*' => ['string'],
             'status' => ['sometimes', 'string', 'in:active,inactive,archived'],
+            'is_popular' => ['sometimes', 'boolean'],
+            'is_best_value' => ['sometimes', 'boolean'],
         ]);
 
-        $plan->fill($data)->save();
+        DB::transaction(function () use ($plan, $data) {
+            $plan->fill($data)->save();
+            $this->claimBadges($data, $plan);
+        });
 
         $this->audit($request, 'UPDATED_PLAN', 'Plan', $plan->id, sprintf('Updated plan [%s] settings', $plan->name));
 
         return response()->json($plan);
+    }
+
+    /**
+     * "Most popular" and "Best value" mean one plan each: turning a badge on
+     * here takes it off whichever plan held it.
+     */
+    private function claimBadges(array $data, Plan $plan): Plan
+    {
+        $taken = array_filter(Plan::BADGES, fn ($badge) => ! empty($data[$badge]));
+
+        foreach ($taken as $badge) {
+            Plan::query()->whereKeyNot($plan->id)->where($badge, true)->update([$badge => false]);
+        }
+
+        if ($taken) {
+            // A mass update fires no model events.
+            Cached::flush('platform');
+        }
+
+        return $plan;
     }
 
     public function destroyPlan(Request $request, string $id): JsonResponse

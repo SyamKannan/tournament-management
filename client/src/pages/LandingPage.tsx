@@ -319,7 +319,8 @@ export const LandingPage: React.FC = () => {
                 : filteredPlans.length === 4
                 ? 'md:max-w-none md:w-[calc(50%-12px)] xl:w-[calc(25%-18px)]'
                 : 'md:max-w-none md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)]';
-              const isPopular = plan.id.includes('standard') || plan.name.toLowerCase().includes('pro');
+              const isPopular = !!plan.is_popular;
+              const isBestValue = !!plan.is_best_value;
               const cycle = planCycle(plan);
               const isOneTime = cycle === 'one_time';
               const isFree = plan.price === 0;
@@ -332,14 +333,25 @@ export const LandingPage: React.FC = () => {
                   className={`w-full max-w-md rounded-3xl p-6 flex flex-col justify-between transition-all relative ${planWidth} ${
                     isPopular
                       ? 'glass-panel border-2 border-emerald-500/80 shadow-2xl shadow-emerald-500/10'
+                      : isBestValue
+                      ? 'glass-panel border-2 border-amber-500/70 shadow-2xl shadow-amber-500/10'
                       : isOneTime
                       ? 'glass-card border border-amber-500/30 hover:border-amber-500/60'
                       : 'glass-card border border-slate-800 hover:border-slate-700'
                   }`}
                 >
-                  {isPopular && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-emerald-500 text-slate-950 font-black text-xs uppercase tracking-wider shadow-md">
-                      Most Popular
+                  {(isPopular || isBestValue) && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex gap-1.5 whitespace-nowrap">
+                      {isPopular && (
+                        <span className="px-3 py-0.5 rounded-full bg-emerald-500 text-slate-950 font-black text-xs uppercase tracking-wider shadow-md">
+                          Most Popular
+                        </span>
+                      )}
+                      {isBestValue && (
+                        <span className="px-3 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-md">
+                          Best Value
+                        </span>
+                      )}
                     </div>
                   )}
 

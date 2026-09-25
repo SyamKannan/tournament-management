@@ -106,6 +106,7 @@
       "id": "plan-standard",
       "name": "Standard Pro",
       "description": "Most Popular! For active sports associations and local grounds with multiple events.",
+      "is_popular": true,
       "price": 2499,
       "currency": "₹",
       "billing_type": "recurring",

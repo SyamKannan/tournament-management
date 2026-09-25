@@ -67,6 +67,10 @@ export interface Plan {
   ad_limit: number;
   features: string[];
   sort_order?: number;
+  /** "Most popular" badge; at most one plan holds it. */
+  is_popular?: boolean;
+  /** "Best value" badge; at most one plan holds it. */
+  is_best_value?: boolean;
   status: 'active' | 'inactive' | 'archived';
   created_at: string;
   updated_at: string;
