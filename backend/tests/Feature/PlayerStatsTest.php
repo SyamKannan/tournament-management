@@ -481,6 +481,8 @@ class PlayerStatsTest extends TestCase
             'scheduled_at' => '2026-09-10T10:00:00.000Z',
             'status' => 'scheduled',
             'batting_first_team_id' => self::KINGS,
+            'toss_winner_team_id' => self::KINGS,
+            'toss_decision' => 'bat',
         ]);
 
         MatchLineup::create([
@@ -543,6 +545,9 @@ class PlayerStatsTest extends TestCase
             'team_b_id' => self::STRIKERS,
             'scheduled_at' => '2026-09-10T10:00:00.000Z',
             'status' => 'scheduled',
+            'toss_winner_team_id' => self::BLASTERS,
+            'toss_decision' => 'kick_off',
+            'kick_off_team_id' => self::BLASTERS,
         ]);
 
         MatchLineup::create([
@@ -553,6 +558,8 @@ class PlayerStatsTest extends TestCase
             'batting_order' => 1,
             'is_playing' => true,
         ]);
+
+        $this->scoring->updateFootballTimer('match-stats-football', 'start');
 
         $event = fn (array $params) => $this->scoring->addFootballEvent(['matchId' => 'match-stats-football', 'minute' => 10, ...$params]);
 

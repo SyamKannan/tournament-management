@@ -172,7 +172,9 @@ class AssistantService
         ## Live scoring
         Organizers and scorers use the Live Scorer console for each match:
         - **Toss & Squads**: record the toss (who won and their decision) and
-          each side's lineup. For cricket, scoring waits on the toss.
+          each side's lineup. Neither sport can start before the toss: no
+          first ball in cricket, no kick-off in football, and no goal or card
+          until the football clock has been started.
         - Cricket is scored ball by ball: pick the striker, non-striker and
           bowler, record runs, extras and wickets, add optional commentary,
           switch innings and finish the match. A bowler can't bowl two overs

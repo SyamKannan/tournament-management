@@ -40,6 +40,7 @@ class FootballMatchFlowTest extends TestCase
     public function test_the_clock_runs_and_a_pause_keeps_every_second(): void
     {
         $this->travelTo(now()->startOfMinute());
+        $this->tossScheduled();
         $this->scoring->updateFootballTimer(self::SCHEDULED, 'start');
 
         $this->travel(95)->seconds();
@@ -62,6 +63,7 @@ class FootballMatchFlowTest extends TestCase
     public function test_starting_a_running_clock_does_not_reset_it(): void
     {
         $this->travelTo(now()->startOfMinute());
+        $this->tossScheduled();
         $this->scoring->updateFootballTimer(self::SCHEDULED, 'start');
         $this->travel(30)->seconds();
 
@@ -465,11 +467,46 @@ class FootballMatchFlowTest extends TestCase
             ->assertJsonPath('toss_decision', 'kick_off');
     }
 
-    public function test_football_scoring_does_not_wait_for_a_toss(): void
+    public function test_a_football_match_cannot_kick_off_before_the_toss(): void
     {
         $this->actingAsUser('scorer@greenvalley.com');
 
+        $this->postJson('/api/matches/'.self::SCHEDULED.'/football/timer', ['action' => 'start'])
+            ->assertStatus(400)
+            ->assertJsonPath('error', 'Record the toss before the match starts.');
+        $this->postJson('/api/matches/'.self::SCHEDULED.'/football/timer', ['action' => 'set_half', 'half' => '1'])
+            ->assertStatus(400);
+        $this->assertSame('scheduled', GameMatch::find(self::SCHEDULED)->status);
+
+        $this->tossScheduled();
         $this->postJson('/api/matches/'.self::SCHEDULED.'/football/timer', ['action' => 'start'])->assertOk();
+    }
+
+    public function test_no_goal_before_kick_off_or_during_half_time(): void
+    {
+        $this->tossScheduled();
+        $match = GameMatch::find(self::SCHEDULED);
+        $goal = ['matchId' => self::SCHEDULED, 'teamId' => $match->team_a_id, 'playerId' => null, 'eventType' => 'own_goal'];
+
+        try {
+            $this->scoring->addFootballEvent($goal);
+            $this->fail('A goal was recorded before the kick-off');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('The match has not kicked off yet. Start the clock first.', $e->getMessage());
+        }
+        $this->assertSame(0, $this->scoring->footballState(self::SCHEDULED)->team_b_score);
+
+        $this->scoring->updateFootballTimer(self::SCHEDULED, 'start');
+        $this->scoring->updateFootballTimer(self::SCHEDULED, 'half_time');
+
+        $this->expectExceptionMessage('It is half time');
+        $this->scoring->addFootballEvent($goal);
+    }
+
+    private function tossScheduled(): void
+    {
+        $match = GameMatch::find(self::SCHEDULED);
+        app(TossService::class)->recordManual(self::SCHEDULED, $match->team_a_id, 'kick_off');
     }
 
     /* --------------------------------------------------------------- Lineups */

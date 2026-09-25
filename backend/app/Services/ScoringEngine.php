@@ -38,6 +38,9 @@ class ScoringEngine
     /** Event types that put the ball in the net, and so need a scorer on the pitch. */
     private const FOOTBALL_SCORING_EVENTS = ['goal', 'penalty_goal'];
 
+    /** Every event that changes the scoreline, own goals included. */
+    private const FOOTBALL_GOAL_EVENTS = ['goal', 'penalty_goal', 'own_goal'];
+
     /** Periods the clock runs in, in the order a match moves through them. */
     public const FOOTBALL_PERIODS = ['1', '2', 'extra_1', 'extra_2', 'penalties'];
 
@@ -76,10 +79,22 @@ class ScoringEngine
         $this->assertNotCancelled($match);
         $this->assertNotCompleted($match);
 
+        // Nothing happens on the pitch before the kick-off. Letting an event
+        // start the match put a score on the big screen next to a clock that
+        // had never run, and skipped the toss entirely.
+        if (in_array($match->status, ['scheduled', 'toss'], true)) {
+            throw new \RuntimeException('The match has not kicked off yet. Start the clock first.');
+        }
+
         return DB::transaction(function () use ($params, $match) {
             $this->lockMatch($match->id);
 
             $state = $this->footballState($match->id);
+
+            if ($state->current_half === 'half_time' && in_array($params['eventType'], self::FOOTBALL_GOAL_EVENTS, true)) {
+                throw new \RuntimeException('It is half time. Start the second half before recording a goal.');
+            }
+
             $params = $this->validateFootballEvent($match, $state, $params);
 
             // Left out, the minute is read off the clock: the minute a goal
@@ -104,11 +119,6 @@ class ScoringEngine
             // in after the fact; the clock is not moved by it.
             $this->applyGoal($state, $match, $params['eventType'], $params['teamId'], 1);
             $state->save();
-
-            if (in_array($match->status, ['scheduled', 'toss'], true)) {
-                $match->status = 'in_progress';
-                $match->save();
-            }
 
             $this->recalculateFootballStandings($match->tournament_id);
 
@@ -326,6 +336,12 @@ class ScoringEngine
             }
         } else {
             $this->assertNotCompleted($match);
+        }
+
+        // Kicking off (by `start` or straight into a period) is where the match
+        // begins, and it can't begin before the toss has said who kicks off.
+        if (in_array($action, ['start', 'set_half'], true) && in_array($match->status, ['scheduled', 'toss'], true)) {
+            $this->assertTossDone($match);
         }
 
         return DB::transaction(function () use ($match, $action, $payload) {
@@ -625,6 +641,11 @@ class ScoringEngine
 
         $this->assertNotCancelled($match);
         $this->assertNotCompleted($match);
+
+        // The first ball starts the match, and who bats is the toss's to say.
+        if (in_array($match->status, ['scheduled', 'toss'], true)) {
+            $this->assertTossDone($match);
+        }
 
         return DB::transaction(function () use ($params, $match) {
             $this->lockMatch($match->id);
@@ -1460,6 +1481,14 @@ class ScoringEngine
     {
         if ($match->status === 'completed') {
             throw new \RuntimeException('This match is finished. Undo the last entry or reopen the match to change it.');
+        }
+    }
+
+    /** A match can't begin until the toss winner has made their choice. */
+    private function assertTossDone(GameMatch $match): void
+    {
+        if (! $match->toss_decision) {
+            throw new \RuntimeException('Record the toss before the match starts.');
         }
     }
 

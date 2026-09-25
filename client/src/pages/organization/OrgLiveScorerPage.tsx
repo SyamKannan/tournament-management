@@ -136,7 +136,8 @@ export const OrgLiveScorerPage: React.FC = () => {
       // picked a tab themselves — nothing is more annoying than a screen that
       // jumps while you are working.
       if (!tabChosen) {
-        setTab(res.match.sport_code === 'cricket' && !res.match.toss_decision ? 'setup' : 'scoring');
+        const beforeStart = res.match.sport_code === 'cricket' || ['scheduled', 'toss'].includes(res.match.status);
+        setTab(!res.match.toss_decision && beforeStart ? 'setup' : 'scoring');
       }
 
       // The server's crease is adopted only where it has *changed* since the
@@ -442,7 +443,12 @@ export const OrgLiveScorerPage: React.FC = () => {
     ? selectedAssistId
     : '';
   const pickedIsSentOff = Boolean(pickedPlayerId) && sentOffIds.includes(pickedPlayerId);
-  const canRecordFootball = isFootball && !footballFinished && match.status !== 'cancelled' && !footballBusy;
+  // Nothing is recorded before the kick-off, and there is no kick-off before
+  // the toss — the server refuses both, so the console doesn't offer them.
+  const kickedOff = !(['scheduled', 'toss'] as string[]).includes(match.status);
+  const awaitingToss = isFootball && !kickedOff && !match.toss_decision;
+  const canRecordFootball = isFootball && kickedOff && !footballFinished && match.status !== 'cancelled' && !footballBusy;
+  const clockLocked = footballBusy || match.status === 'cancelled' || awaitingToss;
 
   const allPlayers = [...(team_a.players || []), ...(team_b.players || [])];
   const footballName = (playerId?: string | null) =>
@@ -727,7 +733,7 @@ export const OrgLiveScorerPage: React.FC = () => {
       {/* Tabs */}
       <div className="grid grid-cols-3 gap-2">
         {TABS.map(({ id, label, icon: Icon }) => {
-          const needsSetup = id === 'setup' && !isFootball && !match.toss_decision;
+          const needsSetup = id === 'setup' && ((!isFootball && !match.toss_decision) || awaitingToss);
           return (
             <button
               key={id}
@@ -749,10 +755,10 @@ export const OrgLiveScorerPage: React.FC = () => {
       {/* ------------------------------------------------------------ SETUP */}
       {tab === 'setup' && (
         <div className="space-y-4">
-          {isFootball && !match.toss_decision && (
+          {awaitingToss && (
             <p className="px-4 py-3 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-400">
-              The toss is optional in football — kick off from the Scoring tab whenever you are ready. Recording it
-              puts the result on the big screen and lets the side kicking off lead the squad reveal.
+              Record the toss first — the match can't kick off until it is done. The result goes up on the big
+              screen, and the side kicking off leads the squad reveal.
             </p>
           )}
 
@@ -1026,12 +1032,21 @@ export const OrgLiveScorerPage: React.FC = () => {
                 </div>
               </div>
 
+              {awaitingToss && (
+                <button
+                  onClick={() => openTab('setup')}
+                  className="w-full px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-200 text-xs font-semibold text-left"
+                >
+                  Record the toss in Setup before kicking off.
+                </button>
+              )}
+
               {!footballFinished && (
                 <>
                   {currentPeriod !== 'penalties' && currentPeriod !== 'half_time' && (
                     <button
                       onClick={() => handleFootballTimer(football_state?.is_timer_running ? 'pause' : 'start')}
-                      disabled={footballBusy || match.status === 'cancelled'}
+                      disabled={clockLocked}
                       className={`w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 ${
                         football_state?.is_timer_running
                           ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
@@ -1051,7 +1066,7 @@ export const OrgLiveScorerPage: React.FC = () => {
                     {nextPeriod && (
                       <button
                         onClick={() => handleFootballTimer(nextPeriod.action, nextPeriod.half ? { half: nextPeriod.half } : {})}
-                        disabled={footballBusy || match.status === 'cancelled'}
+                        disabled={clockLocked || !kickedOff}
                         className="w-full py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 font-bold text-xs border border-amber-500/40 disabled:opacity-50"
                       >
                         {nextPeriod.label}
@@ -1059,7 +1074,7 @@ export const OrgLiveScorerPage: React.FC = () => {
                     )}
                     <button
                       onClick={() => handleFootballTimer('finish')}
-                      disabled={footballBusy || match.status === 'cancelled'}
+                      disabled={footballBusy || match.status === 'cancelled' || !kickedOff}
                       className="w-full py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 font-bold text-xs border border-rose-600/30 disabled:opacity-50"
                     >
                       Full Time (Final Whistle 🏁)
