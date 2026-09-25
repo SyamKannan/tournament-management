@@ -13,6 +13,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { PreferencesProvider } from './i18n';
 import { MustChangePasswordGate } from './components/MustChangePasswordGate';
 import { OfflineBanner } from './components/OfflineBanner';
+import { AppInstall } from './components/AppInstall';
 import { LandingPage } from './pages/LandingPage';
 
 /**
@@ -127,6 +128,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <div className={`min-h-screen text-slate-100 flex flex-col font-sans ${hasSidebar ? 'app-shell' : 'bg-slate-950'}`}>
       <a href="#main-content" className="skip-link">Skip to content</a>
       <OfflineBanner />
+      <AppInstall />
       <MustChangePasswordGate />
 
       <Navbar showMenuButton={hasSidebar} onMenuClick={() => setSidebarOpen(true)} />

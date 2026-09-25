@@ -49,6 +49,12 @@ export const en = {
   // --------------------------------------------------------------- network
   'net.offline': 'You are offline. Changes will not be saved until the connection is back.',
   'net.backOnline': 'Back online.',
+  'app.install': 'Install KickWick',
+  'app.installHint': 'Add it to your home screen or desktop and open it like an app.',
+  'app.installAction': 'Install',
+  'app.notNow': 'Not now',
+  'app.updateReady': 'A new version of KickWick is ready.',
+  'app.reload': 'Reload',
 
   // ------------------------------------------------------------ wake lock
   'wake.on': 'Screen will stay on',

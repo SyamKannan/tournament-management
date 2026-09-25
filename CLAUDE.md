@@ -273,6 +273,10 @@ routes/api.php               the entire route table, single file
 - Team registration calls `…/registration/{token}/validate` *before* opening checkout; a
   resubmitted paid registration is replayed (`replayed: true`); a paid-but-refused one is
   audited as `REGISTRATION_PAYMENT_NEEDS_REFUND`.
+- Installable PWA (`vite-plugin-pwa`, config in `vite.config.ts`). The service worker precaches
+  only the built shell; `/api`, `/ws` and `/storage` always hit the network. Updates wait for
+  a tap on Reload (`components/AppInstall.tsx`), never auto-reload mid-scoring. Icons are
+  generated from `public/favicon.svg` by `npx pwa-assets-generator`.
 - Razorpay's script loads on demand (`utils/razorpay.ts`), never as a blocking tag.
 
 ## Config
