@@ -11,8 +11,8 @@ use Illuminate\Support\Str;
 
 /**
  * Seeds what a fresh platform needs and nothing else: platform settings, the
- * sports catalogue, the subscription plans and one super admin. No clubs,
- * players or tournaments.
+ * sports catalogue, the subscription plans and one super admin. Outside
+ * production it also adds one test club (see TestClubSeeder).
  *
  * Safe to run again: catalogue rows are upserted and an existing super admin is
  * left untouched (its password is never reset by a re-seed).
@@ -39,6 +39,9 @@ class DatabaseSeeder extends Seeder
         });
 
         $this->seedSuperAdmin();
+
+        // Local test data; does nothing in production.
+        $this->call(TestClubSeeder::class);
     }
 
     private function seedSettings(array $settings): void

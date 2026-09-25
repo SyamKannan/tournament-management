@@ -329,7 +329,9 @@ routes/api.php               the entire route table, single file
 
 Seeding creates only platform settings, sports, plans and one super admin from
 `SUPER_ADMIN_EMAIL`/`SUPER_ADMIN_PASSWORD` (unset password → generated, printed once,
-`must_change_password`). The demo dataset (`tests/Fixtures/demo.json`, password `12345678`)
+`must_change_password`). Outside production `TestClubSeeder` also adds one test club
+(`testclub@kickwick.local` / `12345678`, premium plan) with a 10-team football and a 10-team
+cricket tournament built by `demo:tournament`; `SEED_TEST_CLUB=false` skips it. The demo dataset (`tests/Fixtures/demo.json`, password `12345678`)
 is loaded by `Tests\DemoSeeder` for the test suite only. `POST /api/dev/reset-seed` wipes and reseeds the DB and must 404 in production
 (`APP_ENV=production` already enforces this — keep it that way).
 
