@@ -29,7 +29,6 @@ class ReviewController extends Controller
         'body.required' => 'Write a few words about your experience.',
         'body.min' => 'Write at least 10 characters.',
         'body.max' => 'Keep it under 500 characters.',
-        'author_name.required' => 'Enter the name to show with the review.',
     ];
 
     /* ----------------------------------------------------------------- Public */
@@ -58,7 +57,6 @@ class ReviewController extends Controller
                     'author_title' => $review->author_title,
                     'rating' => $review->rating,
                     'body' => $review->body,
-                    'is_featured' => $review->is_featured,
                     'created_at' => $review->created_at,
                 ])->values(),
             ];
@@ -120,7 +118,6 @@ class ReviewController extends Controller
     {
         $review = Review::query()->firstOrNew(['organization_id' => $organizationId], [
             'id' => Ids::unique('review'),
-            'source' => 'organizer',
         ]);
 
         $review->fill($attributes);
@@ -149,7 +146,7 @@ class ReviewController extends Controller
 
     /* ------------------------------------------------------------ Super admin */
 
-    /** `filter`: live | held (below the minimum, waiting on a call) | hidden | all. */
+    /** `filter`: live (on the home page) | not_live | everything when absent. */
     public function adminIndex(Request $request): JsonResponse
     {
         $minRating = PlatformSetting::current()->reviewSettings()['min_rating'];
@@ -158,51 +155,16 @@ class ReviewController extends Controller
 
         match ($request->query('filter')) {
             'live' => $query->published($minRating),
-            'held' => $query->where('visibility', 'auto')->where('rating', '<', $minRating),
-            'hidden' => $query->where('visibility', 'hidden'),
+            'not_live' => $query->whereNotIn('id', Review::query()->published($minRating)->select('id')),
             default => null,
         };
-
-        Paginate::search($query, $request->query('search'), ['author_name', 'author_title', 'body']);
 
         $query->orderByDesc('updated_at')->orderBy('id');
 
         return response()->json(Paginate::query($query, $request, fn (Review $review) => $this->adminRow($review, $minRating)));
     }
 
-    public function adminStore(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'author_name' => ['required', 'string', 'max:80'],
-            'author_title' => ['nullable', 'string', 'max:120'],
-            'rating' => ['required', 'integer', 'min:1', 'max:5'],
-            'body' => ['required', 'string', 'min:10', 'max:500'],
-            'is_featured' => ['sometimes', 'boolean'],
-        ], self::MESSAGES);
-
-        $review = Review::create([
-            'id' => Ids::unique('review'),
-            'author_name' => trim($data['author_name']),
-            'author_title' => trim((string) ($data['author_title'] ?? '')),
-            'rating' => $data['rating'],
-            'body' => trim($data['body']),
-            'is_featured' => $data['is_featured'] ?? false,
-            // Added by hand means the admin already chose to show it.
-            'visibility' => 'shown',
-            'source' => 'admin',
-            'moderated_by' => $request->user()->id,
-            'moderated_at' => now(),
-        ]);
-
-        $this->audit($request, 'ADDED_REVIEW', $review, "Added a review by {$review->author_name}");
-
-        return response()->json($this->adminRow($review->load('organization:id,name,status')), 201);
-    }
-
-    /**
-     * Visibility, the featured flag and how the author is credited. A club's
-     * own words stay theirs — only reviews the admin wrote can be re-worded.
-     */
+    /** Show or hide one review by hand; `auto` hands it back to the rating rule. */
     public function adminUpdate(Request $request, string $id): JsonResponse
     {
         $review = Review::find($id);
@@ -211,45 +173,32 @@ class ReviewController extends Controller
         }
 
         $data = $request->validate([
-            'visibility' => ['sometimes', 'string', 'in:'.implode(',', Review::VISIBILITIES)],
-            'is_featured' => ['sometimes', 'boolean'],
-            'author_name' => ['sometimes', 'required', 'string', 'max:80'],
-            'author_title' => ['sometimes', 'nullable', 'string', 'max:120'],
-            'rating' => ['sometimes', 'integer', 'min:1', 'max:5'],
-            'body' => ['sometimes', 'string', 'min:10', 'max:500'],
-        ], self::MESSAGES);
+            'visibility' => ['required', 'string', 'in:'.implode(',', Review::VISIBILITIES)],
+        ], [
+            'visibility.required' => 'Choose whether to show or hide the review.',
+            'visibility.in' => 'Choose whether to show or hide the review.',
+        ]);
 
-        if ($review->source !== 'admin' && (isset($data['body']) || isset($data['rating']))) {
-            return response()->json(['error' => "A club's own rating and words can't be changed. Hide the review instead."], 422);
-        }
+        $review->fill([
+            ...$data,
+            'moderated_by' => $request->user()->id,
+            'moderated_at' => now(),
+        ])->save();
 
-        if (array_key_exists('author_title', $data)) {
-            $data['author_title'] = trim((string) $data['author_title']);
-        }
-
-        $review->fill($data);
-        if ($review->isDirty('visibility')) {
-            $review->moderated_by = $request->user()->id;
-            $review->moderated_at = now();
-        }
-        $review->save();
-
-        $this->audit($request, 'UPDATED_REVIEW', $review, "Updated the review by {$review->author_name}");
+        $user = $request->user();
+        Audit::log([
+            'organization_id' => $review->organization_id,
+            'user_id' => $user->id,
+            'user_name' => $user->name,
+            'user_role' => $user->role,
+            'action' => $data['visibility'] === 'hidden' ? 'HID_REVIEW' : 'SHOWED_REVIEW',
+            'entity_type' => 'Review',
+            'entity_id' => $review->id,
+            'details' => ($data['visibility'] === 'hidden' ? 'Hid' : 'Showed')." the review by {$review->author_name}",
+            'ip_address' => $request->ip(),
+        ]);
 
         return response()->json($this->adminRow($review->load('organization:id,name,status')));
-    }
-
-    public function adminDestroy(Request $request, string $id): JsonResponse
-    {
-        $review = Review::find($id);
-        if (! $review) {
-            return response()->json(['error' => 'Review not found'], 404);
-        }
-
-        $review->delete();
-        $this->audit($request, 'DELETED_REVIEW', $review, "Deleted the review by {$review->author_name}");
-
-        return response()->json(['message' => 'Review deleted']);
     }
 
     private function adminRow(Review $review, ?int $minRating = null): array
@@ -261,30 +210,11 @@ class ReviewController extends Controller
         return [
             ...$review->only([
                 'id', 'organization_id', 'author_name', 'author_title', 'rating', 'body',
-                'visibility', 'is_featured', 'source', 'moderated_at', 'created_at', 'updated_at',
+                'visibility', 'moderated_at', 'created_at', 'updated_at',
             ]),
             'organization_name' => $organization?->name,
-            // Approved (by the rule or by hand) from a club still active. Making
-            // the page also depends on the section switch and the cap.
             'club_active' => $clubActive,
             'is_live' => $clubActive && $review->passesRule($minRating),
         ];
-    }
-
-    private function audit(Request $request, string $action, Review $review, string $details): void
-    {
-        $user = $request->user();
-
-        Audit::log([
-            'organization_id' => $review->organization_id,
-            'user_id' => $user->id,
-            'user_name' => $user->name,
-            'user_role' => $user->role,
-            'action' => $action,
-            'entity_type' => 'Review',
-            'entity_id' => $review->id,
-            'details' => $details,
-            'ip_address' => $request->ip(),
-        ]);
     }
 }

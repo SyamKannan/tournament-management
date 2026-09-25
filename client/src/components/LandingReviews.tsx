@@ -10,7 +10,6 @@ export interface PublicReview {
   author_title: string;
   rating: number;
   body: string;
-  is_featured: boolean;
   created_at: string;
 }
 
@@ -61,11 +60,7 @@ export const LandingReviews: React.FC = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-60px' }}
             transition={{ duration: 0.45, delay: Math.min(i, 5) * 0.06 }}
-            className={`flex flex-col rounded-3xl border p-6 shadow-xl ${
-              review.is_featured
-                ? 'border-amber-500/40 bg-gradient-to-br from-amber-500/10 to-slate-900/60 sm:col-span-2 lg:col-span-1'
-                : 'border-slate-800 bg-slate-900/60'
-            }`}
+            className="flex flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-xl"
           >
             <div className="flex items-center justify-between">
               <Stars rating={review.rating} />

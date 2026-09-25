@@ -64,7 +64,7 @@ class ReviewsTest extends TestCase
 
         $reviews = $this->getJson('/api/reviews')->assertOk()->assertJsonPath('enabled', true)->json('data');
         $this->assertCount(1, $reviews);
-        $this->assertSame(['id', 'author_name', 'author_title', 'rating', 'body', 'is_featured', 'created_at'], array_keys($reviews[0]));
+        $this->assertSame(['id', 'author_name', 'author_title', 'rating', 'body', 'created_at'], array_keys($reviews[0]));
     }
 
     public function test_below_the_minimum_waits_for_the_admin(): void
@@ -76,7 +76,8 @@ class ReviewsTest extends TestCase
         $this->assertSame([], $this->publicIds());
 
         $id = Review::query()->value('id');
-        $this->withHeaders($this->admin())->getJson('/api/admin/reviews?filter=held')->assertJsonPath('total', 1);
+        $this->withHeaders($this->admin())->getJson('/api/admin/reviews?filter=not_live')->assertJsonPath('total', 1);
+        $this->withHeaders($this->admin())->getJson('/api/admin/reviews?filter=live')->assertJsonPath('total', 0);
         $this->withHeaders($this->admin())->putJson("/api/admin/reviews/$id", ['visibility' => 'shown'])
             ->assertOk()->assertJsonPath('is_live', true);
 
@@ -95,7 +96,7 @@ class ReviewsTest extends TestCase
             ->putJson('/api/organizations/'.self::ORG.'/review', ['rating' => 5, 'body' => 'Edited to say even nicer things.'])
             ->assertJsonPath('review.is_live', false);
         $this->assertSame([], $this->publicIds());
-        $this->assertTrue(AuditLog::query()->where('action', 'UPDATED_REVIEW')->exists());
+        $this->assertTrue(AuditLog::query()->where('action', 'HID_REVIEW')->exists());
     }
 
     public function test_editing_a_hand_approved_review_returns_it_to_the_rule(): void
@@ -125,19 +126,17 @@ class ReviewsTest extends TestCase
         $this->getJson('/api/reviews')->assertJsonPath('enabled', false)->assertJsonPath('data', []);
     }
 
-    public function test_featured_first_and_capped_at_max_shown(): void
+    public function test_highest_rated_first_and_capped_at_max_shown(): void
     {
-        $this->review(self::ORG, 5);
-        $featured = $this->review(self::OTHER_ORG, 4);
-        $featured->update(['is_featured' => true]);
+        $four = $this->review(self::ORG, 4);
+        $this->review(self::OTHER_ORG, 5);
         $this->review('org-malabar-cricket', 5);
 
-        $settings = PlatformSetting::current();
-        $settings->update(['reviews' => ['max_shown' => 2]]);
+        PlatformSetting::current()->update(['reviews' => ['max_shown' => 2]]);
 
         $ids = $this->publicIds();
         $this->assertCount(2, $ids);
-        $this->assertSame($featured->id, $ids[0]);
+        $this->assertNotContains($four->id, $ids);
     }
 
     public function test_a_suspended_clubs_review_leaves_the_page(): void
@@ -163,19 +162,19 @@ class ReviewsTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_the_admin_adds_reviews_but_cannot_reword_a_clubs(): void
+    public function test_the_admin_can_only_show_or_hide(): void
     {
-        $added = $this->withHeaders($this->admin())->postJson('/api/admin/reviews', [
-            'author_name' => 'Suresh', 'author_title' => 'Kerala Sevens', 'rating' => 3, 'body' => 'Told us on the phone it saved them hours.',
-        ])->assertCreated()->assertJsonPath('is_live', true)->json('id');
-        $this->assertSame([$added], $this->publicIds());
+        $review = $this->review(self::ORG, 3);
 
-        $club = $this->review(self::ORG, 3);
-        $this->withHeaders($this->admin())->putJson("/api/admin/reviews/{$club->id}", ['body' => 'Put words in their mouth.'])
-            ->assertStatus(422)->assertJsonStructure(['error']);
+        $this->withHeaders($this->admin())->putJson("/api/admin/reviews/{$review->id}", ['body' => 'Put words in their mouth.'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.visibility.0', 'Choose whether to show or hide the review.');
+        $this->assertSame('Scoring the whole league from one phone was easy.', $review->fresh()->body);
 
-        $this->withHeaders($this->admin())->deleteJson("/api/admin/reviews/$added")->assertOk();
-        $this->assertSame([], $this->publicIds());
+        $this->withHeaders($this->admin())->postJson('/api/admin/reviews', ['author_name' => 'x', 'rating' => 5, 'body' => 'Made up by the admin.'])
+            ->assertStatus(405);
+        $this->withHeaders($this->admin())->deleteJson("/api/admin/reviews/{$review->id}")->assertStatus(405);
+        $this->assertTrue(AuditLog::query()->where('action', 'SHOWED_REVIEW')->doesntExist());
     }
 
     public function test_bad_input_is_explained(): void
@@ -190,11 +189,6 @@ class ReviewsTest extends TestCase
         $this->withHeaders($this->organizer())
             ->putJson('/api/organizations/'.self::ORG.'/review', ['rating' => null, 'body' => 'Long enough to pass.'])
             ->assertJsonPath('errors.rating.0', 'Choose a star rating.');
-
-        $review = $this->review(self::ORG, 5);
-        $this->withHeaders($this->admin())->putJson("/api/admin/reviews/{$review->id}", ['author_name' => ''])
-            ->assertStatus(422)
-            ->assertJsonPath('errors.author_name.0', 'Enter the name to show with the review.');
     }
 
     public function test_a_club_is_not_told_its_review_is_live_while_the_section_is_off(): void

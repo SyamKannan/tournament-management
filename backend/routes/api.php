@@ -120,9 +120,7 @@ Route::prefix('admin')->middleware(['auth.required', 'role:SUPER_ADMIN'])->group
     Route::get('audit-logs', [AdminController::class, 'auditLogs']);
 
     Route::get('reviews', [ReviewController::class, 'adminIndex']);
-    Route::post('reviews', [ReviewController::class, 'adminStore']);
     Route::put('reviews/{id}', [ReviewController::class, 'adminUpdate']);
-    Route::delete('reviews/{id}', [ReviewController::class, 'adminDestroy']);
 
     // Support inbox: every club's tickets and the public contact form's.
     Route::get('support/tickets', [SupportController::class, 'adminIndex']);

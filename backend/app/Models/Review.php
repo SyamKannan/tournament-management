@@ -17,13 +17,11 @@ class Review extends BaseModel
 
     protected $attributes = [
         'visibility' => 'auto',
-        'is_featured' => false,
         'author_title' => '',
     ];
 
     protected $casts = [
         'rating' => 'integer',
-        'is_featured' => 'boolean',
         'moderated_at' => 'datetime',
     ];
 
@@ -44,10 +42,10 @@ class Review extends BaseModel
                 ->orWhereIn('organization_id', Organization::query()->where('status', 'active')->select('id')));
     }
 
-    /** Featured first, then the warmest, then the newest. */
+    /** The warmest first, then the newest. */
     public function scopeShowcaseOrder(Builder $query): Builder
     {
-        return $query->orderByDesc('is_featured')->orderByDesc('rating')->orderByDesc('created_at')->orderBy('id');
+        return $query->orderByDesc('rating')->orderByDesc('created_at')->orderBy('id');
     }
 
     public function passesRule(int $minRating): bool
