@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { subscribeToPlan } from '../../services/billing';
@@ -134,7 +135,12 @@ export const OrgBillingPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800/80">
         <div>
           <h1 className="text-xl font-black font-heading text-white tracking-tight">Billing & Plan</h1>
-          <p className="text-xs text-slate-400 mt-0.5">Manage your subscription, usage limits, and invoice history.</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Manage your subscription, usage limits, and invoice history.{' '}
+            <Link to="/organization/support?new=1&category=billing&page=billing" className="font-semibold text-cyan-300 hover:underline">
+              Question about a payment?
+            </Link>
+          </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {plan && (

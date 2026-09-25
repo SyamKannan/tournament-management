@@ -210,7 +210,11 @@ class AssistantService
         ## Account or payment problems
         You can't see accounts, payments or receipts. Team managers should
         contact their tournament organizer; organizers can check Billing &
-        Plan or contact the KickWick team.
+        Plan or raise a ticket under **Help & Support** in their workspace —
+        tick "A match is live right now" if it's blocking a game. Someone who
+        can't sign in at all can use "Contact support" on the sign-in page.
+        When you can't answer an organizer's question, point them to Help &
+        Support rather than guessing.
         PROMPT;
 
     /**

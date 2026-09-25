@@ -58,8 +58,9 @@ hour catches up and a double run sends nothing twice.
 | `notifications:reminders` | every 15 min | match reminders (24h, 2h) and weekly unpaid-fee reminders |
 | `notifications:retry` | every 10 min | re-queues failed sends still under `max_attempts` |
 | `subscriptions:sweep` | 06:30 daily | expires subscriptions past `end_date` + `grace_period_days`, warns before |
+| `support:sweep` | 03:15 daily | closes support tickets resolved 7+ days ago with no reply |
 
-Both sweeps take `--dry-run`.
+All three sweeps take `--dry-run`.
 
 ## Architecture
 
@@ -154,6 +155,24 @@ When the SMS can't arrive, `TemporaryPasswordService` issues a one-time password
 It sets `users.must_change_password`, which the client's `MustChangePasswordGate` enforces
 at sign-in. Onboarding a club works the same way: no default password, and the response
 carries `admin_credentials` exactly once.
+
+**Help & Support (tickets to the platform).** `SupportController` + `SupportService` (the only
+write path). Organizers (`ORG_ADMIN`) talk to the super admin through threaded tickets under
+`/api/organizations/{id}/support/*`; the super admin works from `/api/admin/support/*`. Team
+managers, scorers and players are deliberately excluded — their questions go to their organizer.
+- Status says who owes the next word: `open` (platform), `awaiting_reply` (club), `resolved`
+  (a club reply reopens it), `closed` (final; `support:sweep`). `unread_by_user`/`unread_by_admin`
+  drive the sidebar badges; internal notes (`is_internal`) change neither and never reach the club.
+- A super admin can't write as the club (403) — even to test, impersonate the organizer.
+- `POST /api/support/contact` (public, `throttle:support-contact`) is for someone who can't sign
+  in. It never looks the number up in front of the caller; only the admin's thread view shows
+  `matched_accounts`. Quoting a `KW-` reference from the *same* number appends to that ticket —
+  contact-form tickets only; a club's thread is never written into from outside.
+- `contact_phone` is always stored `Phone::normalize()`d (digits, country code), whatever the source.
+- An admin reply sends `support_reply` (SMS) through `NotificationService`, and a failure there
+  never fails the reply. Screenshots upload to the `support` folder, which `UploadController` never
+  charges to the club's quota; an attachment must be a real row in `uploads` and is stored as this
+  platform's own URL, never the host the client sent.
 
 **Errors reach people as sentences.** `App\Exceptions\ApiExceptionRenderer` renders every
 API exception as `{error, message, code, errors?}` — `error` is the first human-readable
@@ -332,6 +351,8 @@ paging and search, auction undo, pay-then-register safety, poster job status),
 `TwilioDriverTest` (the exact request Twilio receives: E.164 `+`, Messaging Service,
 WhatsApp templates, refusal handling, the test command),
 `ReviewsTest` (the minimum-rating rule, admin overrides, one review per club, suspended clubs, public shape),
+`SupportTicketTest` (tenant isolation, internal notes, status flow and sweep, public form's
+non-enumeration, follow-ups by reference, rate limit, attachments),
 `CachingTest` (hits, invalidation by scoring/edits/reorder, staff/public separation, after-commit
 flush, Redis outage; one test runs against a live Redis if `REDIS_TEST_HOST`:`REDIS_TEST_PORT` answers).
 

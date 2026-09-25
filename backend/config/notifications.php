@@ -162,6 +162,7 @@ return [
         'auction_player_sold' => true,
         'subscription_expiring' => true,
         'subscription_expired' => true,
+        'support_reply' => true,
     ],
 
 ];

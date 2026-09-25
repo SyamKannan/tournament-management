@@ -103,6 +103,13 @@ final class NotificationCatalog
             'description' => 'Your KickWick plan has lapsed',
             'template' => "Your {plan} plan ended on {end_date}.\nYour tournaments stay online, but you cannot create new ones until you renew.",
         ],
+        'support_reply' => [
+            // SMS: for a locked-out visitor this is the only way the answer arrives.
+            'channel' => 'sms',
+            'audience' => 'organizer',
+            'description' => 'KickWick support answered one of your tickets',
+            'template' => "KickWick support replied to {reference}:\n{excerpt}\n{next_step}",
+        ],
     ];
 
     /** @return array<int, string> */

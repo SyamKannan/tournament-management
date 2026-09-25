@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\PlayerController;
 use App\Http\Controllers\Api\PosterController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SponsorController;
+use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\TeamController;
 use App\Http\Controllers\Api\TossController;
 use App\Http\Controllers\Api\TournamentController;
@@ -123,6 +124,13 @@ Route::prefix('admin')->middleware(['auth.required', 'role:SUPER_ADMIN'])->group
     Route::put('reviews/{id}', [ReviewController::class, 'adminUpdate']);
     Route::delete('reviews/{id}', [ReviewController::class, 'adminDestroy']);
 
+    // Support inbox: every club's tickets and the public contact form's.
+    Route::get('support/tickets', [SupportController::class, 'adminIndex']);
+    Route::get('support/summary', [SupportController::class, 'adminSummary']);
+    Route::get('support/tickets/{ticketId}', [SupportController::class, 'adminShow']);
+    Route::post('support/tickets/{ticketId}/messages', [SupportController::class, 'adminReply']);
+    Route::put('support/tickets/{ticketId}', [SupportController::class, 'adminUpdate']);
+
     Route::get('settings', [AdminController::class, 'settings']);
     Route::put('settings', [AdminController::class, 'updateSettings']);
 
@@ -164,6 +172,13 @@ Route::prefix('organizations')->group(function () {
             // The club's own review of the platform, for the landing page.
             Route::get('{id}/review', [ReviewController::class, 'showOwn']);
             Route::put('{id}/review', [ReviewController::class, 'saveOwn'])->middleware('throttle:review');
+            // Help & Support: the club's tickets to the platform.
+            Route::get('{id}/support/tickets', [SupportController::class, 'index']);
+            Route::get('{id}/support/unread', [SupportController::class, 'unreadCount']);
+            Route::post('{id}/support/tickets', [SupportController::class, 'store'])->middleware('throttle:support');
+            Route::get('{id}/support/tickets/{ticketId}', [SupportController::class, 'show']);
+            Route::post('{id}/support/tickets/{ticketId}/messages', [SupportController::class, 'reply'])->middleware('throttle:support');
+            Route::put('{id}/support/tickets/{ticketId}/status', [SupportController::class, 'updateStatus']);
         });
     });
 });
@@ -430,6 +445,11 @@ Route::prefix('players')->group(function () {
 // Public AI chat about tournaments, scores and stats. Each turn is a paid model
 // call with several lookups, so it is throttled well below the API default.
 Route::post('assistant/chat', [AssistantController::class, 'chat'])->middleware('throttle:assistant');
+
+/* ------------------------------------------------------------------- Support */
+
+// For someone who can't sign in at all. Club tickets live under organizations.
+Route::post('support/contact', [SupportController::class, 'contact'])->middleware('throttle:support-contact');
 
 /* ------------------------------------------------------------------- Reports */
 

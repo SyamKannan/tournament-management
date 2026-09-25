@@ -57,6 +57,9 @@ class AppServiceProvider extends ServiceProvider
             'public-stats' => [60, 1],
             'assistant' => [10, 1],
             'review' => [10, 10],
+            'support' => [20, 10],
+            // No account behind it, and every ticket lands in one person's inbox.
+            'support-contact' => [5, 30],
         ];
         foreach ($budgets as $name => [$max, $minutes]) {
             RateLimiter::for($name, fn (Request $request) => [

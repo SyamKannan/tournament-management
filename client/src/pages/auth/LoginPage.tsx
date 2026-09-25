@@ -180,6 +180,10 @@ export const LoginPage: React.FC = () => {
                   Forgotten your password? Ask your club organizer to issue you a new one.
                 </p>
               )}
+              {/* The organizer's own way back in, and anyone else with no one to ask. */}
+              <Link to="/support/contact" className="block mt-2 text-sm font-semibold text-slate-400 hover:text-white">
+                Can't sign in? Contact KickWick support
+              </Link>
             </div>
           </div>
         </form>

@@ -58,7 +58,9 @@ class UploadController extends Controller
         // quota to charge, so it is recorded but never refused — turning a team
         // away from registering because the club is near its storage limit
         // would punish the wrong person.
-        $organizationId = $request->user()?->organization_id;
+        // A screenshot for a support ticket is not the club's content either: a
+        // club at its limit must still be able to show us what went wrong.
+        $organizationId = $folder === 'support' ? null : $request->user()?->organization_id;
 
         if ($organizationId) {
             $quota = $this->billing->checkLimit($organizationId, 'storage');
@@ -85,7 +87,7 @@ class UploadController extends Controller
             $bytes = (int) $uploaded->getSize();
             $uploaded->move($targetDir, $filename);
 
-            return $this->stored($request, $folder, $filename, $bytes);
+            return $this->stored($request, $folder, $filename, $bytes, $organizationId);
         }
 
         if ($base64 = $request->input('base64')) {
@@ -117,19 +119,19 @@ class UploadController extends Controller
             $filename = Ids::token(12).'_'.time().'.'.$extension;
             File::put("{$targetDir}/{$filename}", $data);
 
-            return $this->stored($request, $folder, $filename, strlen($data));
+            return $this->stored($request, $folder, $filename, strlen($data), $organizationId);
         }
 
         return response()->json(['error' => 'No image file or base64 data provided'], 422);
     }
 
-    private function stored(Request $request, string $folder, string $filename, int $bytes): JsonResponse
+    private function stored(Request $request, string $folder, string $filename, int $bytes, ?string $organizationId): JsonResponse
     {
         // Recorded whether or not anybody owns it, so what is on disk is always
         // accounted for even when it counts against no quota.
         Upload::create([
             'id' => Ids::unique('upl'),
-            'organization_id' => $request->user()?->organization_id,
+            'organization_id' => $organizationId,
             'uploaded_by' => $request->user()?->id,
             'folder' => $folder,
             'filename' => $filename,

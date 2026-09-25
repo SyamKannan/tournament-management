@@ -41,3 +41,8 @@ Schedule::command('notifications:retry')
 Schedule::command('subscriptions:sweep')
     ->dailyAt('06:30')
     ->withoutOverlapping();
+
+// Resolved support tickets nobody replied to for a week are closed.
+Schedule::command('support:sweep')
+    ->dailyAt('03:15')
+    ->withoutOverlapping();

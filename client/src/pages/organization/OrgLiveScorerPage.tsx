@@ -25,8 +25,9 @@ import { CricketScorecardTables } from '../../components/CricketScorecardTables'
 import { SelectPlayerDialog } from '../../components/SelectPlayerDialog';
 import { MatchExport } from '../../components/MatchExport';
 import {
-  Play, Pause, RotateCcw, Tv, Radio, Coins, Users, ClipboardList, MonitorPlay,
+  Play, Pause, RotateCcw, Tv, Radio, Coins, Users, ClipboardList, MonitorPlay, LifeBuoy,
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 /** What the scorer has armed for the next delivery. */
 type ExtraType = 'none' | 'wide' | 'no_ball' | 'bye' | 'leg_bye';
@@ -84,6 +85,7 @@ export const OrgLiveScorerPage: React.FC = () => {
   const confirm = useConfirm();
   const toast = useToast();
   const { matchId } = useParams<{ matchId: string }>();
+  const userRole = useAuth().user?.role;
   const [matchData, setMatchData] = useState<MatchPayload | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -631,14 +633,26 @@ export const OrgLiveScorerPage: React.FC = () => {
           </div>
         </div>
 
-        <Link
-          to={`/scoreboard/match/${match.id}`}
-          target="_blank"
-          className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white flex items-center gap-1.5 border border-slate-700"
-        >
-          <Tv className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Open Big Screen TV ↗</span>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Support is the organizer's line; a scorer tells the organizer. */}
+          {userRole === 'ORG_ADMIN' && (
+            <Link
+              to={`/organization/support?new=1&category=bug&urgent=1&match_id=${encodeURIComponent(match.id)}&tournament_id=${encodeURIComponent(tournament.id)}&page=scorer`}
+              className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5 border border-slate-700"
+            >
+              <LifeBuoy className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Report a problem</span>
+            </Link>
+          )}
+          <Link
+            to={`/scoreboard/match/${match.id}`}
+            target="_blank"
+            className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white flex items-center gap-1.5 border border-slate-700"
+          >
+            <Tv className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Open Big Screen TV ↗</span>
+          </Link>
+        </div>
       </div>
 
       {/* Where the match stands. Sticky so the scoreline, the crease and the

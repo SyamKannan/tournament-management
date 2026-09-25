@@ -5,8 +5,9 @@ import { usePlatformConfig } from '../context/PlatformConfigContext';
 import {
   LayoutDashboard, CreditCard, Building2, Trophy, Users, Calendar,
   Radio, Megaphone, FileText, Settings, History, X, Gamepad2, Image as ImageIcon,
-  Receipt, PlusCircle, BellRing, MapPin, UserCog, MessageSquareHeart
+  Receipt, PlusCircle, BellRing, MapPin, UserCog, MessageSquareHeart, LifeBuoy
 } from 'lucide-react';
+import { useSupportBadge } from '../lib/useSupportBadge';
 
 interface SidebarProps {
   type: 'admin' | 'organization' | 'team';
@@ -22,6 +23,7 @@ const ADMIN_LINKS = [
   { to: '/admin/organizations', label: 'Organizations', icon: Building2 },
   { to: '/admin/users', label: 'Users & Players', icon: Users },
   { to: '/admin/subscriptions', label: 'Subscriptions', icon: FileText },
+  { to: '/admin/support', label: 'Support Inbox', icon: LifeBuoy, supportBadge: true },
   { to: '/admin/reviews', label: 'Reviews', icon: MessageSquareHeart },
   { to: '/admin/settings', label: 'Platform Settings', icon: Settings },
   { to: '/admin/audit-logs', label: 'Audit Logs', icon: History },
@@ -41,6 +43,7 @@ const ORG_LINKS = [
   { to: '/organization/members', label: 'People & Sign-in', icon: UserCog },
   { to: '/organization/reports', label: 'Financials & Reports', icon: FileText },
   { to: '/organization/billing', label: 'Billing & Plan', icon: CreditCard },
+  { to: '/organization/support', label: 'Help & Support', icon: LifeBuoy, supportBadge: true },
 ];
 
 const TEAM_LINKS = [
@@ -66,6 +69,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ type, open, onClose }) => {
   // connected, "WhatsApp & SMS" would only ever report messages nobody got.
   const links = WORKSPACE_LINKS[type].filter(
     (link: { requiresMessaging?: boolean }) => !link.requiresMessaging || messagingEnabled,
+  );
+  // Support is the organizer's and the platform's; a scorer sharing this rail has no inbox.
+  const supportUnread = useSupportBadge(
+    type === 'admin' && user?.role === 'SUPER_ADMIN'
+      ? '/admin/support/summary'
+      : type === 'organization' && user?.role === 'ORG_ADMIN' && organization
+        ? `/organizations/${organization.id}/support/unread`
+        : null,
   );
 
   // While the drawer covers the page, Escape closes it and the page behind
@@ -156,6 +167,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ type, open, onClose }) => {
                       <div className="flex items-center gap-3 min-w-0">
                         <Icon className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-emerald-400' : 'text-slate-400 group-hover:text-slate-200'}`} aria-hidden="true" />
                         <span className="truncate">{link.label}</span>
+                        {'supportBadge' in link && supportUnread > 0 && (
+                          <span className="shrink-0 min-w-[1.25rem] px-1.5 py-0.5 rounded-full bg-cyan-500 text-slate-950 text-[11px] font-black text-center">
+                            {supportUnread > 99 ? '99+' : supportUnread}
+                            <span className="sr-only"> unread</span>
+                          </span>
+                        )}
                       </div>
                       {isActive && (
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse" />

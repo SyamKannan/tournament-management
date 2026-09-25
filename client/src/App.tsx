@@ -70,6 +70,7 @@ const AdminAuditLogsPage = lazyPage(() => import('./pages/admin/AdminAuditLogsPa
 const AdminPlatformSettingsPage = lazyPage(() => import('./pages/admin/AdminPlatformSettingsPage'), 'AdminPlatformSettingsPage');
 const AdminSportsPage = lazyPage(() => import('./pages/admin/AdminSportsPage'), 'AdminSportsPage');
 const AdminUsersPage = lazyPage(() => import('./pages/admin/AdminUsersPage'), 'AdminUsersPage');
+const AdminSupportPage = lazyPage(() => import('./pages/admin/AdminSupportPage'), 'AdminSupportPage');
 
 // Organization Admin Pages
 const OrgDashboard = lazyPage(() => import('./pages/organization/OrgDashboard'), 'OrgDashboard');
@@ -86,6 +87,8 @@ const OrgReportsPage = lazyPage(() => import('./pages/organization/OrgReportsPag
 const OrgBillingPage = lazyPage(() => import('./pages/organization/OrgBillingPage'), 'OrgBillingPage');
 const OrgTournamentAuctionManagePage = lazyPage(() => import('./pages/organization/OrgTournamentAuctionManagePage'), 'OrgTournamentAuctionManagePage');
 const OrgPostersPage = lazyPage(() => import('./pages/organization/OrgPostersPage'), 'OrgPostersPage');
+const OrgSupportPage = lazyPage(() => import('./pages/organization/OrgSupportPage'), 'OrgSupportPage');
+const ContactSupportPage = lazyPage(() => import('./pages/public/ContactSupportPage'), 'ContactSupportPage');
 
 // Team Manager Workspace
 const TeamAuctionPage = lazyPage(() => import('./pages/team/TeamAuctionPage'), 'TeamAuctionPage');
@@ -180,6 +183,7 @@ export const App: React.FC = () => {
                     <ForgotPasswordPage />
                   </MessagingRoute>
                 } />
+                <Route path="/support/contact" element={<ContactSupportPage />} />
                 <Route path="/tournaments/:slug" element={<PublicTournamentPage />} />
                 <Route path="/organizations/:slug" element={<PublicOrganizationPage />} />
                 <Route path="/register/team/:token" element={<PublicTeamRegisterPage />} />
@@ -254,6 +258,11 @@ export const App: React.FC = () => {
                 <Route path="/admin/audit-logs" element={
                   <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
                     <AdminAuditLogsPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/support" element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                    <AdminSupportPage />
                   </ProtectedRoute>
                 } />
 
@@ -349,6 +358,11 @@ export const App: React.FC = () => {
                 <Route path="/organization/billing" element={
                   <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                     <OrgBillingPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/organization/support" element={
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
+                    <OrgSupportPage />
                   </ProtectedRoute>
                 } />
 
