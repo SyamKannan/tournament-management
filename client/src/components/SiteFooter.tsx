@@ -121,9 +121,14 @@ export const SiteFooter: React.FC = () => {
       </div>
 
       <div className="border-t border-slate-800/80">
-        <p className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 text-xs text-slate-500 text-center sm:text-left">
-          {footer.copyright || `© ${year} ${footer.platform_name}. All rights reserved.`}
-        </p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between text-xs text-slate-500 text-center sm:text-left">
+          <p>{footer.copyright || `© ${year} ${footer.platform_name}. All rights reserved.`}</p>
+          {/* Always here, whatever the admin puts in Quick Links. */}
+          <nav aria-label="Legal" className="flex justify-center gap-4">
+            <Link to="/terms" className="hover:text-emerald-400 transition-colors">Terms & Conditions</Link>
+            <Link to="/privacy" className="hover:text-emerald-400 transition-colors">Privacy Policy</Link>
+          </nav>
+        </div>
       </div>
     </footer>
   );

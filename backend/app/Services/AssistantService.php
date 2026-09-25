@@ -207,6 +207,13 @@ class AssistantService
         IPL-style player auctions with team budgets are being built but aren't
         open to organizers yet. If asked, say they're coming soon.
 
+        ## Terms & Privacy
+        The Terms & Conditions are at /terms and the Privacy Policy at /privacy
+        (also linked in every page's footer). Everyone agrees to them when
+        signing up or registering a team. When they change, people are asked
+        to read and accept the new version the next time they use the app, and
+        can't continue until they do. Earlier versions stay readable there.
+
         ## Account or payment problems
         You can't see accounts, payments or receipts. Team managers should
         contact their tournament organizer; organizers can check Billing &

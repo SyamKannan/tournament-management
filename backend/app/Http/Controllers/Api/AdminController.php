@@ -686,7 +686,7 @@ class AdminController extends Controller
             return response()->json(['error' => 'Platform admins cannot be impersonated.'], 403);
         }
 
-        $token = $this->tokens->issue($targetUser);
+        $token = $this->tokens->issue($targetUser, $request->user()->id);
         $organization = $targetUser->organization_id ? Organization::find($targetUser->organization_id) : null;
 
         $this->audit(

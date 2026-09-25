@@ -12,6 +12,7 @@ use App\Models\RegistrationReceipt;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Services\BillingService;
+use App\Services\LegalService;
 use App\Services\Notifications\Audience;
 use App\Services\Notifications\NotificationService;
 use App\Services\PaymentGatewayService;
@@ -31,6 +32,7 @@ class TeamController extends Controller
         private readonly BillingService $billing,
         private readonly PaymentGatewayService $gateway,
         private readonly NotificationService $notifications,
+        private readonly LegalService $legal,
     ) {}
 
     /* ------------------------------------------- Public registration wizard */
@@ -230,7 +232,12 @@ class TeamController extends Controller
             'razorpay_payment_id' => ['nullable', 'string', 'max:255'],
             'razorpay_order_id' => ['nullable', 'string', 'max:255'],
             'razorpay_signature' => ['nullable', 'string', 'max:512'],
+            // Checked here, before checkout opens, so nobody pays and is then
+            // turned away for an unticked box.
+            ...($this->legal->hasDocuments() ? ['accept_terms' => ['required', 'accepted']] : []),
         ], [
+            'accept_terms.accepted' => 'Please agree to the Terms & Conditions and Privacy Policy to register your team.',
+            'accept_terms.required' => 'Please agree to the Terms & Conditions and Privacy Policy to register your team.',
             'team_name.required' => 'Team name, manager name, and manager mobile number are required',
             'manager_name.required' => 'Team name, manager name, and manager mobile number are required',
             'manager_phone.required' => 'Team name, manager name, and manager mobile number are required',
@@ -414,6 +421,7 @@ class TeamController extends Controller
                 'manager_user_id' => $managerUserId,
                 'status' => 'pending',
                 'group_name' => 'Group A',
+                'legal_accepted' => $this->legal->hasDocuments() ? $this->legal->snapshotForTeam($request) : null,
             ]);
 
             foreach (array_values($players) as $index => $player) {

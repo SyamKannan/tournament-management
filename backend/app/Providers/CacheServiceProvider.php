@@ -10,6 +10,7 @@ use App\Models\Organization;
 use App\Models\PasswordReset;
 use App\Models\Plan;
 use App\Models\PlatformSetting;
+use App\Models\LegalDocument;
 use App\Models\Review;
 use App\Models\RevokedToken;
 use App\Models\Sport;
@@ -38,7 +39,7 @@ class CacheServiceProvider extends ServiceProvider
         RevokedToken::class,
     ];
 
-    private const PLATFORM = [Plan::class, Sport::class, PlatformSetting::class, Review::class];
+    private const PLATFORM = [Plan::class, Sport::class, PlatformSetting::class, Review::class, LegalDocument::class];
 
     /** match id => tournament id; a match never changes tournament. */
     private array $matchTournaments = [];

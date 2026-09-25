@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\LegalService;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -19,10 +20,19 @@ class User extends BaseModel implements AuthenticatableContract
 
     use Authenticatable;
 
+    /**
+     * The super admin looking through this account, when the request came in
+     * on an impersonation token (its `imp` claim). Set by TokenService, never
+     * stored. Such a session can't agree to terms on the person's behalf.
+     */
+    public ?string $impersonatorId = null;
+
     protected $hidden = ['password_hash'];
 
     protected $casts = [
         'must_change_password' => 'boolean',
+        'terms_version_accepted' => 'integer',
+        'privacy_version_accepted' => 'integer',
     ];
 
     public function organization(): BelongsTo
@@ -47,6 +57,12 @@ class User extends BaseModel implements AuthenticatableContract
             // set, so an onboarding or admin-issued credential is never left
             // in place as a shared secret.
             'must_change_password' => (bool) $this->must_change_password,
+            // Documents (terms, privacy) this account must accept before the
+            // app lets it do anything; the client's TermsGate shows them.
+            'legal_pending' => app(LegalService::class)->pendingFor($this),
+            // Whether this is a returning account being asked about a new
+            // version, rather than one that has never agreed to anything.
+            'legal_accepted_before' => $this->terms_version_accepted !== null || $this->privacy_version_accepted !== null,
         ];
     }
 }

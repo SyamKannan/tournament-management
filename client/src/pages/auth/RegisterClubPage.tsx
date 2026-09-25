@@ -7,6 +7,7 @@ import { PhoneInput } from '../../components/PhoneInput';
 import { COUNTRIES } from '../../lib/countries';
 import { SPORTS_CAROUSELS } from '../../lib/sportsImagery';
 import { AuthLayout, AuthHeader, AuthCard, AuthAlert, AuthField, AuthSubmit, AuthSection, AuthFooter } from '../../components/auth/AuthUI';
+import { TermsCheckbox } from '../../components/legal/TermsCheckbox';
 import { Building2, Camera, User, Mail, Lock, MapPin, Eye, EyeOff } from 'lucide-react';
 
 export const RegisterClubPage: React.FC = () => {
@@ -33,6 +34,8 @@ export const RegisterClubPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [termsError, setTermsError] = useState<string | null>(null);
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -44,11 +47,15 @@ export const RegisterClubPage: React.FC = () => {
       setError('Please fill in all required fields.');
       return;
     }
+    if (!acceptTerms) {
+      setTermsError('Please agree to the Terms & Conditions and Privacy Policy to create your account.');
+      return;
+    }
     setError(null);
     setIsLoading(true);
 
     try {
-      await registerOrg(formData);
+      await registerOrg({ ...formData, accept_terms: acceptTerms });
       navigate('/organization/dashboard');
     } catch (err: any) {
       setError(err?.message || 'Failed to register organization. Please try again.');
@@ -210,6 +217,13 @@ export const RegisterClubPage: React.FC = () => {
               </AuthField>
             </div>
           </AuthSection>
+
+          <TermsCheckbox
+            id="club-accept-terms"
+            checked={acceptTerms}
+            onChange={checked => { setAcceptTerms(checked); setTermsError(null); }}
+            error={termsError}
+          />
 
           <AuthSubmit accent="cyan" loading={isLoading} loadingLabel="Creating your account...">
             Create free account

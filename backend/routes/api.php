@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AssistantController;
 use App\Http\Controllers\Api\AuctionController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ExportController;
+use App\Http\Controllers\Api\LegalController;
 use App\Http\Controllers\Api\LineupController;
 use App\Http\Controllers\Api\MatchController;
 use App\Http\Controllers\Api\NotificationController;
@@ -53,6 +54,9 @@ Route::get('health', [PlatformController::class, 'health']);
 Route::get('platform-stats', [PlatformController::class, 'stats']);
 // Landing-page reviews: what passes the admin's minimum rating and overrides.
 Route::get('reviews', [ReviewController::class, 'index']);
+// Terms & Conditions and Privacy Policy (`terms`, `privacy`), current and past versions.
+Route::get('legal/{type}', [LegalController::class, 'show']);
+Route::get('legal/{type}/versions/{version}', [LegalController::class, 'showVersion'])->whereNumber('version');
 Route::post('payments/demo/{orderId}/pay', [PaymentController::class, 'demoPay'])->middleware('throttle:demo-pay');
 
 // Wipes the database back to plans + super admin. Local and staging only — never expose in production.
@@ -90,6 +94,10 @@ Route::prefix('auth')->group(function () {
     // switcher has no token to revoke.
     Route::post('logout', [AuthController::class, 'logout'])->middleware('auth.required');
     Route::post('logout-everywhere', [AuthController::class, 'logoutEverywhere'])->middleware('auth.required');
+
+    // An existing account agreeing to the current terms. Everything else that
+    // needs a signed-in user answers TERMS_NOT_ACCEPTED until this is done.
+    Route::post('accept-terms', [LegalController::class, 'accept'])->middleware('auth.required');
 });
 
 /* --------------------------------------------------------------- Super admin */
@@ -133,6 +141,11 @@ Route::prefix('admin')->middleware(['auth.required', 'role:SUPER_ADMIN'])->group
 
     Route::get('settings', [AdminController::class, 'settings']);
     Route::put('settings', [AdminController::class, 'updateSettings']);
+
+    // Terms & Conditions and Privacy Policy: publish versions, see who accepted.
+    Route::get('legal', [LegalController::class, 'adminIndex']);
+    Route::post('legal/{type}', [LegalController::class, 'publish']);
+    Route::get('legal/{type}/versions/{version}/acceptances', [LegalController::class, 'acceptances'])->whereNumber('version');
 
     Route::post('impersonate', [AdminController::class, 'impersonate']);
     Route::get('impersonate/targets', [AdminController::class, 'impersonationTargets']);

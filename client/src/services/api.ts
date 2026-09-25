@@ -1,3 +1,5 @@
+import { TERMS_REQUIRED_EVENT } from '../lib/legal';
+
 const API_BASE = '/api';
 
 /** Per-field messages from a 422, keyed by field path (`players.3.jersey_number`). */
@@ -120,6 +122,12 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
       } else if (typeof data?.code === 'string' && data.code.startsWith('ORGANIZATION_')) {
         endSession(data.error, token);
       }
+    }
+
+    // New terms were published while this account was signed in — or it never
+    // accepted any. Put them in front of the person instead of failing quietly.
+    if (data?.code === 'TERMS_NOT_ACCEPTED') {
+      window.dispatchEvent(new CustomEvent(TERMS_REQUIRED_EVENT, { detail: { pending: data.pending ?? [] } }));
     }
 
     throw new ApiError(messageFor(res.status, data), res.status, typeof data === 'object' ? data : undefined);

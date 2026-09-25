@@ -20,6 +20,7 @@ import type { RazorpayOrder, RazorpayVerifiedPayment } from '../../utils/razorpa
 import { openCheckout } from '../../utils/checkout';
 import { PAYMENT_METHOD_META, ALL_PAYMENT_METHODS, isOnlineMethod } from '../../lib/paymentMethods';
 import { useDraft, useLeaveWarning } from '../../lib/useDraft';
+import { TermsCheckbox } from '../../components/legal/TermsCheckbox';
 import { useSingleFlight } from '../../lib/useSingleFlight';
 import { usePreferences } from '../../i18n';
 
@@ -173,6 +174,10 @@ export const PublicTeamRegisterPage: React.FC = () => {
   const [selectedPaymentOption, setSelectedPaymentOption] = useState<'full' | 'partial'>(saved?.paymentOption ?? 'partial');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(saved?.paymentMethod ?? 'upi');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  // Not kept in the device draft — except that a saved payment was only
+  // possible after ticking it, so finishing that registration keeps the answer.
+  const [acceptTerms, setAcceptTerms] = useState(!!saved?.paidWith);
+  const [termsError, setTermsError] = useState<string | null>(null);
   // State alone lets a same-frame double tap through, and each tap would
   // register the team (and open a checkout) again.
   const flight = useSingleFlight();
@@ -368,13 +373,14 @@ export const PublicTeamRegisterPage: React.FC = () => {
     players: players.map(p => ({ ...p, jersey_number: Number(p.jersey_number) })),
     payment_option: selectedPaymentOption,
     payment_method: paymentMethod,
+    accept_terms: acceptTerms || !!verified,
     ...(verified && {
       razorpay_payment_id: verified.razorpay_payment_id,
       razorpay_order_id: verified.razorpay_order_id,
       razorpay_signature: verified.razorpay_signature,
     }),
   }), [teamName, shortName, jerseyColor, village, panchayat, district, managerName, managerPhone,
-    managerWhatsapp, managerEmail, managerAddress, players, selectedPaymentOption, paymentMethod]);
+    managerWhatsapp, managerEmail, managerAddress, players, selectedPaymentOption, paymentMethod, acceptTerms]);
 
   /** Send a server rejection to the step and field it is about. */
   const showRejection = (err: unknown) => {
@@ -438,6 +444,10 @@ export const PublicTeamRegisterPage: React.FC = () => {
 
   const payAndRegister = async () => {
     if (isProcessingPayment || !tournament) return;
+    if (!acceptTerms) {
+      setTermsError(t('legal.agree.teamRequired'));
+      return;
+    }
     setIsProcessingPayment(true);
     setPaymentStage('checking');
 
@@ -1079,6 +1089,13 @@ export const PublicTeamRegisterPage: React.FC = () => {
                   {t('reg.pay.atGround', { amount: money(totalGroundFee) })}
                 </div>
               )}
+
+              <TermsCheckbox
+                id="team-accept-terms"
+                checked={acceptTerms}
+                onChange={checked => { setAcceptTerms(checked); setTermsError(null); fields.clear('accept_terms'); }}
+                error={termsError ?? fields.get('accept_terms')}
+              />
 
               <div className="p-4 rounded-2xl bg-slate-900 border-2 border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>

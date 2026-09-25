@@ -25,7 +25,12 @@ class ResolveApiUser
 
     public function handle(Request $request, Closure $next): Response
     {
-        $user = $this->resolveDemoUser($request) ?? $this->resolveTokenUser($request);
+        $demoUser = $this->resolveDemoUser($request);
+        $user = $demoUser ?? $this->resolveTokenUser($request);
+
+        // The role switcher is a dev walkthrough with no sign-in, so nothing it
+        // could show a terms prompt on; RequireAuth lets it past that check.
+        $request->attributes->set('demo_credential', $demoUser !== null);
 
         if ($user) {
             $this->bind($request, $user);

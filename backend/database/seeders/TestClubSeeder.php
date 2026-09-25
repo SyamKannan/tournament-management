@@ -6,7 +6,9 @@ use App\Models\Organization;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Models\Venue;
+use App\Services\LegalService;
 use Illuminate\Database\Seeder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
 
@@ -65,7 +67,7 @@ class TestClubSeeder extends Seeder
             'status' => 'active',
         ]);
 
-        User::create([
+        $admin = User::create([
             'id' => 'user-test-club-admin',
             'name' => 'Test Organizer',
             'email' => self::ADMIN_EMAIL,
@@ -74,6 +76,9 @@ class TestClubSeeder extends Seeder
             'role' => 'ORG_ADMIN',
             'organization_id' => self::ORG_ID,
         ]);
+
+        // Accepted up front so signing in doesn't stop at the terms screen.
+        app(LegalService::class)->accept($admin, Request::create('/'), 'signup');
 
         Subscription::create([
             'id' => 'sub-test-club',

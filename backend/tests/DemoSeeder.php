@@ -289,6 +289,7 @@ class DemoSeeder extends Seeder
     private function truncateAll(): void
     {
         $tables = [
+            'legal_acceptances', 'legal_documents',
             'announcements', 'advertisements', 'sponsors',
             'auction_bids', 'auction_players', 'auctions',
             'standings', 'cricket_deliveries', 'cricket_match_states',

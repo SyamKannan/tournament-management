@@ -36,6 +36,7 @@ class DatabaseSeeder extends Seeder
             $this->seedSettings($data['platform_settings']);
             $this->upsert('sports', $data['sports']);
             $this->upsert('plans', $data['plans'], timestamps: true);
+            $this->seedLegalDocuments();
         });
 
         $this->seedSuperAdmin();
@@ -71,6 +72,37 @@ class DatabaseSeeder extends Seeder
             }
 
             DB::table($table)->updateOrInsert(['id' => $row['id']], $values);
+        }
+    }
+
+    /**
+     * Version 1 of the Terms & Conditions and Privacy Policy, from
+     * `data/legal/*.md` — a starting draft to be reviewed before launch. Only
+     * when none exists: once published, versions change through the admin
+     * console, never a re-seed.
+     */
+    private function seedLegalDocuments(): void
+    {
+        $titles = ['terms' => 'Terms & Conditions', 'privacy' => 'Privacy Policy'];
+
+        foreach ($titles as $type => $title) {
+            if (DB::table('legal_documents')->where('type', $type)->exists()) {
+                continue;
+            }
+
+            DB::table('legal_documents')->insert([
+                'id' => "legal-{$type}-v1",
+                'type' => $type,
+                'version' => 1,
+                'title' => $title,
+                'body' => trim((string) file_get_contents(database_path("seeders/data/legal/{$type}.md"))),
+                'summary_of_changes' => 'First version.',
+                'requires_reacceptance' => true,
+                'published_by_name' => 'KickWick',
+                'published_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
         }
     }
 

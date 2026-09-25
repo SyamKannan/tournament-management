@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Auction;
 use App\Models\RegistrationLink;
+use App\Models\User;
+use App\Services\LegalService;
 use Tests\TestCase;
 
 /**
@@ -21,6 +23,24 @@ class ApiContractTest extends TestCase
             ->assertJsonStructure([
                 '*' => ['id', 'name', 'description', 'price', 'currency', 'billing_type', 'features', 'status'],
             ]);
+    }
+
+    public function test_legal_documents_and_the_sign_in_payload_carry_what_the_client_reads(): void
+    {
+        app(LegalService::class)->publish('terms', [
+            'title' => 'Terms & Conditions',
+            'body' => str_repeat('Terms text. ', 10),
+        ], User::query()->where('role', 'SUPER_ADMIN')->firstOrFail());
+
+        $this->getJson('/api/legal/terms')
+            ->assertOk()
+            ->assertJsonStructure([
+                'type', 'version', 'title', 'body', 'summary_of_changes', 'requires_reacceptance', 'published_at',
+                'versions' => [['version', 'published_at', 'summary_of_changes']],
+            ]);
+
+        $this->actingAsUser('admin@greenvalley.com');
+        $this->getJson('/api/auth/me')->assertOk()->assertJsonPath('user.legal_pending', ['terms']);
     }
 
     public function test_health_reports_the_platform_name(): void

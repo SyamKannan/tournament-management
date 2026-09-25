@@ -28,11 +28,16 @@ class TokenService
 {
     public const DEV_FALLBACK_SECRET = 'local-development-only-jwt-secret-change-me';
 
-    public function issue(User $user): string
+    /**
+     * @param  string|null  $impersonatorId  the super admin looking through this
+     *                                       account; carried as `imp` so the API can
+     *                                       tell their session from the user's own
+     */
+    public function issue(User $user, ?string $impersonatorId = null): string
     {
         $issuedAt = time();
 
-        return JWT::encode([
+        return JWT::encode(array_filter([
             'id' => $user->id,
             'role' => $user->role,
             'email' => $user->email,
@@ -43,7 +48,8 @@ class TokenService
             'tv' => (int) ($user->token_version ?? 0),
             'iat' => $issuedAt,
             'exp' => $issuedAt + (int) config('auth.jwt.ttl'),
-        ], $this->secret(), 'HS256');
+            'imp' => $impersonatorId,
+        ], fn ($value) => $value !== null), $this->secret(), 'HS256');
     }
 
     /**
@@ -75,13 +81,15 @@ class TokenService
             return null;
         }
 
+        $user->impersonatorId = $claims['imp'];
+
         return $user;
     }
 
     /**
      * Claims from a token that is correctly signed, unexpired and not revoked.
      *
-     * @return array{id: string, role: string, email: string, jti: string, tv: int, iat: int, exp: int}|null
+     * @return array{id: string, role: string, email: string, jti: string, tv: int, iat: int, exp: int, imp: string|null}|null
      */
     public function decode(string $token): ?array
     {
@@ -116,6 +124,7 @@ class TokenService
             'tv' => (int) ($payload['tv'] ?? 0),
             'iat' => (int) ($payload['iat'] ?? 0),
             'exp' => (int) ($payload['exp'] ?? 0),
+            'imp' => isset($payload['imp']) ? (string) $payload['imp'] : null,
         ];
     }
 

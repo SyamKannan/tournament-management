@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Organization;
+use App\Services\LegalService;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,6 +16,15 @@ class RequireAuth
      * its admins and scorers carried on as before.
      */
     private const BLOCKED_ORGANIZATION_STATUSES = ['suspended', 'cancelled'];
+
+    /**
+     * What an account that still owes a terms acceptance can reach: its own
+     * identity, signing out, changing a handed-over password, and reading and
+     * accepting the documents themselves.
+     */
+    private const OPEN_BEFORE_TERMS = ['api/auth/*', 'api/legal/*'];
+
+    public function __construct(private readonly LegalService $legal) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -36,6 +46,24 @@ class RequireAuth
                         ? 'This organization is suspended. Please contact platform support.'
                         : 'This organization’s account is closed. Please contact platform support.',
                     'code' => 'ORGANIZATION_'.strtoupper($status),
+                ], 403);
+            }
+        }
+
+        // Every account agrees to the current terms before doing anything. An
+        // admin looking through someone's account is let through: accepting
+        // is that person's own act, not something done on their behalf. The
+        // dev-only role switcher is let through too (see ResolveApiUser).
+        if (! $user->impersonatorId
+            && ! $request->attributes->get('demo_credential')
+            && ! $request->is(...self::OPEN_BEFORE_TERMS)) {
+            $pending = $this->legal->pendingFor($user);
+
+            if ($pending !== []) {
+                return response()->json([
+                    'error' => 'Please read and accept the updated Terms & Conditions to continue.',
+                    'code' => 'TERMS_NOT_ACCEPTED',
+                    'pending' => $pending,
                 ], 403);
             }
         }

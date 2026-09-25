@@ -8,6 +8,7 @@ use App\Models\PlatformSetting;
 use App\Models\Player;
 use App\Models\User;
 use App\Services\BillingService;
+use App\Services\LegalService;
 use App\Services\PasswordResetService;
 use App\Services\TokenService;
 use App\Support\Audit;
@@ -23,7 +24,22 @@ class AuthController extends Controller
     public function __construct(
         private readonly TokenService $tokens,
         private readonly BillingService $billing,
+        private readonly LegalService $legal,
     ) {}
+
+    public const TERMS_MESSAGES = [
+        'accept_terms.accepted' => 'Please agree to the Terms & Conditions and Privacy Policy to create your account.',
+        'accept_terms.required' => 'Please agree to the Terms & Conditions and Privacy Policy to create your account.',
+    ];
+
+    /**
+     * Signups must tick "I agree" once there are terms to agree to. Before any
+     * are published there is nothing to link to, so the box isn't asked for.
+     */
+    private function termsRule(): array
+    {
+        return $this->legal->hasDocuments() ? ['accept_terms' => ['required', 'accepted']] : [];
+    }
 
     public function login(Request $request): JsonResponse
     {
@@ -220,7 +236,8 @@ class AuthController extends Controller
             'state' => ['nullable', 'string', 'max:255'],
             'country' => ['nullable', 'string', 'max:255'],
             'password' => ['required', 'string', 'min:6'],
-        ], [], [
+            ...$this->termsRule(),
+        ], self::TERMS_MESSAGES, [
             'organizationName' => 'organization name',
             'contactPerson' => 'contact person',
         ]);
@@ -234,7 +251,7 @@ class AuthController extends Controller
 
         $settings = PlatformSetting::current();
 
-        [$organization, $user] = DB::transaction(function () use ($data, $settings) {
+        [$organization, $user] = DB::transaction(function () use ($data, $settings, $request) {
             $organizationId = Ids::timestamped('org');
             $phone = $data['phone'] ?? '';
 
@@ -274,6 +291,7 @@ class AuthController extends Controller
             ]);
 
             $this->billing->startFreePlan($organizationId);
+            $this->legal->accept($user, $request, 'signup');
 
             Audit::log([
                 'organization_id' => $organizationId,
@@ -317,13 +335,14 @@ class AuthController extends Controller
             'dob' => ['nullable', 'string', 'max:32'],
             'jersey_number' => ['nullable', 'integer', 'min:0', 'max:999'],
             'avatar' => ['nullable', 'string'],
-        ]);
+            ...$this->termsRule(),
+        ], self::TERMS_MESSAGES);
 
         if ($this->emailTaken($data['email'])) {
             return response()->json(['error' => 'An account with this email address already exists. Please sign in.'], 422);
         }
 
-        [$user, $player] = DB::transaction(function () use ($data) {
+        [$user, $player] = DB::transaction(function () use ($data, $request) {
             $userId = Ids::timestamped('usr');
             $sport = strtolower($data['sport'] ?? 'cricket');
             $avatar = $data['avatar'] ?? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
@@ -337,6 +356,8 @@ class AuthController extends Controller
                 'phone' => $data['phone'],
                 'avatar' => $avatar,
             ]);
+
+            $this->legal->accept($user, $request, 'signup');
 
             $player = Player::create([
                 'id' => $userId,
@@ -461,7 +482,7 @@ class AuthController extends Controller
         // just revoked along with every other, so the client needs a
         // replacement or it would sign itself out mid-edit.
         if ($passwordChanged) {
-            $payload['token'] = $this->tokens->issue($user);
+            $payload['token'] = $this->tokens->issue($user, $request->user()->impersonatorId);
         }
 
         return response()->json($payload);

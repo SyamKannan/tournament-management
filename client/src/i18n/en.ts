@@ -79,6 +79,26 @@ export const en = {
   'auth.mustChange.same': 'Choose a password different from the temporary one.',
   'auth.mustChange.done': 'Password updated. You are all set.',
   'auth.mustChange.signOut': 'Sign out',
+
+  // ----------------------------------------------------------------- legal
+  'legal.terms': 'Terms & Conditions',
+  'legal.privacy': 'Privacy Policy',
+  'legal.agree.prefix': 'I have read and agree to the',
+  'legal.agree.and': 'and the',
+  'legal.agree.suffix': '.',
+  'legal.agree.teamRequired': 'Please agree to the Terms & Conditions and Privacy Policy to register your team.',
+  'legal.gate.title': 'Please accept our terms to continue',
+  'legal.gate.body': 'Before you carry on, please read the Terms & Conditions and Privacy Policy and confirm that you agree.',
+  'legal.gate.titleUpdated': 'We have updated our terms',
+  'legal.gate.bodyUpdated': 'Please read what changed and accept the new version to keep using your account.',
+  'legal.gate.whatChanged': 'What changed:',
+  'legal.gate.openFull': 'Open in a new tab',
+  'legal.gate.agree': 'I have read and agree to the Terms & Conditions and Privacy Policy.',
+  'legal.gate.accept': 'Accept and continue',
+  'legal.gate.tickFirst': 'Tick the box to confirm you agree.',
+  'legal.gate.done': 'Thank you — you are all set.',
+  'legal.gate.failed': 'Could not save your answer. Please try again.',
+  'legal.gate.loadFailed': 'The terms could not be loaded. Check your connection and try again.',
   'auth.forgot.noSms': 'Not receiving the code? Ask your organizer or platform support to issue a temporary password.',
 
   // ------------------------------------------------------- team registration

@@ -12,6 +12,7 @@ import { ConfirmProvider } from './components/ui/ConfirmDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { PreferencesProvider } from './i18n';
 import { MustChangePasswordGate } from './components/MustChangePasswordGate';
+import { TermsGate } from './components/legal/TermsGate';
 import { OfflineBanner } from './components/OfflineBanner';
 import { AppInstall } from './components/AppInstall';
 import { LandingPage } from './pages/LandingPage';
@@ -64,6 +65,7 @@ const MyProfilePage = lazyPage(() => import('./pages/account/MyProfilePage'), 'M
 const AdminDashboard = lazyPage(() => import('./pages/admin/AdminDashboard'), 'AdminDashboard');
 const AdminPlansPage = lazyPage(() => import('./pages/admin/AdminPlansPage'), 'AdminPlansPage');
 const AdminReviewsPage = lazyPage(() => import('./pages/admin/AdminReviewsPage'), 'AdminReviewsPage');
+const AdminLegalPage = lazyPage(() => import('./pages/admin/AdminLegalPage'), 'AdminLegalPage');
 const AdminOrganizationsPage = lazyPage(() => import('./pages/admin/AdminOrganizationsPage'), 'AdminOrganizationsPage');
 const AdminSubscriptionsPage = lazyPage(() => import('./pages/admin/AdminSubscriptionsPage'), 'AdminSubscriptionsPage');
 const AdminAuditLogsPage = lazyPage(() => import('./pages/admin/AdminAuditLogsPage'), 'AdminAuditLogsPage');
@@ -89,6 +91,8 @@ const OrgTournamentAuctionManagePage = lazyPage(() => import('./pages/organizati
 const OrgPostersPage = lazyPage(() => import('./pages/organization/OrgPostersPage'), 'OrgPostersPage');
 const OrgSupportPage = lazyPage(() => import('./pages/organization/OrgSupportPage'), 'OrgSupportPage');
 const ContactSupportPage = lazyPage(() => import('./pages/public/ContactSupportPage'), 'ContactSupportPage');
+const TermsPage = lazyPage(() => import('./pages/public/LegalPage'), 'TermsPage');
+const PrivacyPage = lazyPage(() => import('./pages/public/LegalPage'), 'PrivacyPage');
 
 // Team Manager Workspace
 const TeamAuctionPage = lazyPage(() => import('./pages/team/TeamAuctionPage'), 'TeamAuctionPage');
@@ -134,6 +138,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <OfflineBanner />
       <AppInstall />
       <MustChangePasswordGate />
+      <TermsGate />
 
       <Navbar showMenuButton={hasSidebar} onMenuClick={() => setSidebarOpen(true)} />
 
@@ -184,6 +189,8 @@ export const App: React.FC = () => {
                   </MessagingRoute>
                 } />
                 <Route path="/support/contact" element={<ContactSupportPage />} />
+                <Route path="/terms" element={<TermsPage />} />
+                <Route path="/privacy" element={<PrivacyPage />} />
                 <Route path="/tournaments/:slug" element={<PublicTournamentPage />} />
                 <Route path="/organizations/:slug" element={<PublicOrganizationPage />} />
                 <Route path="/register/team/:token" element={<PublicTeamRegisterPage />} />
@@ -223,6 +230,11 @@ export const App: React.FC = () => {
                 <Route path="/admin/plans" element={
                   <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
                     <AdminPlansPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/legal" element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                    <AdminLegalPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/admin/reviews" element={

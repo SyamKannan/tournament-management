@@ -10,6 +10,7 @@ import { PhoneInput } from '../../components/PhoneInput';
 import { AuthShowcase } from '../../components/AuthShowcase';
 import { SPORTS_CAROUSELS } from '../../lib/sportsImagery';
 import { usePlatformConfig } from '../../context/PlatformConfigContext';
+import { TermsCheckbox } from '../../components/legal/TermsCheckbox';
 
 const DISTRICTS_KERALA = [
   'Malappuram', 'Kozhikode', 'Ernakulam', 'Thrissur', 'Kannur', 
@@ -73,6 +74,8 @@ export const RegisterPlayerPage: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [termsError, setTermsError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,6 +88,11 @@ export const RegisterPlayerPage: React.FC = () => {
 
     if (password.length < 6) {
       setError('Password must be at least 6 characters.');
+      return;
+    }
+
+    if (!acceptTerms) {
+      setTermsError('Please agree to the Terms & Conditions and Privacy Policy to create your account.');
       return;
     }
 
@@ -105,6 +113,7 @@ export const RegisterPlayerPage: React.FC = () => {
         dob,
         jersey_number: parseInt(jerseyNumber, 10) || 10,
         avatar: customAvatar || avatar,
+        accept_terms: acceptTerms,
       };
 
       const res = await api.post('/auth/register-player', payload);
@@ -383,6 +392,13 @@ export const RegisterPlayerPage: React.FC = () => {
               })}
             </div>
           </AuthSection>
+
+          <TermsCheckbox
+            id="player-accept-terms"
+            checked={acceptTerms}
+            onChange={checked => { setAcceptTerms(checked); setTermsError(null); }}
+            error={termsError}
+          />
 
           <AuthSubmit accent="amber" loading={loading} loadingLabel="Creating your profile...">
             Create player profile

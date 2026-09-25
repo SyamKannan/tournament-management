@@ -17,6 +17,13 @@ class Team extends BaseModel
         'manager_address' => '',
     ];
 
+    /** What the manager agreed to on the registration link — a record, not something screens show. */
+    protected $hidden = ['legal_accepted'];
+
+    protected $casts = [
+        'legal_accepted' => 'array',
+    ];
+
     public function tournament(): BelongsTo
     {
         return $this->belongsTo(Tournament::class);

@@ -156,6 +156,22 @@ It sets `users.must_change_password`, which the client's `MustChangePasswordGate
 at sign-in. Onboarding a club works the same way: no default password, and the response
 carries `admin_credentials` exactly once.
 
+**Terms & Privacy (every account agrees).** `LegalService` + `LegalController`. `legal_documents` holds
+versions of `terms` and `privacy` — never edited, a change is the next version (`POST /api/admin/legal/{type}`).
+An account owes the *required* version: the latest one with `requires_reacceptance` (v1 always has it; a typo fix
+can go out without it). `users.terms_version_accepted`/`privacy_version_accepted` cache the latest acceptance;
+`legal_acceptances` is the append-only record (IP, user agent, `signup` or `prompt`).
+- Signup (`register-org`, `register-player`) and the public team registration link require `accept_terms` —
+  but only once a document exists, so a fresh DB with none behaves as before (the test suite starts empty).
+  A team has no account; what its manager agreed to sits on `teams.legal_accepted` (hidden from JSON).
+- `RequireAuth` answers every `auth.required` route with 403 `TERMS_NOT_ACCEPTED` (+ `pending`) until the account
+  accepts — except `api/auth/*` and `api/legal/*`. Super admins are exempt, and so is an impersonation session:
+  impersonation tokens carry an `imp` claim (`User::$impersonatorId`), and `accept-terms` refuses them.
+  The dev role switcher (`x-demo-role`) is exempt too — it has no sign-in to show the prompt on.
+- Client: `user.legal_pending` from sign-in, or the API wrapper's `TERMS_REQUIRED_EVENT`, brings up `TermsGate`
+  (after `MustChangePasswordGate`). Public pages `/terms`, `/privacy` (`?version=N` for old ones); admin `/admin/legal`.
+- The seeder publishes v1 of both from `database/seeders/data/legal/*.md` — a starting draft to review before launch.
+
 **Help & Support (tickets to the platform).** `SupportController` + `SupportService` (the only
 write path). Organizers (`ORG_ADMIN`) talk to the super admin through threaded tickets under
 `/api/organizations/{id}/support/*`; the super admin works from `/api/admin/support/*`. Team
@@ -357,6 +373,8 @@ WhatsApp templates, refusal handling, the test command),
 `ReviewsTest` (the minimum-rating rule, admin overrides, one review per club, suspended clubs, public shape),
 `SupportTicketTest` (tenant isolation, internal notes, status flow and sweep, public form's
 non-enumeration, follow-ups by reference, rate limit, attachments),
+`LegalTermsTest` (signup and team-link acceptance, the 403 gate and its open routes, minor vs major versions,
+super admin and impersonation exemptions, admin publishing and acceptance list),
 `CachingTest` (hits, invalidation by scoring/edits/reorder, staff/public separation, after-commit
 flush, Redis outage; one test runs against a live Redis if `REDIS_TEST_HOST`:`REDIS_TEST_PORT` answers).
 

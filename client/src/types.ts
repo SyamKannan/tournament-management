@@ -154,6 +154,10 @@ export interface User {
   organization_id?: string;
   /** Password was set by someone else (onboarding, an admin reset); must be replaced at sign-in. */
   must_change_password?: boolean;
+  /** Documents (`terms`, `privacy`) this account must accept before the app lets it work. */
+  legal_pending?: ('terms' | 'privacy')[];
+  /** Accepted some earlier version — so a prompt now is about an update. */
+  legal_accepted_before?: boolean;
 }
 
 /** The server's list envelope: one page plus what is needed to draw a pager. */

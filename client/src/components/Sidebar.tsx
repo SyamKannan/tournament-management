@@ -5,7 +5,7 @@ import { usePlatformConfig } from '../context/PlatformConfigContext';
 import {
   LayoutDashboard, CreditCard, Building2, Trophy, Users, Calendar,
   Radio, Megaphone, FileText, Settings, History, X, Gamepad2, Image as ImageIcon,
-  Receipt, PlusCircle, BellRing, MapPin, UserCog, MessageSquareHeart, LifeBuoy
+  Receipt, PlusCircle, BellRing, MapPin, UserCog, MessageSquareHeart, LifeBuoy, ScrollText
 } from 'lucide-react';
 import { useSupportBadge } from '../lib/useSupportBadge';
 
@@ -25,6 +25,7 @@ const ADMIN_LINKS = [
   { to: '/admin/subscriptions', label: 'Subscriptions', icon: FileText },
   { to: '/admin/support', label: 'Support Inbox', icon: LifeBuoy, supportBadge: true },
   { to: '/admin/reviews', label: 'Reviews', icon: MessageSquareHeart },
+  { to: '/admin/legal', label: 'Terms & Privacy', icon: ScrollText },
   { to: '/admin/settings', label: 'Platform Settings', icon: Settings },
   { to: '/admin/audit-logs', label: 'Audit Logs', icon: History },
 ];
