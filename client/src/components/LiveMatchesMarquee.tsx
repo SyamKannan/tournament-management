@@ -19,21 +19,33 @@ const TeamScore: React.FC<{ team: TickerTeam; score: string }> = ({ team, score 
  * what's next and the latest results. Tapping one opens its score in a popup.
  */
 export const LiveMatchesMarquee: React.FC = () => {
-  const [matches, setMatches] = useState<TickerMatch[]>([]);
+  const [matches, setMatches] = useState<TickerMatch[] | null>(null);
   const [selected, setSelected] = useState<TickerMatch | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const load = () => api.get<TickerMatch[]>('/matches/current')
       .then(res => { if (!cancelled) setMatches(res); })
-      .catch(() => {});
+      // A failed first load reads as "no matches"; a failed refresh keeps what's showing.
+      .catch(() => { if (!cancelled) setMatches(prev => prev ?? []); });
 
     load();
     const timer = setInterval(load, REFRESH_MS);
     return () => { cancelled = true; clearInterval(timer); };
   }, []);
 
-  if (matches.length === 0) return null;
+  // Nothing until the first answer, so the empty note never flashes before real matches.
+  if (matches === null) return null;
+
+  if (matches.length === 0) {
+    return (
+      <div className="mt-8 sm:mt-10 max-w-5xl mx-auto">
+        <div className="rounded-2xl border border-slate-800/80 bg-slate-950/70 px-4 py-3 backdrop-blur text-sm text-slate-400 text-center">
+          No matches right now — live scores will appear here once tournaments begin.
+        </div>
+      </div>
+    );
+  }
 
   const liveCount = matches.filter(m => m.is_live).length;
   // Roughly the same reading speed however many matches there are.

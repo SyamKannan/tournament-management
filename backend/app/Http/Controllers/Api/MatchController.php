@@ -111,14 +111,15 @@ class MatchController extends Controller
         $matches = $live->concat($upcoming)->concat($recent);
 
         $teams = Team::query()
-            ->whereIn('id', $matches->pluck('team_a_id')->merge($matches->pluck('team_b_id'))->unique())
+            ->whereIn('id', $matches->pluck('team_a_id')->merge($matches->pluck('team_b_id'))->filter()->unique())
             ->get(['id', 'name', 'short_name', 'logo'])
             ->keyBy('id');
         $tournaments = Tournament::query()->whereIn('id', $matches->pluck('tournament_id')->unique())->get(['id', 'name', 'slug'])->keyBy('id');
         $footballStates = FootballMatchState::query()->whereIn('match_id', $matches->pluck('id'))->get()->keyBy('match_id');
         $cricketStates = CricketMatchState::query()->whereIn('match_id', $matches->pluck('id'))->get()->keyBy('match_id');
 
-        $team = fn (string $id) => ($found = $teams->get($id))
+        // Later knockout rounds exist before anyone has qualified for them.
+        $team = fn (?string $id) => ($id !== null && ($found = $teams->get($id)))
             ? ['id' => $found->id, 'name' => $found->name, 'short_name' => $found->short_name, 'logo' => $found->logo]
             : ['id' => $id, 'name' => 'TBD', 'short_name' => 'TBD', 'logo' => null];
 
