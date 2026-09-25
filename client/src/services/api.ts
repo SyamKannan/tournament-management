@@ -72,8 +72,8 @@ function messageFor(status: number, data: any): string {
  */
 export const SESSION_ENDED_EVENT = 'kickwick:session-ended';
 
-function endSession(reason: string) {
-  window.dispatchEvent(new CustomEvent(SESSION_ENDED_EVENT, { detail: { reason } }));
+function endSession(reason: string, rejectedToken: string) {
+  window.dispatchEvent(new CustomEvent(SESSION_ENDED_EVENT, { detail: { reason, token: rejectedToken } }));
 }
 
 export async function apiRequest<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -110,11 +110,15 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
   const data = isJson ? await res.json() : await res.text();
 
   if (!res.ok) {
-    if (token) {
+    // Only the token still in use can end the session. A request sent with a
+    // token that has since been replaced — a password change handing back a
+    // fresh one, an impersonation starting or ending — comes back 401 because
+    // that old token was revoked on purpose, not because this session is over.
+    if (token && localStorage.getItem('sports_saas_token') === token) {
       if (res.status === 401) {
-        endSession('Your session has expired. Please sign in again.');
+        endSession('Your session has expired. Please sign in again.', token);
       } else if (typeof data?.code === 'string' && data.code.startsWith('ORGANIZATION_')) {
-        endSession(data.error);
+        endSession(data.error, token);
       }
     }
 

@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\PlatformSetting;
 use App\Models\Player;
 use App\Models\User;
+use App\Services\BillingService;
 use App\Services\PasswordResetService;
 use App\Services\TokenService;
 use App\Support\Audit;
@@ -21,6 +22,7 @@ class AuthController extends Controller
 {
     public function __construct(
         private readonly TokenService $tokens,
+        private readonly BillingService $billing,
     ) {}
 
     public function login(Request $request): JsonResponse
@@ -197,9 +199,9 @@ class AuthController extends Controller
 
     /**
      * Public organizer signup: creates the organization and its first admin,
-     * free of charge and with no subscription. The organization picks (and
-     * pays for) a plan later, at the point it tries to host a tournament —
-     * see BillingService::checkLimit(), enforced in TournamentController::store().
+     * already on the Free plan, so the club can host its first tournament
+     * without buying anything. A paid plan is only needed to host more — see
+     * BillingService::checkLimit(), enforced in TournamentController::store().
      */
     public function registerOrganization(Request $request): JsonResponse
     {
@@ -271,6 +273,8 @@ class AuthController extends Controller
                 'avatar' => 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
             ]);
 
+            $this->billing->startFreePlan($organizationId);
+
             Audit::log([
                 'organization_id' => $organizationId,
                 'user_id' => $user->id,
@@ -279,7 +283,7 @@ class AuthController extends Controller
                 'action' => 'ORGANIZATION_SELF_SIGNUP',
                 'entity_type' => 'Organization',
                 'entity_id' => $organizationId,
-                'details' => sprintf('Organization [%s] signed up (no plan yet — will choose one when hosting a tournament)', $data['organizationName']),
+                'details' => sprintf('Organization [%s] signed up on the Free plan', $data['organizationName']),
             ]);
 
             return [$organization->fresh(), $user];

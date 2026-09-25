@@ -22,6 +22,8 @@ use Illuminate\Support\Facades\DB;
  */
 class BillingService
 {
+    public const FREE_PLAN_ID = 'plan-free';
+
     /**
      * Whether an organization may create one more of a metered resource.
      *
@@ -261,6 +263,37 @@ class BillingService
 
             return ['subscription' => $subscription->fresh(), 'invoice' => $invoice];
         });
+    }
+
+    /**
+     * Put a newly signed-up organization on the Free plan, so it can host its
+     * first tournament without buying anything.
+     *
+     * Unlike subscribePlan() this raises no ₹0 invoice and leaves the
+     * organization's status alone — a club awaiting admin approval stays
+     * pending. The end date is left blank: the plan is free forever, and the
+     * subscriptions:sweep skips a subscription with no end date.
+     */
+    public function startFreePlan(string $organizationId): ?Subscription
+    {
+        $plan = Plan::query()->where('id', self::FREE_PLAN_ID)->where('status', 'active')->first();
+
+        if (! $plan || Subscription::query()->where('organization_id', $organizationId)->exists()) {
+            return null;
+        }
+
+        return Subscription::create([
+            'id' => Ids::timestamped('sub'),
+            'organization_id' => $organizationId,
+            'plan_id' => $plan->id,
+            'status' => 'active',
+            'start_date' => now()->format('Y-m-d\TH:i:s.v\Z'),
+            'end_date' => '',
+            'next_billing_date' => null,
+            'auto_renew' => false,
+            'amount_paid' => 0,
+            'currency' => $plan->currency,
+        ]);
     }
 
     /**

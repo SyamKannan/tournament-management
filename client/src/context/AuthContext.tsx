@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { User, Organization, UserRole } from '../types';
-import { api, SESSION_ENDED_EVENT } from '../services/api';
+import { api, ApiError, SESSION_ENDED_EVENT } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { websocketUrl } from '../config';
 
@@ -46,28 +46,45 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    try {
-      setIsLoading(true);
-      const res = await api.get('/auth/me');
-      setUser(res.user);
-      setOrganization(res.organization);
-      if (res.user?.role) {
-        setRole(res.user.role);
+    setIsLoading(true);
+
+    // Only the server saying no ends the session. A dropped connection, the
+    // API restarting or a busy moment (429/5xx) says nothing about the token,
+    // and signing someone out over a flaky ground-side network loses their
+    // place for nothing — try again a few times and keep the token either way.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const res = await api.get('/auth/me');
+        setUser(res.user);
+        setOrganization(res.organization);
+        if (res.user?.role) {
+          setRole(res.user.role);
+        }
+        setIsLoading(false);
+        return;
+      } catch (err) {
+        const status = err instanceof ApiError ? err.status : 0;
+        const rejected = status === 401 || (status === 403 && !!(err as ApiError).code?.startsWith('ORGANIZATION_'));
+        if (rejected) break;
+        if (attempt >= 3 || localStorage.getItem('sports_saas_token') !== storedToken) {
+          setIsLoading(false);
+          return;
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** attempt));
       }
-    } catch (err) {
-      console.warn('Session expired or invalid, logging out');
-      localStorage.removeItem('sports_saas_token');
-      localStorage.removeItem('sports_saas_impersonator_token');
-      localStorage.removeItem('sports_saas_demo_role');
-      localStorage.removeItem('sports_saas_demo_org_id');
-      setUser(null);
-      setOrganization(null);
-      setToken(null);
-      setIsImpersonating(false);
-      setRole('PUBLIC_USER');
-    } finally {
-      setIsLoading(false);
     }
+
+    console.warn('Session expired or invalid, logging out');
+    localStorage.removeItem('sports_saas_token');
+    localStorage.removeItem('sports_saas_impersonator_token');
+    localStorage.removeItem('sports_saas_demo_role');
+    localStorage.removeItem('sports_saas_demo_org_id');
+    setUser(null);
+    setOrganization(null);
+    setToken(null);
+    setIsImpersonating(false);
+    setRole('PUBLIC_USER');
+    setIsLoading(false);
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -235,9 +252,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // rather than letting every screen fail on its own.
   useEffect(() => {
     const onSessionEnded = (event: Event) => {
-      if (!localStorage.getItem('sports_saas_token')) return;
-      logout();
-      toast.warning((event as CustomEvent).detail?.reason || 'Please sign in again.');
+      const detail = (event as CustomEvent).detail || {};
+      const current = localStorage.getItem('sports_saas_token');
+      // Ignore a rejection of a token this tab has already moved on from.
+      if (!current || (detail.token && detail.token !== current)) return;
+      // The server already refuses this token, so there is nothing to revoke —
+      // and posting /auth/logout here could revoke a newer one by mistake.
+      clearSession();
+      toast.warning(detail.reason || 'Please sign in again.');
     };
 
     window.addEventListener(SESSION_ENDED_EVENT, onSessionEnded);

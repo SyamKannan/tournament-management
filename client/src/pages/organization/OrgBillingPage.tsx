@@ -7,7 +7,7 @@ import { CreditCard, ShieldCheck, Receipt, Check, RefreshCw, LayoutGrid, Downloa
 import { downloadInvoicePdf } from '../../utils/invoicePdf';
 import { PlanPickerModal } from '../../components/PlanPickerModal';
 import { PlanFeatureList, planFeatureLabel } from '../../components/PlanFeatureList';
-import { LoadingState, EmptyState } from '../../components/ui/Feedback';
+import { LoadingState, EmptyState, ErrorState } from '../../components/ui/Feedback';
 import { useToast } from '../../components/ui/Toast';
 import { label } from '../../lib/labels';
 import { formatDate } from '../../lib/format';
@@ -43,23 +43,31 @@ export const OrgBillingPage: React.FC = () => {
   const [data, setData] = useState<UsageResponse | null>(null);
   const [allPlans, setAllPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showPlanPicker, setShowPlanPicker] = useState(false);
   const [renewing, setRenewing] = useState(false);
   const [switchingPlanId, setSwitchingPlanId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices'>('overview');
 
   const fetchData = async () => {
-    if (!organization) return;
+    // A super admin with no organization picked has nothing to load — without
+    // this the page sat on its spinner forever.
+    if (!organization) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
+      setLoadError(null);
       const [usageRes, plansRes] = await Promise.all([
         api.get(`/organizations/${organization.id}/usage`),
         api.get('/plans'),
       ]);
       setData(usageRes);
       setAllPlans(Array.isArray(plansRes) ? plansRes : []);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load billing data', err);
+      setLoadError(err?.message || 'Billing details could not be loaded.');
     } finally {
       setLoading(false);
     }
@@ -70,8 +78,22 @@ export const OrgBillingPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organization]);
 
-  if (loading || !data) {
+  if (!organization) {
+    return (
+      <EmptyState
+        icon={CreditCard}
+        title="No organization selected"
+        message="Choose an organization to see its plan, usage and invoices."
+      />
+    );
+  }
+
+  if (loading) {
     return <LoadingState label="Loading billing details..." />;
+  }
+
+  if (loadError || !data) {
+    return <ErrorState message={loadError || 'Billing details could not be loaded.'} onRetry={fetchData} />;
   }
 
   const { subscription, plan, usage, invoices } = data;
@@ -269,6 +291,20 @@ export const OrgBillingPage: React.FC = () => {
                       </span>
                     )}
                   </div>
+                  {(p.is_popular || p.is_best_value) && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {p.is_popular && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold uppercase bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                          Most popular
+                        </span>
+                      )}
+                      {p.is_best_value && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold uppercase bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                          Best value
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   <div className="mt-3 flex items-baseline gap-1">
                     {p.price === 0 ? (

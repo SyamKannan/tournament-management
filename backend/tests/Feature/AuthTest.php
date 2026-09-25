@@ -105,7 +105,7 @@ class AuthTest extends TestCase
         $this->getJson('/api/auth/me')->assertUnauthorized();
     }
 
-    public function test_public_signup_creates_the_organization_admin_with_no_subscription(): void
+    public function test_public_signup_creates_the_organization_admin_on_the_free_plan(): void
     {
         $response = $this->postJson('/api/auth/register-org', [
             'organizationName' => 'Wayanad United Sports Club',
@@ -123,11 +123,20 @@ class AuthTest extends TestCase
         $this->assertSame('ORG_ADMIN', $response->json('user.role'));
         $this->assertSame('active', $response->json('organization.status'));
 
-        // Signup is free — no plan is chosen (and nothing charged) until the
-        // organization tries to host a tournament.
-        $this->assertFalse(
-            Subscription::query()->where('organization_id', $organizationId)->exists()
-        );
+        // Signup starts the club on the Free plan — active at once, nothing
+        // charged, no ₹0 invoice, and no end date for the sweep to expire.
+        $subscription = Subscription::query()->where('organization_id', $organizationId)->first();
+        $this->assertNotNull($subscription);
+        $this->assertSame('plan-free', $subscription->plan_id);
+        $this->assertSame('active', $subscription->status);
+        $this->assertSame('', $subscription->end_date);
+        $this->assertFalse(\App\Models\Invoice::query()->where('organization_id', $organizationId)->exists());
+
+        $this->artisan('subscriptions:sweep')->assertSuccessful();
+        $this->assertSame('active', $subscription->fresh()->status);
+
+        // The one free tournament is available straight away.
+        $this->assertTrue(app(\App\Services\BillingService::class)->checkLimit($organizationId, 'tournaments')['allowed']);
 
         // The submitted password must be stored hashed, then work for sign-in.
         $created = User::query()->where('email', 'anoop@wayanadunited.in')->first();
