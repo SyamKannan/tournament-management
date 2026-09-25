@@ -171,10 +171,108 @@ class ReviewsTest extends TestCase
             ->assertJsonPath('errors.visibility.0', 'Choose whether to show or hide the review.');
         $this->assertSame('Scoring the whole league from one phone was easy.', $review->fresh()->body);
 
-        $this->withHeaders($this->admin())->postJson('/api/admin/reviews', ['author_name' => 'x', 'rating' => 5, 'body' => 'Made up by the admin.'])
-            ->assertStatus(405);
         $this->withHeaders($this->admin())->deleteJson("/api/admin/reviews/{$review->id}")->assertStatus(405);
         $this->assertTrue(AuditLog::query()->where('action', 'SHOWED_REVIEW')->doesntExist());
+    }
+
+    public function test_the_admin_adds_a_review_that_shows_at_once_and_can_be_hidden(): void
+    {
+        $this->review(self::ORG, 5);
+
+        // Any rating: the admin chose to add it, so it skips the minimum.
+        $added = $this->withHeaders($this->admin())->postJson('/api/admin/reviews', [
+            'author_name' => '  Suresh  ',
+            'author_title' => 'Kerala Sevens',
+            'rating' => 3,
+            'body' => 'Told us on the phone it saved them hours.',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('is_live', true)
+            ->assertJsonPath('organization_id', null)
+            ->assertJsonPath('author_name', 'Suresh')
+            ->json('id');
+
+        $this->assertContains($added, $this->publicIds());
+        $this->assertTrue(AuditLog::query()->where('action', 'ADDED_REVIEW')->where('entity_id', $added)->exists());
+
+        // Not one-per-club: a second one is fine.
+        $this->withHeaders($this->admin())->postJson('/api/admin/reviews', [
+            'author_name' => 'Anil', 'rating' => 5, 'body' => 'Heard at the district final.',
+        ])->assertCreated()->assertJsonPath('author_title', '');
+
+        $this->withHeaders($this->admin())->putJson("/api/admin/reviews/$added", ['visibility' => 'hidden'])->assertOk();
+        $this->assertNotContains($added, $this->publicIds());
+    }
+
+    public function test_only_the_super_admin_adds_reviews_and_input_is_explained(): void
+    {
+        // Anonymous first: the guard keeps the last signed-in user between requests in a test.
+        $this->postJson('/api/admin/reviews', ['author_name' => 'Me', 'rating' => 5, 'body' => 'Praising my own club here.'])
+            ->assertUnauthorized();
+        $this->withHeaders($this->organizer())
+            ->postJson('/api/admin/reviews', ['author_name' => 'Me', 'rating' => 5, 'body' => 'Praising my own club here.'])
+            ->assertForbidden();
+
+        $this->withHeaders($this->admin())->postJson('/api/admin/reviews', ['rating' => 0, 'body' => 'short'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.author_name.0', 'Enter the name to show with the review.')
+            ->assertJsonPath('errors.rating.0', 'Choose between 1 and 5 stars.')
+            ->assertJsonPath('errors.body.0', 'Write at least 10 characters.');
+
+        $this->assertSame(0, Review::query()->count());
+    }
+
+    public function test_a_long_list_can_be_searched_filtered_sorted_and_counted(): void
+    {
+        $five = $this->review(self::ORG, 5);
+        $three = $this->review(self::OTHER_ORG, 3);
+        $three->update(['body' => 'Fixtures were confusing at first.', 'created_at' => now()->subDay()]);
+        $this->review('org-malabar-cricket', 1);
+
+        $admin = $this->withHeaders($this->admin());
+
+        $admin->getJson('/api/admin/reviews?filter=live')
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('counts', ['all' => 3, 'live' => 1, 'not_live' => 2]);
+
+        // Counts follow the search, so each tab says what it would hold.
+        $admin->getJson('/api/admin/reviews?search=FIXTURES')
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.id', $three->id)
+            ->assertJsonPath('counts', ['all' => 1, 'live' => 0, 'not_live' => 1]);
+
+        $admin->getJson('/api/admin/reviews?rating=5')->assertJsonPath('total', 1)->assertJsonPath('data.0.id', $five->id);
+
+        $this->assertSame([1, 3, 5], array_column($admin->getJson('/api/admin/reviews?sort=lowest')->json('data'), 'rating'));
+        $this->assertSame([5, 3, 1], array_column($admin->getJson('/api/admin/reviews?sort=highest')->json('data'), 'rating'));
+        $this->assertSame($three->id, $admin->getJson('/api/admin/reviews?sort=oldest')->json('data.0.id'));
+    }
+
+    public function test_many_reviews_are_shown_or_hidden_at_once(): void
+    {
+        $a = $this->review(self::ORG, 5);
+        $b = $this->review(self::OTHER_ORG, 4);
+        $low = $this->review('org-malabar-cricket', 2);
+        $this->assertEqualsCanonicalizing([$a->id, $b->id], $this->publicIds());
+
+        $this->withHeaders($this->admin())
+            ->postJson('/api/admin/reviews/visibility', ['ids' => [$a->id, $b->id], 'visibility' => 'hidden'])
+            ->assertOk()->assertJsonPath('updated', 2);
+        $this->assertSame([], $this->publicIds());
+        $this->assertTrue(AuditLog::query()->where('action', 'HID_REVIEWS')->exists());
+
+        $this->withHeaders($this->admin())
+            ->postJson('/api/admin/reviews/visibility', ['ids' => [$low->id], 'visibility' => 'shown'])
+            ->assertJsonPath('updated', 1);
+        $this->assertSame([$low->id], $this->publicIds());
+
+        $this->withHeaders($this->admin())
+            ->postJson('/api/admin/reviews/visibility', ['ids' => [], 'visibility' => 'shown'])
+            ->assertStatus(422)->assertJsonPath('errors.ids.0', 'Select at least one review.');
+
+        $this->withHeaders($this->organizer())
+            ->postJson('/api/admin/reviews/visibility', ['ids' => [$a->id], 'visibility' => 'shown'])
+            ->assertForbidden();
     }
 
     public function test_bad_input_is_explained(): void

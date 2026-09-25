@@ -13,6 +13,7 @@ use App\Support\Paginate;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Reviews of the platform: the landing-page section, each club's own review,
@@ -29,6 +30,7 @@ class ReviewController extends Controller
         'body.required' => 'Write a few words about your experience.',
         'body.min' => 'Write at least 10 characters.',
         'body.max' => 'Keep it under 500 characters.',
+        'author_name.required' => 'Enter the name to show with the review.',
     ];
 
     /* ----------------------------------------------------------------- Public */
@@ -146,12 +148,29 @@ class ReviewController extends Controller
 
     /* ------------------------------------------------------------ Super admin */
 
-    /** `filter`: live (on the home page) | not_live | everything when absent. */
+    /**
+     * One page of reviews for moderation. `search` (name, club, words) and
+     * `rating` narrow the set; `filter` (live | not_live) picks the tab, and
+     * `counts` gives every tab's size under the same search, so the tabs stay
+     * honest while the admin works through hundreds.
+     * `sort`: newest (default) | oldest | lowest | highest.
+     */
     public function adminIndex(Request $request): JsonResponse
     {
         $minRating = PlatformSetting::current()->reviewSettings()['min_rating'];
 
-        $query = Review::query()->with('organization:id,name,status');
+        $base = Review::query();
+        Paginate::search($base, $request->query('search'), ['author_name', 'author_title', 'body']);
+
+        $rating = (int) $request->query('rating');
+        if ($rating >= 1 && $rating <= 5) {
+            $base->where('rating', $rating);
+        }
+
+        $all = (clone $base)->count();
+        $live = (clone $base)->published($minRating)->count();
+
+        $query = (clone $base)->with('organization:id,name,status');
 
         match ($request->query('filter')) {
             'live' => $query->published($minRating),
@@ -159,9 +178,91 @@ class ReviewController extends Controller
             default => null,
         };
 
-        $query->orderByDesc('updated_at')->orderBy('id');
+        match ($request->query('sort')) {
+            'oldest' => $query->orderBy('created_at'),
+            'lowest' => $query->orderBy('rating')->orderByDesc('created_at'),
+            'highest' => $query->orderByDesc('rating')->orderByDesc('created_at'),
+            default => $query->orderByDesc('created_at'),
+        };
+        $query->orderBy('id');
 
-        return response()->json(Paginate::query($query, $request, fn (Review $review) => $this->adminRow($review, $minRating)));
+        return response()->json([
+            ...Paginate::query($query, $request, fn (Review $review) => $this->adminRow($review, $minRating)),
+            'counts' => ['all' => $all, 'live' => $live, 'not_live' => $all - $live],
+        ]);
+    }
+
+    /** Show or hide many at once — working through a pile, a page at a time. */
+    public function adminBulkVisibility(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:100'],
+            'ids.*' => ['required', 'string', 'distinct'],
+            'visibility' => ['required', 'string', 'in:'.implode(',', Review::VISIBILITIES)],
+        ], [
+            'ids.required' => 'Select at least one review.',
+            'ids.min' => 'Select at least one review.',
+            'ids.max' => 'Select at most 100 reviews at a time.',
+            'visibility.required' => 'Choose whether to show or hide the reviews.',
+            'visibility.in' => 'Choose whether to show or hide the reviews.',
+        ]);
+
+        $user = $request->user();
+
+        $updated = DB::transaction(fn () => Review::query()->whereIn('id', $data['ids'])->update([
+            'visibility' => $data['visibility'],
+            'moderated_by' => $user->id,
+            'moderated_at' => now(),
+            'updated_at' => now(),
+        ]));
+
+        // A mass update fires no model events.
+        Cached::flush('platform');
+
+        $hidden = $data['visibility'] === 'hidden';
+        Audit::log([
+            'user_id' => $user->id,
+            'user_name' => $user->name,
+            'user_role' => $user->role,
+            'action' => $hidden ? 'HID_REVIEWS' : 'SHOWED_REVIEWS',
+            'entity_type' => 'Review',
+            'entity_id' => '*',
+            'details' => ($hidden ? 'Hid' : 'Showed')." $updated reviews",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json(['updated' => $updated]);
+    }
+
+    /**
+     * A review the admin collected elsewhere (a call, a message). It belongs
+     * to no club and is shown straight away; the switch can still hide it.
+     */
+    public function adminStore(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'author_name' => ['required', 'string', 'max:80'],
+            'author_title' => ['nullable', 'string', 'max:120'],
+            'rating' => ['required', 'integer', 'min:1', 'max:5'],
+            'body' => ['required', 'string', 'min:10', 'max:500'],
+        ], self::MESSAGES);
+
+        $user = $request->user();
+
+        $review = Review::create([
+            'id' => Ids::unique('review'),
+            'author_name' => trim($data['author_name']),
+            'author_title' => trim((string) ($data['author_title'] ?? '')),
+            'rating' => $data['rating'],
+            'body' => trim($data['body']),
+            'visibility' => 'shown',
+            'moderated_by' => $user->id,
+            'moderated_at' => now(),
+        ]);
+
+        $this->audit($request, $review, 'ADDED_REVIEW', "Added a review by {$review->author_name}");
+
+        return response()->json($this->adminRow($review), 201);
     }
 
     /** Show or hide one review by hand; `auto` hands it back to the rating rule. */
@@ -185,20 +286,28 @@ class ReviewController extends Controller
             'moderated_at' => now(),
         ])->save();
 
+        $hidden = $data['visibility'] === 'hidden';
+        $this->audit($request, $review, $hidden ? 'HID_REVIEW' : 'SHOWED_REVIEW',
+            ($hidden ? 'Hid' : 'Showed')." the review by {$review->author_name}");
+
+        return response()->json($this->adminRow($review->load('organization:id,name,status')));
+    }
+
+    private function audit(Request $request, Review $review, string $action, string $details): void
+    {
         $user = $request->user();
+
         Audit::log([
             'organization_id' => $review->organization_id,
             'user_id' => $user->id,
             'user_name' => $user->name,
             'user_role' => $user->role,
-            'action' => $data['visibility'] === 'hidden' ? 'HID_REVIEW' : 'SHOWED_REVIEW',
+            'action' => $action,
             'entity_type' => 'Review',
             'entity_id' => $review->id,
-            'details' => ($data['visibility'] === 'hidden' ? 'Hid' : 'Showed')." the review by {$review->author_name}",
+            'details' => $details,
             'ip_address' => $request->ip(),
         ]);
-
-        return response()->json($this->adminRow($review->load('organization:id,name,status')));
     }
 
     private function adminRow(Review $review, ?int $minRating = null): array

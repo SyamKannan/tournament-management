@@ -207,14 +207,16 @@ follow one with `Cached::flush()` (see plan reorder). Off unless `CACHE_STORE=re
 `RESPONSE_CACHE_ENABLED=true`); a Redis outage degrades to uncached reads, never an error. The fixture
 list is keyed by staff/public so team contacts never cross over.
 
-**Reviews.** `ReviewController` + `Review`. One review per club (`PUT /api/organizations/{id}/review`),
-written from the club dashboard. Whether a review is public is computed on read, never stored: `visibility` is
-`auto` (public when `rating >= platform_settings.reviews.min_rating`, default 4), `shown` or `hidden` (admin
-overrides that always win), and a suspended club's review drops out. So changing the minimum applies to every
-review at once. A club editing a hand-approved review sends it back to `auto`; a hidden one stays hidden. The
-admin only shows or hides (`PUT /api/admin/reviews/{id}` takes `visibility` alone); the words stay the club's. `GET /api/reviews` is
-cached in the `platform` scope (`Review` is listed there in `CacheServiceProvider`, and an organization's
-status change flushes it too).
+**Reviews.** `ReviewController` + `Review`. One review per club (`PUT /api/organizations/{id}/review`,
+from the club dashboard), plus ones the super admin adds (`POST /api/admin/reviews`: no club, shown at once).
+Whether a review is public is computed on read, never stored: `visibility` is `auto` (public when
+`rating >= platform_settings.reviews.min_rating`, default 4), `shown` or `hidden` (admin overrides that always
+win), and a suspended club's review drops out — so changing the minimum applies to every review at once. A club
+editing a hand-approved review sends it back to `auto`; a hidden one stays hidden. The admin never rewords a
+club's review, only shows or hides it — one at a time or up to 100 via `POST /api/admin/reviews/visibility`
+(a mass update, so it calls `Cached::flush('platform')`). The admin list pages on the server with search,
+`rating`, `sort` and per-tab `counts`. `GET /api/reviews` is cached in the `platform` scope (`Review` is listed
+there in `CacheServiceProvider`, and an organization's status change flushes it too).
 
 **Exports.** `ExportController` + `CsvWriter`. Public files (table, fixtures, player stats,
 one match's card) match what the hub already shows; fee collection and squad lists carry
