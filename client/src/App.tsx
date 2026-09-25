@@ -254,94 +254,94 @@ export const App: React.FC = () => {
                 {/* Organization Workspace (Protected) */}
                 <Route path="/organization" element={<Navigate to="/organization/dashboard" replace />} />
                 <Route path="/organization/dashboard" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                     <OrgDashboard />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/tournaments" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                     <OrgTournamentsPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/auction/:id" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                     <LiveAuctionArenaPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/tournaments/:tournamentId/auction" element={
-              <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+              <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                 <OrgTournamentAuctionManagePage />
               </ProtectedRoute>
             } />
             <Route path="/organization/teams" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                     <OrgTeamsPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/tournaments/:tournamentId/teams" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                     <OrgTeamsPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/fixtures" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                     <OrgFixturesPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/tournaments/:tournamentId/fixtures" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                     <OrgFixturesPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/scorer/:matchId" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN', 'SCORER']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SCORER']}>
                     <OrgLiveScorerPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/scorer" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN', 'SCORER']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SCORER']}>
                     <OrgLiveScorerPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/posters" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SCORER', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SCORER']}>
                     <OrgPostersPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/sponsors" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                     <OrgSponsorsAdsPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/announcements" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                     <OrgAnnouncementsPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/venues" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                     <OrgVenuesPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/notifications" element={
                   <MessagingRoute>
-                    <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                    <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                       <OrgNotificationsPage />
                     </ProtectedRoute>
                   </MessagingRoute>
                 } />
                 <Route path="/organization/members" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                     <OrgMembersPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/reports" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                     <OrgReportsPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/billing" element={
-                  <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SUPER_ADMIN']}>
+                  <ProtectedRoute allowedRoles={['ORG_ADMIN']}>
                     <OrgBillingPage />
                   </ProtectedRoute>
                 } />
@@ -374,12 +374,12 @@ export const App: React.FC = () => {
               </ProtectedRoute>
             } />
             <Route path="/team/auctions" element={
-              <ProtectedRoute allowedRoles={['TEAM_MANAGER', 'ORG_ADMIN', 'SUPER_ADMIN']}>
+              <ProtectedRoute allowedRoles={['TEAM_MANAGER', 'ORG_ADMIN']}>
                 <TeamAuctionsListPage />
               </ProtectedRoute>
             } />
             <Route path="/team/auction/:id" element={
-              <ProtectedRoute allowedRoles={['TEAM_MANAGER', 'ORG_ADMIN', 'SUPER_ADMIN']}>
+              <ProtectedRoute allowedRoles={['TEAM_MANAGER', 'ORG_ADMIN']}>
                 <TeamAuctionPage />
               </ProtectedRoute>
             } />

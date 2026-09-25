@@ -51,7 +51,7 @@ export const LiveAuctionArenaPage: React.FC = () => {
     price: 0
   });
 
-  const isAuctioneer = user?.role === 'SUPER_ADMIN' || user?.role === 'ORG_ADMIN';
+  const isAuctioneer = user?.role === 'ORG_ADMIN';
 
   const fetchAuctionState = async () => {
     try {

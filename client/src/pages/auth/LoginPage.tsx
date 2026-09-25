@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { usePlatformConfig } from '../../context/PlatformConfigContext';
-import { roleHome } from '../../lib/roleHome';
+import { landingAfterLogin } from '../../lib/roleHome';
 import { SHOW_ADMIN_LOGIN } from '../../config';
 import { AuthShowcase } from '../../components/AuthShowcase';
 import { SPORTS_CAROUSELS } from '../../lib/sportsImagery';
@@ -40,7 +40,7 @@ export const LoginPage: React.FC = () => {
   // If already authenticated, redirect
   useEffect(() => {
     if (isAuthenticated) {
-      navigate(redirectUrl || roleHome(role));
+      navigate(landingAfterLogin(role, redirectUrl));
     }
   }, [isAuthenticated, role, redirectUrl, navigate]);
 
@@ -61,7 +61,7 @@ export const LoginPage: React.FC = () => {
 
     try {
       const result = await login(email, password);
-      navigate(redirectUrl || roleHome(result.user.role));
+      navigate(landingAfterLogin(result.user.role, redirectUrl));
     } catch (err: any) {
       setError(err?.message || 'Invalid email or password. Please verify your credentials.');
     } finally {

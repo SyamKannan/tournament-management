@@ -137,6 +137,13 @@ class TournamentController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
+
+        // The super admin runs the platform, not tournaments. Hosting one is the
+        // organizer's job; to help a club, impersonate its organizer.
+        if ($user->role === 'SUPER_ADMIN') {
+            return response()->json(['error' => 'Super admins manage the platform and cannot host tournaments. Sign in as the club (impersonate its organizer) to create one.'], 403);
+        }
+
         $organizationId = $request->input('organization_id') ?: $user->organization_id;
 
         if (! $organizationId) {

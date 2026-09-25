@@ -60,19 +60,31 @@ class BillingTest extends TestCase
 
     public function test_creating_a_tournament_past_the_plan_limit_is_refused_over_http(): void
     {
-        $this->createTournamentFor('org-highland-fc');
-        $this->createTournamentFor('org-highland-fc');
+        $this->billing->subscribePlan('org-green-valley', 'plan-free', 'upi');
+        for ($i = 0; $i < 20 && $this->billing->checkLimit('org-green-valley', 'tournaments')['allowed']; $i++) {
+            $this->createTournamentFor('org-green-valley');
+        }
+        $this->assertFalse($this->billing->checkLimit('org-green-valley', 'tournaments')['allowed']);
+
         $this->actingAsUser('admin@greenvalley.com');
 
-        // Highland's own admin is not seeded, so drive the check as super admin
-        // against Highland's organization id.
+        $this->postJson('/api/tournaments', [
+            'name' => 'One Cup Too Many',
+            'sport_code' => 'football',
+        ])->assertForbidden()->assertJsonStructure(['error', 'limit']);
+    }
+
+    public function test_super_admin_cannot_host_a_tournament(): void
+    {
         $this->actingAsUser('syamdas@gmail.com');
 
         $this->postJson('/api/tournaments', [
-            'organization_id' => 'org-highland-fc',
-            'name' => 'Second Highland Cup',
+            'organization_id' => 'org-green-valley',
+            'name' => 'Platform Cup',
             'sport_code' => 'football',
-        ])->assertForbidden()->assertJsonStructure(['error', 'limit']);
+        ])->assertForbidden()->assertJsonMissingPath('limit');
+
+        $this->assertFalse(\App\Models\Tournament::query()->where('name', 'Platform Cup')->exists());
     }
 
     public function test_usage_reports_current_consumption_against_plan_limits(): void

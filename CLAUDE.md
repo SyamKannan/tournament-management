@@ -69,7 +69,9 @@ tournament hubs, registration links, and stadium scoreboards must work anonymous
 Access is then enforced per-route by separate middleware: `auth.required` (401),
 `role:SUPER_ADMIN` (403), `tenant` / `tenant:id` (403 on cross-org access, and logs the
 attempt to the audit trail via `app/Support/Audit.php`). Super admins are platform-wide
-and bypass tenant checks.
+and bypass tenant checks — but they run the platform, not tournaments: the client keeps
+them out of `/organization/*` and `/team/*`, and `TournamentController::store` refuses them.
+To act for a club, a super admin impersonates its organizer.
 
 **Auth.** Two accepted credentials: `Authorization: Bearer <jwt>` (HS256, 7-day expiry,
 `JWT_SECRET`) and the `x-demo-role` / `x-demo-org-id` header pair used by the client's

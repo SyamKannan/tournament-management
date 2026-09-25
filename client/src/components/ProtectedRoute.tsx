@@ -21,15 +21,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   }
 
   if (!isAuthenticated || !user) {
-    const requiredRole = allowedRoles?.includes('SUPER_ADMIN') ? 'SUPER_ADMIN' : 'ORG_ADMIN';
+    const requiredRole = allowedRoles?.length === 1 && allowedRoles[0] === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ORG_ADMIN';
     return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}&role=${requiredRole}`} replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(role)) {
-    // If Super Admin accesses Org dashboard or vice versa
-    if (role === 'SUPER_ADMIN') {
-      return <>{children}</>;
-    }
     // Signed in, just not for this page (e.g. right after impersonating from an admin page):
     // go to their own workspace rather than bouncing through the login screen.
     return <Navigate to={roleHome(role)} replace />;

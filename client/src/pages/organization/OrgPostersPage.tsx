@@ -60,7 +60,7 @@ function writePending(value: { jobId: string; tournamentId: string } | null) {
 export const OrgPostersPage: React.FC = () => {
   const toast = useToast();
   const { role } = useAuth();
-  const canDelete = role === 'ORG_ADMIN' || role === 'SUPER_ADMIN';
+  const canDelete = role === 'ORG_ADMIN';
 
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [selectedTournamentId, setSelectedTournamentId] = useState('');
