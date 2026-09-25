@@ -65,7 +65,7 @@ cd backend
 <php> ../composer.phar install --no-dev --optimize-autoloader
 <php> artisan key:generate
 <php> artisan migrate --force
-<php> artisan db:seed --force      # demo data — skip for a real deployment
+<php> artisan db:seed --force      # plans + super admin (set SUPER_ADMIN_EMAIL/_PASSWORD first)
 <php> artisan config:cache && <php> artisan route:cache
 ```
 
@@ -130,11 +130,9 @@ curl http://127.0.0.1:4100/health              # {"status":"healthy","connection
       and environment values.
 - [ ] `APP_KEY` and `JWT_SECRET` set to fresh random values, different per
       environment. Rotating `JWT_SECRET` signs everyone out.
-- [ ] `VITE_SHOW_DEMO_ACCOUNTS` left unset, so the seeded logins and their
-      passwords never render on the sign-in or landing page.
-- [ ] Demo accounts removed or their passwords changed — every seeded account
-      uses `12345678`.
-- [ ] Skip `db:seed`, or delete the demo organizations afterwards.
+- [ ] `SUPER_ADMIN_EMAIL` set before `db:seed` (the seed refuses without it in
+      production). Either set a strong `SUPER_ADMIN_PASSWORD` or leave it unset and
+      copy the one-time password the seed prints; remove the env value afterwards.
 - [ ] `CORS_ALLOWED_ORIGINS` narrowed from `*` to your real front-end origin.
 - [ ] TLS in front of both the API and the gateway, and `VITE_WS_URL` set to
       `wss://…` — bearer tokens and bids should not cross the network in clear.

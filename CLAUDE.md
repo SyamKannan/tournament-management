@@ -19,10 +19,10 @@ server/    old Express/TypeScript backend — dead, not used
 ## Commands
 
 ```bash
-npm run setup       # composer install + migrate:fresh --seed + client npm install
+npm run setup       # composer install + migrate:fresh --seed (plans + super admin) + client npm install
 npm run dev         # API :8000, WebSocket gateway :4000, queue worker, client :5173 (concurrently)
 npm test            # backend/php artisan test — the only test suite
-npm run db:reset    # migrate:fresh --seed, restores demo dataset
+npm run db:reset    # migrate:fresh --seed, back to plans + super admin only
 npm run build       # production client bundle
 ```
 
@@ -254,7 +254,8 @@ app/Services/               billing, ground fees, scoring, auctions, stats, real
 app/Support/                Ids (id/slug generation), Audit (audit trail)
 app/WebSocket/Hub.php       room registry for the gateway
 database/migrations/        4 grouped migrations, 25 tables total
-database/seeders/data/seed.json   the demo fixture (passwords in clear, hashed on seed)
+database/seeders/data/platform.json  settings, sports, plans — the only seeded data
+tests/Fixtures/demo.json + tests/DemoSeeder.php  demo dataset, test suite only
 routes/api.php               the entire route table, single file
 ```
 
@@ -292,8 +293,10 @@ routes/api.php               the entire route table, single file
 | `RESPONSE_CACHE_ENABLED` | on iff store is redis | force the public read cache on/off |
 | `CACHE_TTL_HUB` / `_STATS` / `_PLATFORM` | 300 / 600 / 3600 s | ceiling only — writes invalidate at once |
 
-Demo login for any seeded account: password `12345678` (see root README for the account
-list). `POST /api/dev/reset-seed` wipes and reseeds the DB and must 404 in production
+Seeding creates only platform settings, sports, plans and one super admin from
+`SUPER_ADMIN_EMAIL`/`SUPER_ADMIN_PASSWORD` (unset password → generated, printed once,
+`must_change_password`). The demo dataset (`tests/Fixtures/demo.json`, password `12345678`)
+is loaded by `Tests\DemoSeeder` for the test suite only. `POST /api/dev/reset-seed` wipes and reseeds the DB and must 404 in production
 (`APP_ENV=production` already enforces this — keep it that way).
 
 ## Tests

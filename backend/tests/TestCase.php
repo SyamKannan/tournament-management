@@ -3,7 +3,6 @@
 namespace Tests;
 
 use App\Models\User;
-use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
@@ -12,12 +11,12 @@ abstract class TestCase extends BaseTestCase
     use RefreshDatabase;
 
     /**
-     * Tests run against the same demo dataset the application ships with, so
+     * Tests run against a fixed demo dataset (tests/Fixtures/demo.json), so
      * assertions can reference known organizations, tournaments and fixtures.
      */
     protected bool $seed = true;
 
-    protected string $seeder = DatabaseSeeder::class;
+    protected string $seeder = DemoSeeder::class;
 
     /** The user the test is currently acting as. */
     protected ?User $actingUser = null;

@@ -32,23 +32,19 @@ Open <http://localhost:5173>.
 | `dev:ws` | 4000 | `php artisan websocket:serve` — the live gateway at `/ws` |
 | `dev:client` | 5173 | Vite dev server, proxying `/api` to port 8000 |
 
-Other scripts: `npm test` (the backend suite), `npm run db:reset` (restore the demo
-dataset), `npm run build` (production client bundle).
+Other scripts: `npm test` (the backend suite), `npm run db:reset` (wipe back to plans and
+the super admin), `npm run build` (production client bundle).
 
-## Demo accounts
+## First sign-in
 
-Every seeded account uses the password **`12345678`**.
+Seeding creates only the platform settings, the sports catalogue, the subscription
+plans and one super admin — no clubs, players or tournaments. The admin comes from
+`SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` in `backend/.env`. Leave the password
+unset and the seeder generates one, prints it once to the console running the seed,
+and requires it to be changed at first sign-in. Clubs register themselves at
+`/register-club`.
 
-| Role | Email |
-| --- | --- |
-| Super admin | `syamdas@gmail.com` |
-| Organization admin | `admin@greenvalley.com` |
-| Organization admin | `admin@malabar.com` |
-| Scorer | `scorer@greenvalley.com` |
-| Team manager | `manager@malabarblasters.com` |
-| Player | `shameer.player@gmail.com` |
-
-The client can also switch roles without signing in by sending `x-demo-role` (and
+ without signing in by sending `x-demo-role` (and
 optionally `x-demo-org-id`) headers.
 
 ## How it fits together

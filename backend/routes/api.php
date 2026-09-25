@@ -51,7 +51,7 @@ Route::get('health', [PlatformController::class, 'health']);
 Route::get('platform-stats', [PlatformController::class, 'stats']);
 Route::post('payments/demo/{orderId}/pay', [PaymentController::class, 'demoPay'])->middleware('throttle:demo-pay');
 
-// Restores the demo dataset. Local and staging only — never expose in production.
+// Wipes the database back to plans + super admin. Local and staging only — never expose in production.
 Route::post('dev/reset-seed', function () {
     if (app()->isProduction()) {
         abort(404);
@@ -59,7 +59,7 @@ Route::post('dev/reset-seed', function () {
 
     Artisan::call('migrate:fresh', ['--seed' => true, '--force' => true]);
 
-    return response()->json(['message' => 'Database reset to initial rich seed data successfully']);
+    return response()->json(['message' => 'Database reset: plans and the super admin re-seeded.']);
 });
 
 /* ---------------------------------------------------------------------- Auth */

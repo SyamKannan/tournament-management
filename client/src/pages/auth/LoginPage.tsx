@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { usePlatformConfig } from '../../context/PlatformConfigContext';
 import { roleHome } from '../../lib/roleHome';
-import { SHOW_ADMIN_LOGIN, SHOW_DEMO_ACCOUNTS } from '../../config';
+import { SHOW_ADMIN_LOGIN } from '../../config';
 import { AuthShowcase } from '../../components/AuthShowcase';
 import { SPORTS_CAROUSELS } from '../../lib/sportsImagery';
 import { AuthLayout, AuthHeader, AuthCard, AuthAlert, AuthField, AuthSubmit, AuthFooter, type AuthAccent } from '../../components/auth/AuthUI';
@@ -17,18 +17,6 @@ const TABS: { id: LoginTab; label: string; icon: LucideIcon; accent: AuthAccent 
   { id: 'PLAYER', label: 'Player', icon: User, accent: 'amber' },
   ...(SHOW_ADMIN_LOGIN ? [{ id: 'SUPER_ADMIN' as const, label: 'Admin', icon: ShieldCheck, accent: 'cyan' as const }] : []),
 ];
-
-const DEMO_ACCOUNTS: Record<LoginTab, { name: string; email: string }[]> = {
-  ORG_ADMIN: [
-    { name: 'Green Valley Sports Club', email: 'admin@greenvalley.com' },
-    { name: 'Malabar Cricket Academy', email: 'admin@malabar.com' },
-  ],
-  PLAYER: [
-    { name: 'Shameer Babu · Football striker', email: 'shameer.player@gmail.com' },
-    { name: 'Rahul Menon · Cricket all-rounder', email: 'rahul.player@gmail.com' },
-  ],
-  SUPER_ADMIN: [{ name: 'Syam · Platform super admin', email: 'syamdas@gmail.com' }],
-};
 
 export const LoginPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -58,25 +46,6 @@ export const LoginPage: React.FC = () => {
 
   const handleTabChange = (tab: LoginTab) => {
     setActiveTab(tab);
-    setError(null);
-    // Pre-filling seeded credentials is a demo convenience only.
-    if (!SHOW_DEMO_ACCOUNTS) return;
-    if (tab === 'SUPER_ADMIN') {
-      setEmail('syamdas@gmail.com');
-      setPassword('12345678');
-    } else if (tab === 'PLAYER') {
-      setEmail('shameer.player@gmail.com');
-      setPassword('12345678');
-    } else {
-      setEmail('admin@greenvalley.com');
-      setPassword('12345678');
-    }
-  };
-
-  const handleQuickFill = (demoEmail: string, demoPass: string, tab: LoginTab) => {
-    setActiveTab(tab);
-    setEmail(demoEmail);
-    setPassword(demoPass);
     setError(null);
   };
 
@@ -215,33 +184,6 @@ export const LoginPage: React.FC = () => {
           </div>
         </form>
 
-        {/* Seeded demo logins — only rendered when VITE_SHOW_DEMO_ACCOUNTS=true. */}
-        {SHOW_DEMO_ACCOUNTS && (
-          <div className="mt-6">
-            <div className="flex items-center gap-3 mb-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-              <span className="h-px flex-1 bg-white/10" />
-              Demo accounts
-              <span className="h-px flex-1 bg-white/10" />
-            </div>
-            <div className="space-y-2">
-              {DEMO_ACCOUNTS[activeTab].map(acc => (
-                <button
-                  key={acc.email}
-                  type="button"
-                  onClick={() => handleQuickFill(acc.email, '12345678', activeTab)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] ring-1 ring-white/5 text-left flex items-center justify-between gap-3 transition-colors"
-                >
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-white truncate">{acc.name}</span>
-                    <span className="block text-xs text-slate-400 truncate">{acc.email}</span>
-                  </span>
-                  <span className="shrink-0 text-xs font-bold text-slate-300">Use</span>
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-slate-500 text-center">Password for every demo account: 12345678</p>
-          </div>
-        )}
       </AuthCard>
 
       <AuthFooter

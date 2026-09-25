@@ -6,11 +6,9 @@
  */
 
 /**
- * Whether to surface the seeded demo accounts and their passwords in the UI.
- *
- * Off unless `VITE_SHOW_DEMO_ACCOUNTS=true` is set, so a production build never
- * prints working credentials on the sign-in page or the public landing page.
- * Turn it on for demo and review deployments.
+ * Whether to offer demo conveniences such as the "fill sample data" button on
+ * the auction registration form. Off unless `VITE_SHOW_DEMO_ACCOUNTS=true`.
+ * No credentials are ever shown in the UI, whatever this is set to.
  */
 export const SHOW_DEMO_ACCOUNTS = import.meta.env.VITE_SHOW_DEMO_ACCOUNTS === 'true';
 

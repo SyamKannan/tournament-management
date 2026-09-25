@@ -1,0 +1,188 @@
+{
+  "platform_settings": {
+    "platform_name": "KickWick",
+    "country": "India",
+    "support_email": "support@kickwick.com",
+    "support_phone": "+91 98460 12345",
+    "currency_symbol": "₹",
+    "currency_code": "INR",
+    "enable_public_signup": true,
+    "require_admin_approval_for_orgs": false,
+    "grace_period_days": 7,
+    "payment_gateway_mode": "sandbox",
+    "enabled_payment_methods": [
+      "upi",
+      "card",
+      "netbanking",
+      "pay_at_ground"
+    ],
+    "subscription_payment_methods": [
+      "upi",
+      "card",
+      "netbanking"
+    ],
+    "payment_gateways": {
+      "subscription": {
+        "provider": "demo",
+        "key_id": ""
+      },
+      "registration": {
+        "provider": "demo",
+        "key_id": ""
+      }
+    }
+  },
+  "sports": [
+    {
+      "id": "sport-football",
+      "name": "Football",
+      "code": "football",
+      "icon": "⚽",
+      "is_active": true
+    },
+    {
+      "id": "sport-cricket",
+      "name": "Cricket",
+      "code": "cricket",
+      "icon": "🏏",
+      "is_active": true
+    }
+  ],
+  "plans": [
+    {
+      "id": "plan-free",
+      "name": "Free",
+      "description": "Free forever — host your first tournament with every feature unlocked. Subscribe to a paid plan to host more.",
+      "price": 0,
+      "currency": "₹",
+      "billing_type": "recurring",
+      "billing_interval": "monthly",
+      "tournament_limit": 1,
+      "team_limit": 999,
+      "player_limit": 10000,
+      "storage_limit_mb": 10240,
+      "ad_limit": 100,
+      "features": [
+        "live_scoring",
+        "scoreboard_tv",
+        "team_registration_links",
+        "standings",
+        "break_ads",
+        "sponsor_management",
+        "emergency_announcements",
+        "player_auctions",
+        "player_career_stats",
+        "offline_payments_tracking",
+        "pdf_exports",
+        "advanced_analytics",
+        "custom_branding",
+        "coin_toss",
+        "ai_tournament_poster"
+      ],
+      "status": "active"
+    },
+    {
+      "id": "plan-basic",
+      "name": "Basic Club",
+      "description": "Ideal for small local village clubs hosting a couple of tournaments a year.",
+      "price": 999,
+      "currency": "₹",
+      "billing_type": "recurring",
+      "billing_interval": "monthly",
+      "tournament_limit": 2,
+      "team_limit": 16,
+      "player_limit": 250,
+      "storage_limit_mb": 500,
+      "ad_limit": 5,
+      "features": [
+        "live_scoring",
+        "team_registration_links",
+        "standings",
+        "pdf_exports"
+      ],
+      "status": "active"
+    },
+    {
+      "id": "plan-standard",
+      "name": "Standard Pro",
+      "description": "Most Popular! For active sports associations and local grounds with multiple events.",
+      "price": 2499,
+      "currency": "₹",
+      "billing_type": "recurring",
+      "billing_interval": "monthly",
+      "tournament_limit": 5,
+      "team_limit": 80,
+      "player_limit": 1200,
+      "storage_limit_mb": 2048,
+      "ad_limit": 20,
+      "features": [
+        "live_scoring",
+        "scoreboard_tv",
+        "team_registration_links",
+        "standings",
+        "break_ads",
+        "sponsor_management",
+        "pdf_exports",
+        "offline_payments_tracking",
+        "coin_toss",
+        "ai_tournament_poster"
+      ],
+      "status": "active"
+    },
+    {
+      "id": "plan-premium",
+      "name": "Premium Enterprise",
+      "description": "For large sports councils, district associations, and private organizers managing high-volume leagues.",
+      "price": 9999,
+      "currency": "₹",
+      "billing_type": "recurring",
+      "billing_interval": "yearly",
+      "tournament_limit": 999,
+      "team_limit": 999,
+      "player_limit": 10000,
+      "storage_limit_mb": 10240,
+      "ad_limit": 100,
+      "features": [
+        "live_scoring",
+        "scoreboard_tv",
+        "team_registration_links",
+        "standings",
+        "break_ads",
+        "sponsor_management",
+        "emergency_announcements",
+        "advanced_analytics",
+        "custom_branding",
+        "pdf_exports",
+        "offline_payments_tracking",
+        "coin_toss",
+        "ai_tournament_poster"
+      ],
+      "status": "active"
+    },
+    {
+      "id": "plan-onetime-football",
+      "name": "One-Time Football Package",
+      "description": "Host a single complete tournament without any recurring subscription.",
+      "price": 2999,
+      "currency": "₹",
+      "billing_type": "one_time",
+      "tournament_limit": 1,
+      "team_limit": 32,
+      "player_limit": 500,
+      "storage_limit_mb": 1024,
+      "ad_limit": 15,
+      "features": [
+        "live_scoring",
+        "scoreboard_tv",
+        "team_registration_links",
+        "standings",
+        "break_ads",
+        "sponsor_management",
+        "pdf_exports",
+        "coin_toss",
+        "ai_tournament_poster"
+      ],
+      "status": "active"
+    }
+  ]
+}

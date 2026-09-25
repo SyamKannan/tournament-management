@@ -29,7 +29,7 @@ case "$role" in
     fi
 
     if [ "${RUN_SEED:-false}" = "true" ]; then
-      echo "→ seeding demo data"
+      echo "→ seeding plans and super admin"
       php artisan db:seed --force --no-interaction
     fi
 
