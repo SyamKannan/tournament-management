@@ -197,6 +197,45 @@ class TokenRevocationTest extends TestCase
         $this->getJson('/api/auth/me', $this->bearer($this->tokenFor(self::ADMIN)))->assertOk();
     }
 
+    public function test_an_impersonation_session_says_so_and_an_own_session_does_not(): void
+    {
+        $superAdminToken = $this->tokenFor('syamdas@gmail.com');
+        $adminId = User::query()->where('email', 'syamdas@gmail.com')->value('id');
+
+        $response = $this->postJson(
+            '/api/admin/impersonate',
+            ['user_id' => $this->userId(self::ADMIN)],
+            $this->bearer($superAdminToken)
+        )->assertOk()->assertJsonPath('user.impersonated_by', $adminId);
+
+        // The client draws its banner from this, so a reload keeps it.
+        $this->getJson('/api/auth/me', $this->bearer($response->json('token')))
+            ->assertOk()
+            ->assertJsonPath('user.impersonated_by', $adminId);
+
+        $this->getJson('/api/auth/me', $this->bearer($this->tokenFor(self::ADMIN)))
+            ->assertOk()
+            ->assertJsonPath('user.impersonated_by', null);
+        $this->getJson('/api/auth/me', $this->bearer($superAdminToken))
+            ->assertOk()
+            ->assertJsonPath('user.impersonated_by', null);
+    }
+
+    public function test_a_suspended_club_cannot_be_impersonated(): void
+    {
+        $superAdminToken = $this->tokenFor('syamdas@gmail.com');
+        $orgId = User::query()->where('email', self::ADMIN)->value('organization_id');
+        Organization::query()->whereKey($orgId)->update(['status' => 'suspended']);
+
+        // Every request as that club would be refused and sign straight out.
+        $this->postJson('/api/admin/impersonate', ['organization_id' => $orgId], $this->bearer($superAdminToken))
+            ->assertStatus(409)
+            ->assertJsonPath('error', fn ($error) => str_contains($error, 'suspended'));
+
+        // The admin's own session is untouched.
+        $this->getJson('/api/auth/me', $this->bearer($superAdminToken))->assertOk();
+    }
+
     /* -------------------------------------------------------- Mechanics */
 
     public function test_a_revoked_token_is_refused_on_every_route_not_just_auth(): void

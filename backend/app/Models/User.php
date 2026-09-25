@@ -57,6 +57,10 @@ class User extends BaseModel implements AuthenticatableContract
             // set, so an onboarding or admin-issued credential is never left
             // in place as a shared secret.
             'must_change_password' => (bool) $this->must_change_password,
+            // The super admin looking through this account, when this session
+            // is an impersonation. The client shows its banner from this, not
+            // from what the browser happens to have stored.
+            'impersonated_by' => $this->impersonatorId,
             // Documents (terms, privacy) this account must accept before the
             // app lets it do anything; the client's TermsGate shows them.
             'legal_pending' => app(LegalService::class)->pendingFor($this),

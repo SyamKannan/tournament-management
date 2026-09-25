@@ -40,7 +40,7 @@ export const ImpersonationBanner: React.FC = () => {
   return (
     <aside
       aria-label="Impersonation Mode Active"
-      className="sticky top-0 z-[100] w-full bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white shadow-xl shadow-amber-950/40 border-b border-amber-400/30 backdrop-blur-md transition-all animate-in slide-in-from-top-2 duration-300"
+      className="w-full bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white shadow-xl shadow-amber-950/40 border-b border-amber-400/30 backdrop-blur-md transition-all animate-in slide-in-from-top-2 duration-300"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">

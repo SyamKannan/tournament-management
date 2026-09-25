@@ -79,7 +79,10 @@ function endSession(reason: string, rejectedToken: string) {
 }
 
 export async function apiRequest<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem('sports_saas_token');
+  // A caller may send a specific token (signing a borrowed one out after
+  // switching away from it); otherwise it's the session's current one.
+  const suppliedAuth = (options.headers as Record<string, string> | undefined)?.Authorization;
+  const token = suppliedAuth ? suppliedAuth.replace(/^Bearer\s+/, '') : localStorage.getItem('sports_saas_token');
   const demoRole = localStorage.getItem('sports_saas_demo_role');
   const demoOrgId = localStorage.getItem('sports_saas_demo_org_id');
 

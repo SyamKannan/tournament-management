@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { User, Organization, UserRole } from '../types';
-import { api, ApiError, SESSION_ENDED_EVENT } from '../services/api';
+import { api, apiRequest, ApiError, SESSION_ENDED_EVENT } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { websocketUrl } from '../config';
 
@@ -26,18 +26,47 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const TOKEN_KEY = 'sports_saas_token';
+/** The super admin's own token, parked while they look through someone else's account. */
+const IMPERSONATOR_KEY = 'sports_saas_impersonator_token';
+
+/**
+ * Leave an impersonation in storage: the admin's own token becomes the
+ * session's again. Returns the borrowed token it replaced, or null when there
+ * is no separate admin session to go back to.
+ *
+ * The switch happens before anything talks to the server, so a request still
+ * in flight with the borrowed token can't end the admin's session when it
+ * comes back refused (api.ts only acts on a rejection of the current token).
+ */
+function swapBackToImpersonator(): string | null {
+  const adminToken = localStorage.getItem(IMPERSONATOR_KEY);
+  const borrowed = localStorage.getItem(TOKEN_KEY);
+  localStorage.removeItem(IMPERSONATOR_KEY);
+  if (!adminToken || adminToken === borrowed) return null;
+
+  localStorage.setItem(TOKEN_KEY, adminToken);
+  localStorage.removeItem('sports_saas_demo_role');
+  localStorage.removeItem('sports_saas_demo_org_id');
+  return borrowed;
+}
+
+/** Revoke a token this tab has already switched away from. */
+function revokeToken(token: string) {
+  apiRequest('/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+}
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const toast = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('sports_saas_token'));
-  const [isImpersonating, setIsImpersonating] = useState<boolean>(() => !!localStorage.getItem('sports_saas_impersonator_token'));
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [role, setRole] = useState<UserRole>('PUBLIC_USER');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isWsConnected, setIsWsConnected] = useState<boolean>(false);
 
   const fetchCurrentUser = useCallback(async () => {
-    const storedToken = localStorage.getItem('sports_saas_token');
+    const storedToken = localStorage.getItem(TOKEN_KEY);
     if (!storedToken) {
       setUser(null);
       setOrganization(null);
@@ -65,8 +94,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } catch (err) {
         const status = err instanceof ApiError ? err.status : 0;
         const rejected = status === 401 || (status === 403 && !!(err as ApiError).code?.startsWith('ORGANIZATION_'));
-        if (rejected) break;
-        if (attempt >= 3 || localStorage.getItem('sports_saas_token') !== storedToken) {
+        if (rejected) {
+          // An impersonated account that stopped working (its password
+          // changed, its club suspended) ends the impersonation, not the
+          // super admin's own session.
+          const borrowed = swapBackToImpersonator();
+          if (borrowed) {
+            revokeToken(borrowed);
+            const adminToken = localStorage.getItem(TOKEN_KEY)!;
+            setToken(adminToken);
+            return fetchCurrentUser();
+          }
+          break;
+        }
+        if (attempt >= 3 || localStorage.getItem(TOKEN_KEY) !== storedToken) {
           setIsLoading(false);
           return;
         }
@@ -75,14 +116,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     console.warn('Session expired or invalid, logging out');
-    localStorage.removeItem('sports_saas_token');
-    localStorage.removeItem('sports_saas_impersonator_token');
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(IMPERSONATOR_KEY);
     localStorage.removeItem('sports_saas_demo_role');
     localStorage.removeItem('sports_saas_demo_org_id');
     setUser(null);
     setOrganization(null);
     setToken(null);
-    setIsImpersonating(false);
     setRole('PUBLIC_USER');
     setIsLoading(false);
   }, []);
@@ -92,7 +132,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const res = await api.post('/auth/login', { email, password });
       if (res.token) {
-        localStorage.setItem('sports_saas_token', res.token);
+        localStorage.setItem(TOKEN_KEY, res.token);
+        localStorage.removeItem(IMPERSONATOR_KEY);
         localStorage.setItem('sports_saas_demo_role', res.user.role);
         if (res.user.organization_id) {
           localStorage.setItem('sports_saas_demo_org_id', res.user.organization_id);
@@ -114,7 +155,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const res = await api.post('/auth/register-org', data);
       if (res.token) {
-        localStorage.setItem('sports_saas_token', res.token);
+        localStorage.setItem(TOKEN_KEY, res.token);
+        localStorage.removeItem(IMPERSONATOR_KEY);
         localStorage.setItem('sports_saas_demo_role', res.user.role);
         if (res.organization?.id) {
           localStorage.setItem('sports_saas_demo_org_id', res.organization.id);
@@ -132,65 +174,49 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const impersonate = async (options: { userId?: string; organizationId?: string }) => {
-    try {
-      const currentToken = localStorage.getItem('sports_saas_token');
-      if (!localStorage.getItem('sports_saas_impersonator_token') && currentToken) {
-        localStorage.setItem('sports_saas_impersonator_token', currentToken);
-      }
+    // Asked with the admin's own token; nothing is stored until the server
+    // says yes, so a refused attempt leaves the admin exactly where they were.
+    const adminToken = localStorage.getItem(TOKEN_KEY);
+    const res = await api.post('/admin/impersonate', {
+      user_id: options.userId,
+      organization_id: options.organizationId,
+    });
 
-      const res = await api.post('/admin/impersonate', {
-        user_id: options.userId,
-        organization_id: options.organizationId,
-      });
+    if (!res.token) throw new Error('Impersonation failed to return a valid token');
 
-      if (res.token) {
-        localStorage.setItem('sports_saas_token', res.token);
-        localStorage.setItem('sports_saas_demo_role', res.user.role);
-        if (res.user.organization_id) {
-          localStorage.setItem('sports_saas_demo_org_id', res.user.organization_id);
-        }
-        setToken(res.token);
-        setUser(res.user);
-        setOrganization(res.organization || null);
-        setRole(res.user.role);
-        setIsImpersonating(true);
-        return { user: res.user, organization: res.organization || null };
-      }
-      throw new Error('Impersonation failed to return a valid token');
-    } finally {
-      setIsLoading(false);
+    // Only a super admin's own session may impersonate, so the token that
+    // asked is always the one to come back to — never a stale parked one.
+    if (adminToken) localStorage.setItem(IMPERSONATOR_KEY, adminToken);
+    localStorage.setItem(TOKEN_KEY, res.token);
+    localStorage.setItem('sports_saas_demo_role', res.user.role);
+    if (res.user.organization_id) {
+      localStorage.setItem('sports_saas_demo_org_id', res.user.organization_id);
+    } else {
+      localStorage.removeItem('sports_saas_demo_org_id');
     }
+    setToken(res.token);
+    setUser(res.user);
+    setOrganization(res.organization || null);
+    setRole(res.user.role);
+    return { user: res.user, organization: res.organization || null };
   };
 
+  /**
+   * Back to the super admin's own session. The borrowed token is signed out
+   * only after the switch, so nothing still using it can take the admin's
+   * session down with it. With no admin session to return to, this signs out.
+   */
   const stopImpersonating = async () => {
-    setIsLoading(true);
-    try {
-      const originalToken = localStorage.getItem('sports_saas_impersonator_token');
-      if (originalToken) {
-        // Kill the impersonation token while it is still the one being sent.
-        // It stood for someone else's account, so it must not outlive the
-        // session that borrowed it; the super admin's own token is a separate
-        // token and is untouched by this.
-        await api.post('/auth/logout').catch(() => {});
-
-        localStorage.setItem('sports_saas_token', originalToken);
-        localStorage.removeItem('sports_saas_impersonator_token');
-        localStorage.removeItem('sports_saas_demo_role');
-        localStorage.removeItem('sports_saas_demo_org_id');
-        setIsImpersonating(false);
-        setToken(originalToken);
-
-        const res = await api.get('/auth/me');
-        setUser(res.user);
-        setOrganization(res.organization || null);
-        setRole(res.user.role);
-      }
-    } catch (err) {
-      console.error('Failed to stop impersonation cleanly', err);
-      fetchCurrentUser();
-    } finally {
-      setIsLoading(false);
+    const borrowed = swapBackToImpersonator();
+    if (!borrowed) {
+      logout();
+      return;
     }
+    revokeToken(borrowed);
+    setToken(localStorage.getItem(TOKEN_KEY));
+    setUser(null);
+    setOrganization(null);
+    await fetchCurrentUser();
   };
 
   /**
@@ -202,17 +228,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
    * they just used.
    */
   const adoptToken = (nextToken: string) => {
-    localStorage.setItem('sports_saas_token', nextToken);
+    localStorage.setItem(TOKEN_KEY, nextToken);
     setToken(nextToken);
   };
 
   /** Forget the signed-in session in this browser. */
   const clearSession = () => {
-    localStorage.removeItem('sports_saas_token');
-    localStorage.removeItem('sports_saas_impersonator_token');
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(IMPERSONATOR_KEY);
     localStorage.removeItem('sports_saas_demo_role');
     localStorage.removeItem('sports_saas_demo_org_id');
-    setIsImpersonating(false);
     setUser(null);
     setOrganization(null);
     setToken(null);
@@ -224,7 +249,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Forgetting it here only ends the session in this browser; anyone else
     // holding a copy could have used it until it expired on its own. Nothing
     // waits on the call — signing out must not depend on the network.
-    if (localStorage.getItem('sports_saas_token')) {
+    if (localStorage.getItem(TOKEN_KEY)) {
       api.post('/auth/logout').catch(() => {});
     }
 
@@ -253,9 +278,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const onSessionEnded = (event: Event) => {
       const detail = (event as CustomEvent).detail || {};
-      const current = localStorage.getItem('sports_saas_token');
+      const current = localStorage.getItem(TOKEN_KEY);
       // Ignore a rejection of a token this tab has already moved on from.
       if (!current || (detail.token && detail.token !== current)) return;
+      // The account being looked through stopped working: go back to the
+      // admin's own session rather than signing the admin out too.
+      const borrowed = swapBackToImpersonator();
+      if (borrowed) {
+        revokeToken(borrowed);
+        setToken(localStorage.getItem(TOKEN_KEY));
+        setUser(null);
+        setOrganization(null);
+        fetchCurrentUser();
+        toast.warning(`${detail.reason || 'That session ended.'} You are back in your admin account.`);
+        return;
+      }
       // The server already refuses this token, so there is nothing to revoke —
       // and posting /auth/logout here could revoke a newer one by mistake.
       clearSession();
@@ -265,7 +302,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     window.addEventListener(SESSION_ENDED_EVENT, onSessionEnded);
 
     return () => window.removeEventListener(SESSION_ENDED_EVENT, onSessionEnded);
-  }, [toast]);
+  }, [toast, fetchCurrentUser]);
 
   // Gateway connection status. Announcements are no longer broadcast
   // platform-wide; each one reaches only its own match's big screen.
@@ -313,7 +350,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isAuthenticated: !!user && !!token,
         isLoading,
         isWsConnected,
-        isImpersonating,
+        // The server says whose session this is; stored keys can go stale.
+        isImpersonating: !!user?.impersonated_by,
         login,
         registerOrg,
         impersonate,

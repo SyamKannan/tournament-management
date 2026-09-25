@@ -10,6 +10,7 @@ import { ImpersonateModal } from './ImpersonateModal';
 import { label } from '../lib/labels';
 import { BrandMark } from './brand/BrandMark';
 import { PreferencesMenu } from './PreferencesMenu';
+import { ImpersonationBanner } from './ImpersonationBanner';
 
 interface NavbarProps {
   /** Shown only on workspace routes, where a sidebar exists to open. */
@@ -105,6 +106,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
 
   return (
     <header className="sticky top-0 z-50 bg-slate-950/90 border-b border-slate-800/80 backdrop-blur-xl">
+      {/* Rides inside the sticky header, so "viewing as" stays on screen on every page. */}
+      <ImpersonationBanner />
       {/* Inside a workspace the header spans the full width so it lines up with the sidebar below it. */}
       <div className={showMenuButton ? 'px-4 sm:px-6' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'}>
         <div className="flex items-center justify-between h-16 gap-3">

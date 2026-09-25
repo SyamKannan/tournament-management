@@ -80,8 +80,14 @@ role switcher (no login needed in dev). `TokenService` issues/verifies JWTs, and
 `authenticate()` is the only way in — it applies both revocation paths, so don't check a
 token with bare `decode()`:
 - one token, by its `jti`, denylisted in `revoked_tokens` (`POST /api/auth/logout`, and
-  ending an impersonation — the client calls logout while still holding the borrowed
-  token). Spent rows are pruned on write; there is no scheduler to sweep them.
+  ending an impersonation). Spent rows are pruned on write; there is no scheduler to sweep them.
+
+**Impersonation.** `POST /api/admin/impersonate` issues a token carrying `imp`; `user.impersonated_by`
+(sign-in payload, `/auth/me`) is what the client's `isImpersonating` and `ImpersonationBanner` read — never
+the stored keys, which can go stale. A suspended/cancelled club is refused (409). Exiting switches
+`localStorage` back to the parked admin token *first*, then revokes the borrowed one by explicit
+`Authorization` header — the other order let an in-flight 401 sign the admin out too. A borrowed session
+that dies (401, `ORGANIZATION_*`) falls back to the admin's session instead of signing out.
 - every token an account holds, by `users.token_version` (`POST /api/auth/logout-everywhere`,
   a password change, and suspending an organization). A counter, not a timestamp, because
   `iat` is second-accurate and can't separate the token revoked from the replacement issued

@@ -158,6 +158,8 @@ export interface User {
   legal_pending?: ('terms' | 'privacy')[];
   /** Accepted some earlier version — so a prompt now is about an update. */
   legal_accepted_before?: boolean;
+  /** Set when this session is a super admin looking through the account (impersonation). */
+  impersonated_by?: string | null;
 }
 
 /** The server's list envelope: one page plus what is needed to draw a pager. */

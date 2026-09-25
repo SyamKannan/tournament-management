@@ -686,8 +686,18 @@ class AdminController extends Controller
             return response()->json(['error' => 'Platform admins cannot be impersonated.'], 403);
         }
 
-        $token = $this->tokens->issue($targetUser, $request->user()->id);
         $organization = $targetUser->organization_id ? Organization::find($targetUser->organization_id) : null;
+
+        // Every request made as a suspended or closed club is refused, so the
+        // session would open onto nothing but errors and sign straight out.
+        if ($organization && in_array($organization->status, ['suspended', 'cancelled'], true)) {
+            return response()->json([
+                'error' => "{$organization->name} is {$organization->status}. Reactivate it before viewing as the club.",
+            ], 409);
+        }
+
+        $token = $this->tokens->issue($targetUser, $request->user()->id);
+        $targetUser->impersonatorId = $request->user()->id;
 
         $this->audit(
             $request,
