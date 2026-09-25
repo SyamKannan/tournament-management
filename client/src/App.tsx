@@ -63,6 +63,7 @@ const MyProfilePage = lazyPage(() => import('./pages/account/MyProfilePage'), 'M
 // Super Admin Pages
 const AdminDashboard = lazyPage(() => import('./pages/admin/AdminDashboard'), 'AdminDashboard');
 const AdminPlansPage = lazyPage(() => import('./pages/admin/AdminPlansPage'), 'AdminPlansPage');
+const AdminReviewsPage = lazyPage(() => import('./pages/admin/AdminReviewsPage'), 'AdminReviewsPage');
 const AdminOrganizationsPage = lazyPage(() => import('./pages/admin/AdminOrganizationsPage'), 'AdminOrganizationsPage');
 const AdminSubscriptionsPage = lazyPage(() => import('./pages/admin/AdminSubscriptionsPage'), 'AdminSubscriptionsPage');
 const AdminAuditLogsPage = lazyPage(() => import('./pages/admin/AdminAuditLogsPage'), 'AdminAuditLogsPage');
@@ -218,6 +219,11 @@ export const App: React.FC = () => {
                 <Route path="/admin/plans" element={
                   <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
                     <AdminPlansPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/reviews" element={
+                  <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                    <AdminReviewsPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/admin/sports" element={

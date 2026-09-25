@@ -56,6 +56,7 @@ class AppServiceProvider extends ServiceProvider
             'upload' => [60, 1],
             'public-stats' => [60, 1],
             'assistant' => [10, 1],
+            'review' => [10, 10],
         ];
         foreach ($budgets as $name => [$max, $minutes]) {
             RateLimiter::for($name, fn (Request $request) => [

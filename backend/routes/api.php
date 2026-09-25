@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PlatformController;
+use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\PlayerController;
 use App\Http\Controllers\Api\PosterController;
 use App\Http\Controllers\Api\ReportController;
@@ -49,6 +50,8 @@ Route::get('footer', [PlatformController::class, 'footer']);
 Route::get('health', [PlatformController::class, 'health']);
 // Headline counts for the sign-in / sign-up pages (cached).
 Route::get('platform-stats', [PlatformController::class, 'stats']);
+// Landing-page reviews: what passes the admin's minimum rating and overrides.
+Route::get('reviews', [ReviewController::class, 'index']);
 Route::post('payments/demo/{orderId}/pay', [PaymentController::class, 'demoPay'])->middleware('throttle:demo-pay');
 
 // Wipes the database back to plans + super admin. Local and staging only — never expose in production.
@@ -115,6 +118,11 @@ Route::prefix('admin')->middleware(['auth.required', 'role:SUPER_ADMIN'])->group
     Route::get('invoices', [AdminController::class, 'listInvoices']);
     Route::get('audit-logs', [AdminController::class, 'auditLogs']);
 
+    Route::get('reviews', [ReviewController::class, 'adminIndex']);
+    Route::post('reviews', [ReviewController::class, 'adminStore']);
+    Route::put('reviews/{id}', [ReviewController::class, 'adminUpdate']);
+    Route::delete('reviews/{id}', [ReviewController::class, 'adminDestroy']);
+
     Route::get('settings', [AdminController::class, 'settings']);
     Route::put('settings', [AdminController::class, 'updateSettings']);
 
@@ -153,6 +161,9 @@ Route::prefix('organizations')->group(function () {
             Route::post('{id}/members/{userId}/reset-password', [OrganizationController::class, 'resetMemberPassword']);
             Route::post('{id}/subscribe/order', [OrganizationController::class, 'subscribeOrder']);
             Route::post('{id}/subscribe', [OrganizationController::class, 'subscribe']);
+            // The club's own review of the platform, for the landing page.
+            Route::get('{id}/review', [ReviewController::class, 'showOwn']);
+            Route::put('{id}/review', [ReviewController::class, 'saveOwn'])->middleware('throttle:review');
         });
     });
 });

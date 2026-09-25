@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ImageUploadModal } from '../../components/ImageUploadModal';
+import { ClubReviewCard } from '../../components/ClubReviewCard';
 import { useToast } from '../../components/ui/Toast';
 import { label } from '../../lib/labels';
 import { formatDate, formatMoney } from '../../lib/format';
@@ -335,6 +336,8 @@ export const OrgDashboard: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {organization && <ClubReviewCard organizationId={organization.id} />}
 
       {/* Club Logo Upload Modal */}
       <ImageUploadModal

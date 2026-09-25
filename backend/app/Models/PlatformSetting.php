@@ -24,6 +24,14 @@ class PlatformSetting extends Model
         'subscription_payment_methods' => 'array',
         'payment_gateways' => 'array',
         'footer' => 'array',
+        'reviews' => 'array',
+    ];
+
+    /** Landing-page reviews: reviews rated `min_rating` or more go public unless the admin hides them. */
+    public const REVIEW_DEFAULTS = [
+        'enabled' => true,
+        'min_rating' => 4,
+        'max_shown' => 6,
     ];
 
     public const SOCIAL_NETWORKS = ['facebook', 'instagram', 'youtube', 'x', 'whatsapp'];
@@ -44,6 +52,18 @@ class PlatformSetting extends Model
     public static function current(): self
     {
         return static::query()->firstOrFail();
+    }
+
+    /** @return array{enabled: bool, min_rating: int, max_shown: int} */
+    public function reviewSettings(): array
+    {
+        $merged = [...self::REVIEW_DEFAULTS, ...array_intersect_key($this->reviews ?? [], self::REVIEW_DEFAULTS)];
+
+        return [
+            'enabled' => (bool) $merged['enabled'],
+            'min_rating' => (int) $merged['min_rating'],
+            'max_shown' => (int) $merged['max_shown'],
+        ];
     }
 
     /** Stored footer merged over the defaults, so readers always get every key. */

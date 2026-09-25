@@ -5,7 +5,7 @@ import { usePlatformConfig } from '../context/PlatformConfigContext';
 import {
   LayoutDashboard, CreditCard, Building2, Trophy, Users, Calendar,
   Radio, Megaphone, FileText, Settings, History, X, Gamepad2, Image as ImageIcon,
-  Receipt, PlusCircle, BellRing, MapPin, UserCog
+  Receipt, PlusCircle, BellRing, MapPin, UserCog, MessageSquareHeart
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -22,6 +22,7 @@ const ADMIN_LINKS = [
   { to: '/admin/organizations', label: 'Organizations', icon: Building2 },
   { to: '/admin/users', label: 'Users & Players', icon: Users },
   { to: '/admin/subscriptions', label: 'Subscriptions', icon: FileText },
+  { to: '/admin/reviews', label: 'Reviews', icon: MessageSquareHeart },
   { to: '/admin/settings', label: 'Platform Settings', icon: Settings },
   { to: '/admin/audit-logs', label: 'Audit Logs', icon: History },
 ];

@@ -10,6 +10,7 @@ use App\Models\Organization;
 use App\Models\PasswordReset;
 use App\Models\Plan;
 use App\Models\PlatformSetting;
+use App\Models\Review;
 use App\Models\RevokedToken;
 use App\Models\Sport;
 use App\Models\Tournament;
@@ -37,7 +38,7 @@ class CacheServiceProvider extends ServiceProvider
         RevokedToken::class,
     ];
 
-    private const PLATFORM = [Plan::class, Sport::class, PlatformSetting::class];
+    private const PLATFORM = [Plan::class, Sport::class, PlatformSetting::class, Review::class];
 
     /** match id => tournament id; a match never changes tournament. */
     private array $matchTournaments = [];
@@ -76,6 +77,11 @@ class CacheServiceProvider extends ServiceProvider
 
         if ($model instanceof Organization) {
             $scopes[] = Cached::org($model->getKey());
+
+            // A suspended club's review leaves the landing page with it.
+            if (! $model->exists || $model->wasChanged('status')) {
+                $scopes[] = 'platform';
+            }
         }
 
         foreach (array_filter([$model->getAttribute('tournament_id'), $model->getOriginal('tournament_id')]) as $id) {

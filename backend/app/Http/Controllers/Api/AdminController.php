@@ -595,6 +595,10 @@ class AdminController extends Controller
             'footer.links.*.url' => ['required', 'string', 'max:255', 'regex:#^(/(?!/)|https?://)#i'],
             'footer.social' => ['sometimes', 'array:'.implode(',', PlatformSetting::SOCIAL_NETWORKS)],
             'footer.social.*' => ['nullable', 'string', 'max:255', 'url:http,https'],
+            'reviews' => ['sometimes', 'array'],
+            'reviews.enabled' => ['sometimes', 'boolean'],
+            'reviews.min_rating' => ['sometimes', 'integer', 'min:1', 'max:5'],
+            'reviews.max_shown' => ['sometimes', 'integer', 'min:1', 'max:24'],
         ], [
             'footer.links.*.url.regex' => 'Footer links must start with / or https://.',
             'payment_gateways.*.provider.in' => 'The demo checkout cannot be used in production. Choose Razorpay.',
@@ -617,6 +621,12 @@ class AdminController extends Controller
             $footer['social'] = array_map('strval', [...$current['social'], ...($incoming['social'] ?? [])]);
             $data['footer'] = $footer;
         }
+        if (isset($data['reviews'])) {
+            $data['reviews'] = [
+                ...$settings->reviewSettings(),
+                ...array_intersect_key($data['reviews'], PlatformSetting::REVIEW_DEFAULTS),
+            ];
+        }
         $settings->fill($data)->save();
 
         if ($gateways !== null) {
@@ -636,6 +646,7 @@ class AdminController extends Controller
         return [
             ...$settings->toArray(),
             'footer' => $settings->footerContent(),
+            'reviews' => $settings->reviewSettings(),
             'payment_gateways' => $this->gateway->adminConfig(),
         ];
     }

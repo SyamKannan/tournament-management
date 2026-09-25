@@ -188,6 +188,15 @@ follow one with `Cached::flush()` (see plan reorder). Off unless `CACHE_STORE=re
 `RESPONSE_CACHE_ENABLED=true`); a Redis outage degrades to uncached reads, never an error. The fixture
 list is keyed by staff/public so team contacts never cross over.
 
+**Reviews.** `ReviewController` + `Review`. One review per club (`PUT /api/organizations/{id}/review`), plus
+ones the super admin adds. Whether a review is public is computed on read, never stored: `visibility` is
+`auto` (public when `rating >= platform_settings.reviews.min_rating`, default 4), `shown` or `hidden` (admin
+overrides that always win), and a suspended club's review drops out. So changing the minimum applies to every
+review at once. A club editing a hand-approved review sends it back to `auto`; a hidden one stays hidden. The
+admin can't reword or re-rate a club's review, only show, hide, feature or delete it. `GET /api/reviews` is
+cached in the `platform` scope (`Review` is listed there in `CacheServiceProvider`, and an organization's
+status change flushes it too).
+
 **Exports.** `ExportController` + `CsvWriter`. Public files (table, fixtures, player stats,
 one match's card) match what the hub already shows; fee collection and squad lists carry
 phone numbers and stay with the organizer. `CsvWriter` writes a UTF-8 BOM and prefixes
@@ -239,7 +248,7 @@ swallows failures on purpose — scoring/bidding/announcements must keep returni
 API responses even when the gateway is down or unreachable. Don't make broadcast calls
 blocking or failure-sensitive.
 
-**Data model.** 25 tables, human-readable string primary keys (`org-green-valley`,
+**Data model.** 26 tables, human-readable string primary keys (`org-green-valley`,
 `tourney_1724500000000`) because public share links and the client depend on them being
 stable and readable — don't switch these to auto-increment ints. Structured config
 (tournament settings, payment rules, plan features, auction base prices, receipt
@@ -322,6 +331,7 @@ progression and its undo, groups feeding a bracket, ground clashes, venue CRUD),
 paging and search, auction undo, pay-then-register safety, poster job status),
 `TwilioDriverTest` (the exact request Twilio receives: E.164 `+`, Messaging Service,
 WhatsApp templates, refusal handling, the test command),
+`ReviewsTest` (the minimum-rating rule, admin overrides, one review per club, suspended clubs, public shape),
 `CachingTest` (hits, invalidation by scoring/edits/reorder, staff/public separation, after-commit
 flush, Redis outage; one test runs against a live Redis if `REDIS_TEST_HOST`:`REDIS_TEST_PORT` answers).
 

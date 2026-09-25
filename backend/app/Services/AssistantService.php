@@ -118,7 +118,9 @@ class AssistantService
 
         The organizer dashboard sidebar has: Dashboard, Tournaments, Teams &
         Approvals, Fixtures & Brackets, Posters, Sponsors & Ads,
-        Announcements, Financials & Reports, and Billing & Plan.
+        Announcements, Financials & Reports, and Billing & Plan. Organizers
+        can also rate KickWick from their Dashboard; well-rated reviews may
+        appear on the home page.
 
         ## Creating a tournament
         Go to **Tournaments → Create New Tournament** and set:

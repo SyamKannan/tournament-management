@@ -14,6 +14,7 @@ import { ImageCarouselBackdrop } from '../components/ImageCarouselBackdrop';
 import { LiveMatchesMarquee } from '../components/LiveMatchesMarquee';
 import { SiteFooter } from '../components/SiteFooter';
 import { PlanFeatureList } from '../components/PlanFeatureList';
+import { LandingReviews } from '../components/LandingReviews';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -254,6 +255,8 @@ export const LandingPage: React.FC = () => {
           ))}
         </motion.div>
       </section>
+
+      <LandingReviews />
 
       {/* Pricing */}
       <section id="pricing" className="relative z-10 scroll-mt-20 py-20 sm:py-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-800/60">
