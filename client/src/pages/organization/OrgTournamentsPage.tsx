@@ -28,6 +28,7 @@ type PosterTemplate = 'auto' | 'arena' | 'split' | 'classic';
 // Picking a format fills in the overs; any other number of overs is saved as "N overs".
 // The scoring engine only reads total_overs — the format is the name shown to people.
 const CRICKET_FORMATS = [
+  { value: '5 overs', label: '5 Overs', overs: 5 },
   { value: '6 overs', label: '6 Overs', overs: 6 },
   { value: '8 overs', label: '8 Overs', overs: 8 },
   { value: 'T10', label: 'T10 (10 Overs)', overs: 10 },
