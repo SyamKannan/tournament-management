@@ -20,12 +20,10 @@ import { FEATURE_AUCTION_ENABLED } from '../../config';
 import type { PaymentMethod } from '../../types';
 import { ALL_PAYMENT_METHODS, PAYMENT_METHOD_META } from '../../lib/paymentMethods';
 import { label } from '../../lib/labels';
+import NumberInput from '../../components/NumberInput';
 import { formatMoney } from '../../lib/format';
 
 type PosterTemplate = 'auto' | 'arena' | 'split' | 'classic';
-
-// A cleared number field stays empty while typing; Number('') would put a 0 back in front of the digits.
-const numberOrEmpty = (value: string): number | '' => (value === '' ? '' : Number(value));
 
 // Picking a format fills in the overs; any other number of overs is saved as "N overs".
 // The scoring engine only reads total_overs — the format is the name shown to people.
@@ -95,22 +93,22 @@ export const OrgTournamentsPage: React.FC = () => {
   const [location, setLocation] = useState('Payyanad Stadium, Manjeri');
   const [district, setDistrict] = useState('Malappuram');
   const [format, setFormat] = useState('league_knockout');
-  const [maxTeams, setMaxTeams] = useState<number | ''>(8);
+  const [maxTeams, setMaxTeams] = useState<number>(8);
   const [planTeamLimit, setPlanTeamLimit] = useState<number | null>(null);
-  const [groundFee, setGroundFee] = useState<number | ''>(5000);
+  const [groundFee, setGroundFee] = useState<number>(5000);
   const [allowPartial, setAllowPartial] = useState<boolean>(true);
   const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[]>(ALL_PAYMENT_METHODS);
-  const [prizeMoney, setPrizeMoney] = useState<number | ''>(50000);
+  const [prizeMoney, setPrizeMoney] = useState<number>(50000);
   const [footballFormat, setFootballFormat] = useState('7-a-side');
   const [cricketFormat, setCricketFormat] = useState('T20');
-  const [totalOvers, setTotalOvers] = useState<number | ''>(20);
+  const [totalOvers, setTotalOvers] = useState<number>(20);
 
   // Auction specific toggle & config
   const [hasAuction, setHasAuction] = useState<boolean>(FEATURE_AUCTION_ENABLED);
   const [auctionStartTime, setAuctionStartTime] = useState('');
   const [auctionEndTime, _setAuctionEndTime] = useState('');
-  const [teamPurse, setTeamPurse] = useState<number | ''>(100000);
-  const [minBidIncrement, setMinBidIncrement] = useState<number | ''>(500);
+  const [teamPurse, setTeamPurse] = useState<number>(100000);
+  const [minBidIncrement, setMinBidIncrement] = useState<number>(500);
 
   const fetchTournaments = async () => {
     try {
@@ -154,8 +152,8 @@ export const OrgTournamentsPage: React.FC = () => {
       .catch(err => console.error('Failed to load plan limits', err));
   }, [organization]);
 
-  const handleMaxTeamsChange = (value: number | '') => {
-    setMaxTeams(planTeamLimit && value !== '' ? Math.min(value, planTeamLimit) : value);
+  const handleMaxTeamsChange = (value: number) => {
+    setMaxTeams(planTeamLimit ? Math.min(value, planTeamLimit) : value);
   };
 
   const handleCopyLink = (token: string) => {
@@ -753,20 +751,18 @@ export const OrgTournamentsPage: React.FC = () => {
 
                       <div>
                         <label className="block text-slate-400 text-xs uppercase font-bold mb-1">Team Purse (₹)</label>
-                        <input aria-label="Team Purse (₹)"
-                          type="number"
+                        <NumberInput aria-label="Team Purse (₹)"
                           value={teamPurse}
-                          onChange={(e) => setTeamPurse(numberOrEmpty(e.target.value))}
+                          onValueChange={setTeamPurse}
                           className="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-amber-400 font-mono font-bold text-xs"
                         />
                       </div>
 
                       <div>
                         <label className="block text-slate-400 text-xs uppercase font-bold mb-1">Min Bid Inc (₹)</label>
-                        <input aria-label="Min Bid Inc (₹)"
-                          type="number"
+                        <NumberInput aria-label="Min Bid Inc (₹)"
                           value={minBidIncrement}
-                          onChange={(e) => setMinBidIncrement(numberOrEmpty(e.target.value))}
+                          onValueChange={setMinBidIncrement}
                           className="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-cyan-400 font-mono font-bold text-xs"
                         />
                       </div>
@@ -792,12 +788,11 @@ export const OrgTournamentsPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Max Teams</label>
-                    <input aria-label="Max Teams"
-                      type="number"
+                    <NumberInput aria-label="Max Teams"
                       min="2"
                       max={planTeamLimit ?? undefined}
                       value={maxTeams}
-                      onChange={(e) => handleMaxTeamsChange(numberOrEmpty(e.target.value))}
+                      onValueChange={handleMaxTeamsChange}
                       className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
                     />
                     {planTeamLimit && (
@@ -828,27 +823,24 @@ export const OrgTournamentsPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Total Overs</label>
-                    <input aria-label="Total Overs"
-                      type="number"
+                    <NumberInput aria-label="Total Overs"
                       min="1"
                       max="50"
                       value={totalOvers}
-                      onChange={(e) => {
-                        const overs = numberOrEmpty(e.target.value);
+                      onValueChange={(overs) => {
                         setTotalOvers(overs);
-                        if (overs !== '') setCricketFormat(cricketFormatFor(overs));
+                        setCricketFormat(cricketFormatFor(overs));
                       }}
                       className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
                     />
                   </div>
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Max Teams</label>
-                    <input aria-label="Max Teams"
-                      type="number"
+                    <NumberInput aria-label="Max Teams"
                       min="2"
                       max={planTeamLimit ?? undefined}
                       value={maxTeams}
-                      onChange={(e) => handleMaxTeamsChange(numberOrEmpty(e.target.value))}
+                      onValueChange={handleMaxTeamsChange}
                       className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
                     />
                     {planTeamLimit && (
@@ -867,11 +859,10 @@ export const OrgTournamentsPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-slate-400 text-xs mb-1">Total Ground Fee (₹)</label>
-                    <input aria-label="Total Ground Fee (₹)"
-                      type="number"
+                    <NumberInput aria-label="Total Ground Fee (₹)"
                       min="0"
                       value={groundFee}
-                      onChange={(e) => setGroundFee(numberOrEmpty(e.target.value))}
+                      onValueChange={setGroundFee}
                       className="w-full px-3 py-1.5 rounded-xl glass-input font-mono font-bold text-emerald-400"
                     />
                   </div>
@@ -932,11 +923,10 @@ export const OrgTournamentsPage: React.FC = () => {
 
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Prize Money Pool (₹)</label>
-                <input aria-label="Prize Money Pool (₹)"
-                  type="number"
+                <NumberInput aria-label="Prize Money Pool (₹)"
                   min="0"
                   value={prizeMoney}
-                  onChange={(e) => setPrizeMoney(numberOrEmpty(e.target.value))}
+                  onValueChange={setPrizeMoney}
                   className="w-full px-3.5 py-2 rounded-xl glass-input font-mono font-bold text-emerald-400"
                 />
               </div>

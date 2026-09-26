@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { MatchLineupEntry } from '../types';
 import { AlertTriangle } from 'lucide-react';
+import NumberInput from './NumberInput';
 
 /** What the scorer settles before a wicket can be recorded. */
 export interface WicketDetails {
@@ -157,12 +158,11 @@ export const WicketDialog: React.FC<WicketDialogProps> = ({
           {type === 'run_out' && (
             <div>
               <label htmlFor="wicketdialog-runs-completed-before-the-run-ou" className="block text-slate-400 mb-1 font-semibold">Runs completed before the run out</label>
-              <input id="wicketdialog-runs-completed-before-the-run-ou"
-                type="number"
+              <NumberInput id="wicketdialog-runs-completed-before-the-run-ou"
                 min={0}
                 max={6}
                 value={runsCompleted}
-                onChange={event => setRunsCompleted(Math.max(0, Number(event.target.value)))}
+                onValueChange={n => setRunsCompleted(Math.max(0, n))}
                 className="w-full px-3 py-2 rounded-xl glass-input bg-slate-950 text-white font-mono"
               />
             </div>
