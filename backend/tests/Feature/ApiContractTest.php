@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Auction;
 use App\Models\RegistrationLink;
+use App\Models\Team;
+use App\Models\Tournament;
 use App\Models\User;
 use App\Services\LegalService;
 use Tests\TestCase;
@@ -335,8 +337,31 @@ class ApiContractTest extends TestCase
         $this->getJson('/api/tournaments')
             ->assertOk()
             ->assertJsonStructure([
-                '*' => ['id', 'name', 'organization_name', 'teams_count', 'approved_teams_count', 'registration_link_token'],
+                '*' => ['id', 'name', 'organization_name', 'teams_count', 'approved_teams_count', 'registration_link_token', 'stage'],
             ]);
+    }
+
+    public function test_the_listing_stage_follows_what_is_actually_happening(): void
+    {
+        $this->actingAsUser('admin@greenvalley.com');
+        $stageOf = fn (string $id) => collect($this->getJson('/api/tournaments')->assertOk()->json())->firstWhere('id', $id)['stage'];
+
+        // A match is being scored, whatever the stored status says.
+        $this->assertSame('live', $stageOf('tourney-football-sevens'));
+
+        $highland = Tournament::findOrFail('tourney-highland-7s');
+        RegistrationLink::query()->where('tournament_id', $highland->id)->update(['deadline' => null, 'status' => 'active']);
+        $entered = Team::query()->where('tournament_id', $highland->id)->where('status', '!=', 'withdrawn')->count();
+
+        $highland->update(['registration_closing' => now()->addWeek()->toDateString(), 'max_teams' => $entered + 4]);
+        $this->assertSame('registration_open', $stageOf($highland->id));
+
+        $highland->update(['max_teams' => max(2, $entered)]);
+        $this->assertSame($entered >= 2 ? 'teams_full' : 'registration_open', $stageOf($highland->id));
+
+        // The stored status still says registration_open; the passed deadline wins.
+        $highland->update(['registration_closing' => now()->subDay()->toDateString(), 'max_teams' => $entered + 4]);
+        $this->assertSame('registration_closed', $stageOf($highland->id));
     }
 
     public function test_sponsor_and_announcement_listings_return_arrays(): void

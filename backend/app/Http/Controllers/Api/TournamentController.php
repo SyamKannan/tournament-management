@@ -25,6 +25,7 @@ use App\Services\RealtimeBroadcaster;
 use App\Support\Audit;
 use App\Support\Cached;
 use App\Support\Ids;
+use App\Support\TournamentStage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -116,15 +117,19 @@ class TournamentController extends Controller
             ->get()
             ->keyBy('tournament_id');
 
-        return response()->json($tournaments->map(function (Tournament $tournament) use ($organizations, $teamsByTournament, $links) {
+        $stages = TournamentStage::forMany($tournaments);
+
+        return response()->json($tournaments->map(function (Tournament $tournament) use ($organizations, $teamsByTournament, $links, $stages) {
             $teams = $teamsByTournament->get($tournament->id) ?? collect();
+            $link = $links->get($tournament->id);
 
             return [
                 ...$tournament->toArray(),
                 'organization_name' => $organizations->get($tournament->organization_id)?->name,
-                'teams_count' => $teams->count(),
+                'teams_count' => $teams->where('status', '!=', 'withdrawn')->count(),
                 'approved_teams_count' => $teams->where('status', 'approved')->count(),
-                'registration_link_token' => $links->get($tournament->id)?->token,
+                'registration_link_token' => $link?->token,
+                'stage' => $stages[$tournament->id],
             ];
         }));
     }

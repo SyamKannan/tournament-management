@@ -10,7 +10,7 @@ import { Link } from 'react-router-dom';
 import { ImageUploadModal } from '../../components/ImageUploadModal';
 import { ClubReviewCard } from '../../components/ClubReviewCard';
 import { useToast } from '../../components/ui/Toast';
-import { label } from '../../lib/labels';
+import { label, tournamentGame } from '../../lib/labels';
 import { formatDate, formatMoney } from '../../lib/format';
 
 export const OrgDashboard: React.FC = () => {
@@ -24,10 +24,10 @@ export const OrgDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
-  const fetchOrgData = async () => {
+  const fetchOrgData = async (quiet = false) => {
     if (!organization) return;
     try {
-      setLoading(true);
+      if (!quiet) setLoading(true);
       const [usageRes, tourneysRes] = await Promise.all([
         api.get(`/organizations/${organization.id}/usage`),
         api.get('/tournaments')
@@ -48,6 +48,17 @@ export const OrgDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchOrgData();
+    // Teams register and matches get scored while this screen sits open, so keep
+    // the cards current: every minute, and as soon as the tab is looked at again.
+    const refresh = () => { if (document.visibilityState === 'visible') fetchOrgData(true); };
+    const timer = window.setInterval(refresh, 60_000);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
   }, [organization]);
 
   const copyRegLink = (token: string) => {
@@ -290,7 +301,7 @@ export const OrgDashboard: React.FC = () => {
                       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
                       : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                   }`}>
-                    {t.sport_code === 'football' ? '⚽ 7s Football' : '🏏 T20 Cricket'} • {label(t.status)}
+                    {t.sport_code === 'football' ? '⚽' : '🏏'} {tournamentGame(t)} • {label(t.stage ?? t.status)}
                   </span>
                   <span className="text-xs font-mono font-bold text-slate-300">Ground Fee: {formatMoney(t.ground_fee)}</span>
                 </div>
@@ -299,21 +310,23 @@ export const OrgDashboard: React.FC = () => {
                 <p className="text-xs text-slate-400 mt-1">{t.location || `${t.village}, ${t.district}`}</p>
 
                 <div className="text-xs text-slate-400 mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <span>Teams Registered: <strong className="text-white font-mono">{t.teams_count || 4} / {t.max_teams}</strong></span>
-                  <span>Approved: <strong className="text-emerald-400 font-mono">{t.approved_teams_count || 4}</strong></span>
+                  <span>Teams Registered: <strong className="text-white font-mono">{t.teams_count ?? 0} / {t.max_teams}</strong></span>
+                  <span>Approved: <strong className="text-emerald-400 font-mono">{t.approved_teams_count ?? 0}</strong></span>
                 </div>
               </div>
 
               {/* Action Buttons */}
               <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
+                {t.registration_link_token ? (
                 <button
                   type="button"
-                  onClick={() => copyRegLink(t.registration_link_token || 'sevens-cup-2026-reg')}
+                  onClick={() => copyRegLink(t.registration_link_token)}
                   className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center gap-1.5"
                 >
                   <Share2 className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>{copiedToken === (t.registration_link_token || 'sevens-cup-2026-reg') ? 'Copied Link!' : 'Share Reg Link'}</span>
+                  <span>{copiedToken === t.registration_link_token ? 'Copied Link!' : 'Share Reg Link'}</span>
                 </button>
+                ) : <span />}
 
                 <div className="flex items-center gap-2">
                   <Link

@@ -240,6 +240,13 @@ club's review, only shows or hides it — one at a time or up to 100 via `POST /
 `rating`, `sort` and per-tab `counts`. `GET /api/reviews` is cached in the `platform` scope (`Review` is listed
 there in `CacheServiceProvider`, and an organization's status change flushes it too).
 
+**Tournament cards show `stage`, not `status`.** The stored `status` is `registration_open` from creation and
+nothing advances it. `Support\TournamentStage::forMany()` works out where a tournament really is (`live`,
+`ongoing`, `matches_finished`, `fixtures_ready`, `registration_closed`, `teams_full`, `registration_open`) from
+matches, the deadline (`Support\RegistrationWindow`, the same rule registration enforces) and entries; list
+endpoints attach it. The game name comes from settings via `tournamentGame()` in `client/src/lib/labels.ts` —
+never hard-code "T20" or "7s", and never fall back to a made-up count.
+
 **Exports.** `ExportController` + `CsvWriter`. Public files (table, fixtures, player stats,
 one match's card) match what the hub already shows; fee collection and squad lists carry
 phone numbers and stay with the organizer. `CsvWriter` writes a UTF-8 BOM and prefixes

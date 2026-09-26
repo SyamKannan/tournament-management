@@ -19,9 +19,9 @@ use App\Services\PaymentGatewayService;
 use App\Services\TournamentPaymentService;
 use App\Support\Audit;
 use App\Support\Ids;
+use App\Support\RegistrationWindow;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -69,44 +69,9 @@ class TeamController extends Controller
             'current_teams_count' => $currentTeams,
             'is_full' => $currentTeams >= $tournament->max_teams,
             // So the page can say why it is closed instead of failing on submit.
-            'is_closed' => $this->registrationClosedReason($tournament, $link) !== null,
-            'closed_reason' => $this->registrationClosedReason($tournament, $link),
+            'is_closed' => RegistrationWindow::closedReason($tournament, $link) !== null,
+            'closed_reason' => RegistrationWindow::closedReason($tournament, $link),
         ]);
-    }
-
-    /**
-     * Why entries are closed, or null while they are open. The closing date was
-     * being collected and shown but never enforced, so teams could enter days
-     * after the deadline — and after the draw had been made.
-     */
-    private function registrationClosedReason(Tournament $tournament, ?RegistrationLink $link): ?string
-    {
-        if (in_array($tournament->status, ['cancelled', 'completed'], true)) {
-            return $tournament->status === 'cancelled'
-                ? 'This tournament has been cancelled.'
-                : 'This tournament has already finished.';
-        }
-
-        $deadline = $link?->deadline ?: $tournament->registration_closing;
-
-        if ($deadline) {
-            try {
-                // A date with no time means entries close at the end of that day.
-                $closesAt = Carbon::parse($deadline);
-
-                if ($closesAt->equalTo($closesAt->copy()->startOfDay())) {
-                    $closesAt = $closesAt->endOfDay();
-                }
-
-                if ($closesAt->isPast()) {
-                    return 'Registration closed on '.$closesAt->format('j M Y').'.';
-                }
-            } catch (\Exception) {
-                // An unparseable date is treated as no deadline at all.
-            }
-        }
-
-        return null;
     }
 
     /**
@@ -128,7 +93,7 @@ class TeamController extends Controller
             return response()->json(['error' => 'Tournament not found'], 404);
         }
 
-        if ($closed = $this->registrationClosedReason($tournament, $link)) {
+        if ($closed = RegistrationWindow::closedReason($tournament, $link)) {
             return response()->json(['error' => $closed], 400);
         }
 
@@ -193,7 +158,7 @@ class TeamController extends Controller
             return [response()->json(['error' => 'Tournament not found'], 404), []];
         }
 
-        if ($closed = $this->registrationClosedReason($tournament, $link)) {
+        if ($closed = RegistrationWindow::closedReason($tournament, $link)) {
             return [response()->json(['error' => $closed], 400), []];
         }
 
@@ -784,7 +749,7 @@ class TeamController extends Controller
             ->map(function (RegistrationLink $link) use ($tournaments, $entries, $organizations) {
                 $tournament = $tournaments->get($link->tournament_id);
 
-                if (! $tournament || $this->registrationClosedReason($tournament, $link) !== null) {
+                if (! $tournament || RegistrationWindow::closedReason($tournament, $link) !== null) {
                     return null;
                 }
 

@@ -16,6 +16,7 @@ use App\Services\TemporaryPasswordService;
 use App\Support\Audit;
 use App\Support\Ids;
 use App\Support\Paginate;
+use App\Support\TournamentStage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -40,12 +41,15 @@ class OrganizationController extends Controller
             return response()->json(['error' => 'Organization not found or inactive'], 404);
         }
 
+        $active = Tournament::query()
+            ->where('organization_id', $organization->id)
+            ->whereNotIn('status', ['cancelled', 'draft'])
+            ->get();
+        $stages = TournamentStage::forMany($active);
+
         return response()->json([
             'organization' => $organization,
-            'active_tournaments' => Tournament::query()
-                ->where('organization_id', $organization->id)
-                ->whereNotIn('status', ['cancelled', 'draft'])
-                ->get(),
+            'active_tournaments' => $active->map(fn (Tournament $t) => [...$t->toArray(), 'stage' => $stages[$t->id]])->values(),
             'past_tournaments' => Tournament::query()
                 ->where('organization_id', $organization->id)
                 ->where('status', 'completed')

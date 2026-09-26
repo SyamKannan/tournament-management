@@ -331,7 +331,7 @@ export const OrgTeamsPage: React.FC = () => {
                         onClick={() => setRosterTeam(team)}
                         className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs font-semibold transition-colors"
                       >
-                        {team.players_count || 7} Players ↗
+                        {team.players_count ?? team.players?.length ?? 0} Players ↗
                       </button>
                     </td>
 

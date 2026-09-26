@@ -17,7 +17,7 @@ import {
   Printer, CreditCard, Check, RotateCcw,
   Info, FileText, Search, X
 } from 'lucide-react';
-import { label } from '../../lib/labels';
+import { label, tournamentGame } from '../../lib/labels';
 import { formatDate, formatMoney } from '../../lib/format';
 import NumberInput from '../../components/NumberInput';
 
@@ -403,7 +403,7 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider ${
                   isFootball ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                 }`}>
-                  {isFootball ? '⚽ Football 7s' : '🏏 Cricket T20'}
+                  {isFootball ? '⚽' : '🏏'} {tournamentGame(tournament)}
                 </span>
 
                 <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs font-bold">

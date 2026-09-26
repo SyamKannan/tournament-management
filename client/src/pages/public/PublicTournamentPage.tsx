@@ -10,7 +10,7 @@ import {
 import { FEATURE_AUCTION_ENABLED } from '../../config';
 import { periodLabel, tossDecisionPhrase } from '../../lib/football';
 import { playerPhoto, stat } from '../../lib/playerStats';
-import { label } from '../../lib/labels';
+import { label, tournamentGame } from '../../lib/labels';
 import { formatDate, formatMatchTime, formatMoney } from '../../lib/format';
 import { BracketView, type Bracket } from '../../components/BracketView';
 
@@ -155,7 +155,7 @@ export const PublicTournamentPage: React.FC = () => {
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
                     isFootball ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                   }`}>
-                    {isFootball ? '⚽ Football 7s' : '🏏 Cricket T20'}
+                    {isFootball ? '⚽' : '🏏'} {tournamentGame(tournament)}
                   </span>
                   <span className="text-xs text-slate-400 font-medium">
                     Host: <Link to={`/organizations/${organization.slug}`} className="text-slate-200 hover:text-emerald-400 underline font-semibold">{organization.name}</Link>

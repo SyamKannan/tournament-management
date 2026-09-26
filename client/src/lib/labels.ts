@@ -29,6 +29,12 @@ const OVERRIDES: Record<string, string> = {
   leg_bye: 'Leg bye',
   kick_off: 'Kick-off',
 
+  // Tournament stages the API works out for the club's cards (TournamentController::stage).
+  live: 'Live now',
+  teams_full: 'Teams full',
+  fixtures_ready: 'Fixtures ready',
+  matches_finished: 'All matches played',
+
   // Notification events, where the automatic wording reads like a database
   // column ("Auction player sold", "Subscription expiring").
   fee_due_reminder: 'Entry fee reminder',
@@ -44,4 +50,16 @@ export const label = (value: string | null | undefined): string => {
   if (!/[_]/.test(value) && value !== value.toLowerCase() && value !== value.toUpperCase()) return value;
   const words = value.replace(/_+/g, ' ').trim().toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
+/** The game a tournament plays, from its settings: "T20 Cricket", "6-over Cricket", "7-a-side Football". */
+export const tournamentGame = (t: { sport_code?: string; settings?: Record<string, any> | null }): string => {
+  const s = t.settings ?? {};
+  if (t.sport_code === 'football') {
+    return s.football_format ? `${s.football_format} Football` : 'Football';
+  }
+  const format = String(s.cricket_format ?? '');
+  if (/^T\d+$/i.test(format)) return `${format.toUpperCase()} Cricket`;
+  const overs = Number(s.total_overs);
+  return overs > 0 ? `${overs}-over Cricket` : 'Cricket';
 };

@@ -273,6 +273,8 @@ export interface Tournament {
   registration_opening: string;
   registration_closing: string;
   format: TournamentFormat;
+  /** Where it actually is now (live, teams_full, registration_closed…), on list responses only. */
+  stage?: string;
   max_teams: number;
   ground_fee: number;
   payment_config: {

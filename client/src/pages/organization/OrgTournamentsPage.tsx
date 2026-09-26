@@ -19,7 +19,7 @@ import { RegistrationQrModal } from '../../components/RegistrationQrModal';
 import { FEATURE_AUCTION_ENABLED } from '../../config';
 import type { PaymentMethod } from '../../types';
 import { ALL_PAYMENT_METHODS, PAYMENT_METHOD_META } from '../../lib/paymentMethods';
-import { label } from '../../lib/labels';
+import { label, tournamentGame } from '../../lib/labels';
 import NumberInput from '../../components/NumberInput';
 import { formatMoney } from '../../lib/format';
 
@@ -402,7 +402,7 @@ export const OrgTournamentsPage: React.FC = () => {
       <div className="grid md:grid-cols-2 gap-4 sm:gap-6 min-w-0">
         {tournaments.map(t => {
           const isFb = t.sport_code === 'football';
-          const regToken = t.registration_link_token || 'sevens-cup-2026-reg';
+          const regToken: string = t.registration_link_token ?? '';
           const hasAuctionEnabled = FEATURE_AUCTION_ENABLED && Boolean(t.has_auction);
           const isCancelled = t.status === 'cancelled';
 
@@ -414,8 +414,14 @@ export const OrgTournamentsPage: React.FC = () => {
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
                       isFb ? 'bg-emerald-500/20 text-emerald-400' : 'bg-cyan-500/20 text-cyan-400'
                     }`}>
-                      {isFb ? '⚽ Football' : '🏏 Cricket'} • {label(t.format)}
+                      {isFb ? '⚽' : '🏏'} {tournamentGame(t)} • {label(t.format)}
                     </span>
+
+                    {!isCancelled && t.stage && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-200 border border-slate-700 text-xs font-bold uppercase tracking-wider">
+                        {label(t.stage)}
+                      </span>
+                    )}
 
                     {isCancelled && (
                       <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-black uppercase tracking-wider">
@@ -447,8 +453,9 @@ export const OrgTournamentsPage: React.FC = () => {
                     <span className="font-semibold text-slate-300">
                       {hasAuctionEnabled ? 'Direct Team Entry Link' : 'Public Team Registration Link'}
                     </span>
-                    <span className="shrink-0 text-xs text-emerald-400 font-bold">{t.teams_count || 4}/{t.max_teams} Teams</span>
+                    <span className="shrink-0 text-xs text-emerald-400 font-bold">{t.teams_count ?? 0}/{t.max_teams} Teams</span>
                   </div>
+                  {regToken ? (
                   <div className="flex flex-wrap items-center gap-2 min-w-0">
                     <input
                       type="text"
@@ -479,6 +486,9 @@ export const OrgTournamentsPage: React.FC = () => {
                       <span>QR</span>
                     </button>
                   </div>
+                  ) : (
+                    <p className="text-xs text-slate-500">No registration link for this tournament.</p>
+                  )}
                 </div>
               </div>
 
@@ -1014,7 +1024,7 @@ export const OrgTournamentsPage: React.FC = () => {
       {qrTournament && (
         <RegistrationQrModal
           tournamentName={qrTournament.name}
-          url={`${window.location.origin}/register/team/${qrTournament.registration_link_token || 'sevens-cup-2026-reg'}`}
+          url={`${window.location.origin}/register/team/${qrTournament.registration_link_token}`}
           fileSlug={qrTournament.slug}
           onClose={() => setQrTournament(null)}
         />
