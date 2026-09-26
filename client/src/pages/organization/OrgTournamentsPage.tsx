@@ -37,6 +37,7 @@ const CRICKET_FORMATS = [
   { value: 'T20', label: 'T20 (20 Overs)', overs: 20 },
   { value: '50 overs', label: 'One Day (50 Overs)', overs: 50 },
 ];
+const CUSTOM_FORMAT = 'custom';
 const cricketFormatFor = (overs: number) => CRICKET_FORMATS.find(f => f.overs === overs)?.value ?? `${overs} overs`;
 
 const POSTER_TEMPLATES: { id: PosterTemplate; label: string }[] = [
@@ -806,25 +807,32 @@ export const OrgTournamentsPage: React.FC = () => {
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Cricket Format</label>
                     <select aria-label="Cricket Format"
-                      value={cricketFormat}
+                      value={CRICKET_FORMATS.some(f => f.value === cricketFormat) ? cricketFormat : CUSTOM_FORMAT}
                       onChange={(e) => {
-                        setCricketFormat(e.target.value);
                         const preset = CRICKET_FORMATS.find(f => f.value === e.target.value);
-                        if (preset) setTotalOvers(preset.overs);
+                        if (preset) {
+                          setCricketFormat(preset.value);
+                          setTotalOvers(preset.overs);
+                        } else {
+                          // Any other length: keep the overs and let them be typed in.
+                          setCricketFormat(`${totalOvers} overs`);
+                          document.getElementById('tournament-total-overs')?.focus();
+                        }
                       }}
                       className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900"
                     >
                       {CRICKET_FORMATS.map(f => (
                         <option key={f.value} value={f.value}>{f.label}</option>
                       ))}
-                      {!CRICKET_FORMATS.some(f => f.value === cricketFormat) && (
-                        <option value={cricketFormat}>Custom ({totalOvers || '?'} Overs)</option>
-                      )}
+                      <option value={CUSTOM_FORMAT}>
+                        {CRICKET_FORMATS.some(f => f.value === cricketFormat) ? 'Custom (any overs)' : `Custom (${totalOvers || '?'} Overs)`}
+                      </option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Total Overs</label>
                     <NumberInput aria-label="Total Overs"
+                      id="tournament-total-overs"
                       min="1"
                       max="50"
                       value={totalOvers}
@@ -834,6 +842,7 @@ export const OrgTournamentsPage: React.FC = () => {
                       }}
                       className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
                     />
+                    <p className="text-xs text-slate-500 mt-1">Any length from 1 to 50 overs.</p>
                   </div>
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Max Teams</label>
