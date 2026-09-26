@@ -11,7 +11,7 @@ import { FEATURE_AUCTION_ENABLED } from '../../config';
 import { periodLabel, tossDecisionPhrase } from '../../lib/football';
 import { playerPhoto, stat } from '../../lib/playerStats';
 import { label, tournamentGame } from '../../lib/labels';
-import { formatDate, formatMatchTime, formatMoney } from '../../lib/format';
+import { formatDate, formatMatchTime, formatMoney, formatTime } from '../../lib/format';
 import { BracketView, type Bracket } from '../../components/BracketView';
 
 export const PublicTournamentPage: React.FC = () => {
@@ -178,7 +178,7 @@ export const PublicTournamentPage: React.FC = () => {
                   </a>
                   <span className="flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>{formatDate(tournament.start_date)} - {formatDate(tournament.end_date)}</span>
+                    <span>{formatDate(tournament.start_date)}{tournament.settings?.start_time ? `, ${formatTime(tournament.settings.start_time)}` : ''} - {formatDate(tournament.end_date)}</span>
                   </span>
                   <span className="flex items-center gap-1 font-mono text-amber-400 font-bold">
                     <DollarSign className="w-3.5 h-3.5" />

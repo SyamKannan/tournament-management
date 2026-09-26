@@ -352,7 +352,12 @@ class ApiContractTest extends TestCase
             'sport_code' => 'football',
             'start_date' => $start,
             'end_date' => now()->addDays(12)->toDateString(),
+            'settings' => ['start_time' => '16:30'],
         ])->assertCreated()->json('tournament.id');
+
+        $this->assertSame('16:30', Tournament::findOrFail($id)->settings['start_time']);
+        $this->putJson("/api/tournaments/{$id}", ['settings' => ['start_time' => 'late']])->assertOk();
+        $this->assertSame('', Tournament::findOrFail($id)->settings['start_time'], 'a time that is not HH:MM is dropped');
 
         $this->assertSame($start, Tournament::findOrFail($id)->registration_closing);
         $this->assertSame($start, RegistrationLink::query()->where('tournament_id', $id)->value('deadline'));

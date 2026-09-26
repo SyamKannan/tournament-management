@@ -36,6 +36,14 @@ export const formatMatchTime = (value: string | number | Date | null | undefined
     : fallback;
 };
 
+/** "3:00 PM" from a stored "15:00". */
+export const formatTime = (value: string | null | undefined, fallback = '') => {
+  const match = /^(\d{1,2}):(\d{2})/.exec(value ?? '');
+  if (!match) return fallback;
+  const at = new Date(2000, 0, 1, Number(match[1]), Number(match[2]));
+  return at.toLocaleTimeString(undefined, TIME);
+};
+
 /** "₹5,000" — grouped Indian-style, no trailing paise on whole amounts. */
 export const formatMoney = (amount: number | string | null | undefined, fallback = '₹0') => {
   const value = typeof amount === 'string' ? Number(amount) : amount;

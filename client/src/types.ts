@@ -227,6 +227,8 @@ export type TournamentStatus =
   | 'cancelled';
 
 export interface TournamentSettings {
+  /** First kick-off on the start day, "HH:MM". */
+  start_time?: string;
   squad_min_players: number;
   squad_max_players: number;
   max_substitutes: number;

@@ -778,6 +778,8 @@ class TournamentController extends Controller
             'google_maps_url' => $settings['google_maps_url'] ?? '',
             'latitude' => isset($settings['latitude']) ? (float) $settings['latitude'] : null,
             'longitude' => isset($settings['longitude']) ? (float) $settings['longitude'] : null,
+            // First kick-off on the start day, "HH:MM"; the fixture builder starts from it.
+            'start_time' => preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) ($settings['start_time'] ?? '')) ? $settings['start_time'] : '',
         ];
     }
 

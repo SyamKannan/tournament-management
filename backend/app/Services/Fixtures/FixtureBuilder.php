@@ -501,15 +501,29 @@ class FixtureBuilder
             try {
                 $date = Carbon::parse($candidate);
 
-                // A bare date has no kick-off time; village matches start in the
-                // afternoon once the heat is off, not at midnight.
-                return $date->format('H:i') === '00:00' ? $date->setTime(15, 0) : $date;
+                // A bare date has no kick-off time: use the one the organizer set on
+                // the tournament, else the afternoon once the heat is off — not midnight.
+                if ($date->format('H:i') === '00:00') {
+                    [$hour, $minute] = $this->firstKickOff($tournament);
+
+                    return $date->setTime($hour, $minute);
+                }
+
+                return $date;
             } catch (\Throwable) {
                 continue;
             }
         }
 
-        return Carbon::now()->addDay()->setTime(15, 0);
+        return Carbon::now()->addDay()->setTime(...$this->firstKickOff($tournament));
+    }
+
+    /** @return array{int, int} */
+    private function firstKickOff(Tournament $tournament): array
+    {
+        $time = (string) ($tournament->settings['start_time'] ?? '');
+
+        return preg_match('/^(\d{2}):(\d{2})$/', $time, $m) ? [(int) $m[1], (int) $m[2]] : [15, 0];
     }
 
     /**

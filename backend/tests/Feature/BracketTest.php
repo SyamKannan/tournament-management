@@ -260,6 +260,21 @@ class BracketTest extends TestCase
 
     /* ------------------------------------------------------------- League */
 
+    public function test_the_first_match_kicks_off_at_the_time_the_organizer_set(): void
+    {
+        [$tournament] = $this->tournamentWith(4, 'league');
+
+        $first = fn () => collect($this->builder->build($tournament, $this->teamsOf($tournament)))
+            ->map(fn (GameMatch $m) => Carbon::parse($m->scheduled_at))->sort()->first();
+
+        // No time set: the afternoon default.
+        $this->assertSame('2027-03-01 15:00', $first()->format('Y-m-d H:i'));
+
+        $tournament->update(['settings' => [...$tournament->settings, 'start_time' => '07:30']]);
+        GameMatch::query()->where('tournament_id', $tournament->id)->delete();
+        $this->assertSame('2027-03-01 07:30', $first()->format('Y-m-d H:i'));
+    }
+
     public function test_a_league_plays_every_pairing_once(): void
     {
         [$tournament] = $this->tournamentWith(5, 'league');

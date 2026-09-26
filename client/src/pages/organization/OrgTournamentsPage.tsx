@@ -93,6 +93,8 @@ export const OrgTournamentsPage: React.FC = () => {
   const [name, setName] = useState('');
   // Dates as YYYY-MM-DD. An empty closing date means entries close when play starts.
   const [startDate, setStartDate] = useState('');
+  // First kick-off on the start day; generated fixtures begin at this time.
+  const [startTime, setStartTime] = useState('15:00');
   const [endDate, setEndDate] = useState('');
   const [registrationClosing, setRegistrationClosing] = useState('');
   const [sportCode, setSportCode] = useState<'football' | 'cricket'>('cricket');
@@ -245,6 +247,7 @@ export const OrgTournamentsPage: React.FC = () => {
       min_bid_increment: Number(minBidIncrement),
       settings: {
         football_format: footballFormat,
+        start_time: startTime,
         cricket_format: cricketFormat,
         total_overs: Number(totalOvers),
         squad_min_players: sportCode === 'football' ? (footballFormat === '5-a-side' ? 5 : 7) : 11,
@@ -289,6 +292,7 @@ export const OrgTournamentsPage: React.FC = () => {
       settings: {
         ...baseSettings,
         football_format: footballFormat,
+        start_time: startTime,
         cricket_format: cricketFormat,
         total_overs: Number(totalOvers),
         squad_min_players: sportCode === 'football' ? (footballFormat === '5-a-side' ? 5 : 7) : 11,
@@ -312,6 +316,7 @@ export const OrgTournamentsPage: React.FC = () => {
     setEditingId(null);
     setEditingTournament(null);
     setStartDate('');
+    setStartTime('15:00');
     setEndDate('');
     setRegistrationClosing('');
     setShowCreateModal(true);
@@ -325,6 +330,7 @@ export const OrgTournamentsPage: React.FC = () => {
     setEditingTournament(t);
     setName(t.name || '');
     setStartDate(t.start_date || '');
+    setStartTime(settings.start_time || '15:00');
     setEndDate(t.end_date || '');
     setRegistrationClosing(t.registration_closing || '');
     setSportCode(t.sport_code);
@@ -364,8 +370,8 @@ export const OrgTournamentsPage: React.FC = () => {
       toast.warning('Select at least one accepted payment method.');
       return;
     }
-    if (!startDate || !endDate) {
-      toast.warning('Pick the dates the tournament starts and ends.');
+    if (!startDate || !endDate || !startTime) {
+      toast.warning('Pick when the tournament starts and ends.');
       return;
     }
     if (endDate < startDate) {
@@ -630,7 +636,7 @@ export const OrgTournamentsPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="tournament-start-date" className="block text-slate-300 font-semibold mb-1">Starts on *</label>
                   <input id="tournament-start-date"
@@ -643,6 +649,17 @@ export const OrgTournamentsPage: React.FC = () => {
                     required
                     className="w-full px-3.5 py-2 rounded-xl glass-input"
                   />
+                </div>
+                <div>
+                  <label htmlFor="tournament-start-time" className="block text-slate-300 font-semibold mb-1">First match at *</label>
+                  <input id="tournament-start-time"
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    required
+                    className="w-full px-3.5 py-2 rounded-xl glass-input"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Fixtures are scheduled from this time.</p>
                 </div>
                 <div>
                   <label htmlFor="tournament-end-date" className="block text-slate-300 font-semibold mb-1">Ends on *</label>
