@@ -478,7 +478,14 @@
   background: var(--glass-input-bg);
   border: 1px solid var(--glass-input-border);
   color: var(--glass-input-text);
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+/* The open list of a <select> is drawn by the browser and re-measured while
+   the field animates, so hovering options made it jitter and widen. */
+select.glass-input,
+select.auth-field {
+  transition: none;
 }
 
 .glass-input::placeholder {
