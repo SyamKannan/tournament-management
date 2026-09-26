@@ -231,7 +231,9 @@ class TournamentController extends Controller
                 'start_date' => $data['start_date'] ?? $today,
                 'end_date' => $data['end_date'] ?? $today,
                 'registration_opening' => $data['registration_opening'] ?? $today,
-                'registration_closing' => $data['registration_closing'] ?? $today,
+                // Entries close when the organizer says, else when play starts — never
+                // "today", which shut registration at midnight on the day it opened.
+                'registration_closing' => $data['registration_closing'] ?? ($data['start_date'] ?? ''),
                 'format' => $data['format'] ?? 'league_knockout',
                 'max_teams' => (int) ($data['max_teams'] ?? 8),
                 'ground_fee' => (float) ($data['ground_fee'] ?? 0),
@@ -273,7 +275,7 @@ class TournamentController extends Controller
                 'status' => 'active',
                 'max_teams' => $tournament->max_teams,
                 'current_registrations' => 0,
-                'deadline' => $tournament->registration_closing,
+                'deadline' => $tournament->registration_closing ?: null,
             ]);
 
             Audit::log([
@@ -372,6 +374,15 @@ class TournamentController extends Controller
         }
 
         $tournament->fill($data)->save();
+
+        // The link keeps its own copy of the deadline and size, and the registration
+        // page reads the link first — so a changed date must reach it too.
+        if ($tournament->wasChanged(['registration_closing', 'max_teams'])) {
+            RegistrationLink::query()->where('tournament_id', $tournament->id)->update([
+                'deadline' => $tournament->registration_closing ?: null,
+                'max_teams' => $tournament->max_teams,
+            ]);
+        }
 
         $user = $request->user();
         Audit::log([
@@ -637,7 +648,7 @@ class TournamentController extends Controller
                     'status' => 'active',
                     'max_teams' => $tournament->max_teams,
                     'current_registrations' => Team::query()->where('tournament_id', $tournament->id)->count(),
-                    'deadline' => $tournament->registration_closing,
+                    'deadline' => $tournament->registration_closing ?: null,
                 ]);
             }
         } elseif ($link && ! empty($data['status'])) {

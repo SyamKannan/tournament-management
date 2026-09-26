@@ -341,6 +341,31 @@ class ApiContractTest extends TestCase
             ]);
     }
 
+    public function test_a_new_tournament_takes_entries_until_it_starts_and_a_moved_deadline_reaches_the_link(): void
+    {
+        $this->actingAsUser('admin@greenvalley.com');
+        $start = now()->addDays(10)->toDateString();
+
+        // No closing date given: entries stay open until play starts, not until midnight today.
+        $id = $this->postJson('/api/tournaments', [
+            'name' => 'Deadline Cup',
+            'sport_code' => 'football',
+            'start_date' => $start,
+            'end_date' => now()->addDays(12)->toDateString(),
+        ])->assertCreated()->json('tournament.id');
+
+        $this->assertSame($start, Tournament::findOrFail($id)->registration_closing);
+        $this->assertSame($start, RegistrationLink::query()->where('tournament_id', $id)->value('deadline'));
+
+        $listed = collect($this->getJson('/api/tournaments')->json())->firstWhere('id', $id);
+        $this->assertSame('registration_open', $listed['stage']);
+
+        // The registration page reads the link's copy first, so an edit must move it too.
+        $later = now()->addDays(8)->toDateString();
+        $this->putJson("/api/tournaments/{$id}", ['registration_closing' => $later])->assertOk();
+        $this->assertSame($later, RegistrationLink::query()->where('tournament_id', $id)->value('deadline'));
+    }
+
     public function test_the_listing_stage_follows_what_is_actually_happening(): void
     {
         $this->actingAsUser('admin@greenvalley.com');

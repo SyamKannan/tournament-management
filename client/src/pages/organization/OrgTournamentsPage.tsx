@@ -91,6 +91,10 @@ export const OrgTournamentsPage: React.FC = () => {
 
   // Form State for Creating Tournament
   const [name, setName] = useState('');
+  // Dates as YYYY-MM-DD. An empty closing date means entries close when play starts.
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [registrationClosing, setRegistrationClosing] = useState('');
   const [sportCode, setSportCode] = useState<'football' | 'cricket'>('cricket');
   const [location, setLocation] = useState('Payyanad Stadium, Manjeri');
   const [district, setDistrict] = useState('Malappuram');
@@ -220,6 +224,9 @@ export const OrgTournamentsPage: React.FC = () => {
       location: venueData.venueName || location,
       district: venueData.district || district,
       banner: bannerUrl || undefined,
+      start_date: startDate,
+      end_date: endDate,
+      registration_closing: registrationClosing || startDate,
       format,
       max_teams: Number(maxTeams),
       ground_fee: Number(groundFee),
@@ -264,6 +271,9 @@ export const OrgTournamentsPage: React.FC = () => {
       location: venueData.venueName || location,
       district: venueData.district || district,
       banner: bannerUrl || undefined,
+      start_date: startDate,
+      end_date: endDate,
+      registration_closing: registrationClosing || startDate,
       format,
       max_teams: Number(maxTeams),
       ground_fee: Number(groundFee),
@@ -301,6 +311,9 @@ export const OrgTournamentsPage: React.FC = () => {
   const openCreateModal = () => {
     setEditingId(null);
     setEditingTournament(null);
+    setStartDate('');
+    setEndDate('');
+    setRegistrationClosing('');
     setShowCreateModal(true);
   };
 
@@ -311,6 +324,9 @@ export const OrgTournamentsPage: React.FC = () => {
     setEditingId(t.id);
     setEditingTournament(t);
     setName(t.name || '');
+    setStartDate(t.start_date || '');
+    setEndDate(t.end_date || '');
+    setRegistrationClosing(t.registration_closing || '');
     setSportCode(t.sport_code);
     setLocation(t.location || '');
     setDistrict(t.district || '');
@@ -346,6 +362,18 @@ export const OrgTournamentsPage: React.FC = () => {
     e.preventDefault();
     if (enabledMethods.length === 0) {
       toast.warning('Select at least one accepted payment method.');
+      return;
+    }
+    if (!startDate || !endDate) {
+      toast.warning('Pick the dates the tournament starts and ends.');
+      return;
+    }
+    if (endDate < startDate) {
+      toast.warning('The end date is before the start date.');
+      return;
+    }
+    if (registrationClosing && registrationClosing > endDate) {
+      toast.warning('Registration has to close before the tournament ends.');
       return;
     }
     if (sportCode === 'cricket' && !(Number(totalOvers) >= 1)) {
@@ -600,6 +628,46 @@ export const OrgTournamentsPage: React.FC = () => {
                   required
                   className="w-full px-3.5 py-2 rounded-xl glass-input font-semibold text-sm"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label htmlFor="tournament-start-date" className="block text-slate-300 font-semibold mb-1">Starts on *</label>
+                  <input id="tournament-start-date"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      if (!endDate || endDate < e.target.value) setEndDate(e.target.value);
+                    }}
+                    required
+                    className="w-full px-3.5 py-2 rounded-xl glass-input"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="tournament-end-date" className="block text-slate-300 font-semibold mb-1">Ends on *</label>
+                  <input id="tournament-end-date"
+                    type="date"
+                    value={endDate}
+                    min={startDate || undefined}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    required
+                    className="w-full px-3.5 py-2 rounded-xl glass-input"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="tournament-registration-closing" className="block text-slate-300 font-semibold mb-1">Registration closes</label>
+                  <input id="tournament-registration-closing"
+                    type="date"
+                    value={registrationClosing}
+                    max={endDate || undefined}
+                    onChange={(e) => setRegistrationClosing(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl glass-input"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    {registrationClosing ? 'Teams can enter until the end of this day.' : 'Leave empty to take entries until the start date.'}
+                  </p>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

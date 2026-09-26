@@ -127,7 +127,10 @@ class AssistantService
         - Name, sport (football or cricket; the sport can't be changed later)
           and format: Round Robin League, Single Elimination Knockout, or
           League + Knockout.
-        - The football match format, or a cricket format such as T10 or T20.
+        - Start and end dates, and when registration closes (leave it empty
+          and teams can enter until the start date).
+        - The football match format, or a cricket format: 5, 6, 8, 10 (T10),
+          12, 15, 20 (T20) or 50 overs, or any other number of overs (Custom).
         - Venue, picked on a map, and an optional banner or poster.
         - Ground fee (the team entry fee), the minimum partial payment %, and
           which payment methods teams may use (e.g. UPI, pay at ground).
