@@ -17,8 +17,8 @@ use Illuminate\Support\Str;
  * Safe to run again: catalogue rows are upserted and an existing super admin is
  * left untouched (its password is never reset by a re-seed).
  *
- * The super admin comes from the environment:
- *   SUPER_ADMIN_EMAIL     (required outside local/testing)
+ * The super admin comes from config('app.super_admin'):
+ *   SUPER_ADMIN_EMAIL     (defaults to the platform owner, syamdas@gmail.com)
  *   SUPER_ADMIN_PASSWORD  (unset → a random one is generated, printed to this
  *                          console once, and must be changed at first sign-in)
  *   SUPER_ADMIN_NAME, SUPER_ADMIN_PHONE (optional)
@@ -114,15 +114,9 @@ class DatabaseSeeder extends Seeder
             return;
         }
 
-        $email = trim((string) env('SUPER_ADMIN_EMAIL', ''));
-        if ($email === '') {
-            if (app()->environment('production')) {
-                throw new \RuntimeException('Set SUPER_ADMIN_EMAIL before seeding a production database.');
-            }
-            $email = 'admin@kickwick.local';
-        }
+        $email = trim((string) config('app.super_admin.email'));
 
-        $password = (string) env('SUPER_ADMIN_PASSWORD', '');
+        $password = (string) config('app.super_admin.password');
         $generated = $password === '';
         if ($generated) {
             $password = Str::password(16, symbols: false);
@@ -130,10 +124,10 @@ class DatabaseSeeder extends Seeder
 
         DB::table('users')->insert([
             'id' => self::SUPER_ADMIN_ID,
-            'name' => (string) env('SUPER_ADMIN_NAME', 'Platform Admin'),
+            'name' => (string) (config('app.super_admin.name') ?: 'Platform Admin'),
             'email' => $email,
             'password_hash' => Hash::make($password),
-            'phone' => (string) env('SUPER_ADMIN_PHONE', ''),
+            'phone' => (string) config('app.super_admin.phone'),
             'role' => 'SUPER_ADMIN',
             'must_change_password' => $generated,
             'created_at' => now(),

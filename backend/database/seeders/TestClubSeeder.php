@@ -33,7 +33,7 @@ class TestClubSeeder extends Seeder
 
     public function run(): void
     {
-        if (app()->environment('production') || ! filter_var(env('SEED_TEST_CLUB', true), FILTER_VALIDATE_BOOL)) {
+        if (app()->environment('production') || ! filter_var(config('app.seed_test_club', true), FILTER_VALIDATE_BOOL)) {
             return;
         }
 

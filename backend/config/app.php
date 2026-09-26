@@ -74,6 +74,17 @@ return [
     // Public client SPA origin — used for links printed on posters (registration QR).
     'frontend_url' => env('FRONTEND_URL'),
 
+    // The one account `db:seed` creates, and whether it adds the local test club.
+    // Read through config, not env(), so seeding still sees them once config is cached.
+    'super_admin' => [
+        'email' => env('SUPER_ADMIN_EMAIL') ?: 'syamdas@gmail.com',
+        'password' => env('SUPER_ADMIN_PASSWORD', ''),
+        'name' => env('SUPER_ADMIN_NAME', 'Platform Admin'),
+        'phone' => env('SUPER_ADMIN_PHONE', ''),
+    ],
+
+    'seed_test_club' => env('SEED_TEST_CLUB', true),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

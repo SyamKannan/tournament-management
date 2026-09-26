@@ -130,8 +130,8 @@ curl http://127.0.0.1:4100/health              # {"status":"healthy","connection
       and environment values.
 - [ ] `APP_KEY` and `JWT_SECRET` set to fresh random values, different per
       environment. Rotating `JWT_SECRET` signs everyone out.
-- [ ] `SUPER_ADMIN_EMAIL` set before `db:seed` (the seed refuses without it in
-      production). Either set a strong `SUPER_ADMIN_PASSWORD` or leave it unset and
+- [ ] Super admin: the seed creates it with `syamdas@gmail.com` unless
+      `SUPER_ADMIN_EMAIL` says otherwise. Either set a strong `SUPER_ADMIN_PASSWORD` or leave it unset and
       copy the one-time password the seed prints; remove the env value afterwards.
 - [ ] `CORS_ALLOWED_ORIGINS` narrowed from `*` to your real front-end origin.
 - [ ] TLS in front of both the API and the gateway, and `VITE_WS_URL` set to
