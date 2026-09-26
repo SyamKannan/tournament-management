@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { NavLink } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePlatformConfig } from '../context/PlatformConfigContext';
 import {
@@ -33,8 +33,10 @@ const ADMIN_LINKS = [
 const ORG_LINKS = [
   { to: '/organization/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/organization/tournaments', label: 'Tournaments', icon: Trophy },
-  { to: '/organization/teams', label: 'Teams & Approvals', icon: Users },
-  { to: '/organization/fixtures', label: 'Fixtures & Brackets', icon: Calendar },
+  // These two pin the URL to a tournament (/organization/tournaments/:id/teams),
+  // which would otherwise light up "Tournaments" instead.
+  { to: '/organization/teams', label: 'Teams & Approvals', icon: Users, also: /^\/organization\/tournaments\/[^/]+\/teams(\/|$)/ },
+  { to: '/organization/fixtures', label: 'Fixtures & Brackets', icon: Calendar, also: /^\/organization\/tournaments\/[^/]+\/fixtures(\/|$)/ },
   { to: '/organization/venues', label: 'Grounds', icon: MapPin },
   { to: '/organization/posters', label: 'Posters', icon: ImageIcon },
   { to: '/organization/sponsors', label: 'Sponsors & Ads', icon: Megaphone },
@@ -57,6 +59,15 @@ const TEAM_LINKS = [
 
 const WORKSPACE_LINKS = { admin: ADMIN_LINKS, organization: ORG_LINKS, team: TEAM_LINKS };
 
+/** Exactly one item is lit: an explicit `also` match first, else the longest prefix. */
+function activeLinkFor(pathname: string, links: { to: string; also?: RegExp }[]): string | undefined {
+  const explicit = links.find(link => link.also?.test(pathname));
+  if (explicit) return explicit.to;
+  return links
+    .filter(link => pathname === link.to || pathname.startsWith(`${link.to}/`))
+    .sort((a, b) => b.to.length - a.to.length)[0]?.to;
+}
+
 /**
  * Workspace navigation.
  *
@@ -71,6 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ type, open, onClose }) => {
   const links = WORKSPACE_LINKS[type].filter(
     (link: { requiresMessaging?: boolean }) => !link.requiresMessaging || messagingEnabled,
   );
+  const activeTo = activeLinkFor(useLocation().pathname, links);
   // Support is the organizer's and the platform's; a scorer sharing this rail has no inbox.
   const supportUnread = useSupportBadge(
     type === 'admin' && user?.role === 'SUPER_ADMIN'
@@ -150,37 +162,35 @@ export const Sidebar: React.FC<SidebarProps> = ({ type, open, onClose }) => {
           <nav className="space-y-1.5">
             {links.map(link => {
               const Icon = link.icon;
+              const isActive = link.to === activeTo;
               return (
-                <NavLink
+                <Link
                   key={link.to}
                   to={link.to}
                   onClick={onClose}
-                  className={({ isActive }) =>
+                  aria-current={isActive ? 'page' : undefined}
+                  className={
                     `flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 group ${
                       isActive
                         ? 'bg-gradient-to-r from-emerald-500/20 via-teal-500/15 to-emerald-500/5 text-emerald-300 border border-emerald-500/35 shadow-lg shadow-emerald-950/50'
-                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 hover:translate-x-0.5'
+                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
                     }`
                   }
                 >
-                  {({ isActive }) => (
-                    <>
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Icon className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-emerald-400' : 'text-slate-400 group-hover:text-slate-200'}`} aria-hidden="true" />
-                        <span className="truncate">{link.label}</span>
-                        {'supportBadge' in link && supportUnread > 0 && (
-                          <span className="shrink-0 min-w-[1.25rem] px-1.5 py-0.5 rounded-full bg-cyan-500 text-slate-950 text-[11px] font-black text-center">
-                            {supportUnread > 99 ? '99+' : supportUnread}
-                            <span className="sr-only"> unread</span>
-                          </span>
-                        )}
-                      </div>
-                      {isActive && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse" />
-                      )}
-                    </>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Icon className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-emerald-400' : 'text-slate-400 group-hover:text-slate-200'}`} aria-hidden="true" />
+                    <span className="truncate">{link.label}</span>
+                    {'supportBadge' in link && supportUnread > 0 && (
+                      <span className="shrink-0 min-w-[1.25rem] px-1.5 py-0.5 rounded-full bg-cyan-500 text-slate-950 text-[11px] font-black text-center">
+                        {supportUnread > 99 ? '99+' : supportUnread}
+                        <span className="sr-only"> unread</span>
+                      </span>
+                    )}
+                  </div>
+                  {isActive && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse" />
                   )}
-                </NavLink>
+                </Link>
               );
             })}
           </nav>

@@ -34,10 +34,14 @@ export const OrgTeamsPage: React.FC = () => {
   const [teamStatus, setTeamStatus] = useState<'all' | 'pending' | 'approved' | 'unpaid'>('all');
 
   useEffect(() => {
+    // Left before the list arrived (another sidebar item was clicked): the late
+    // answer must not redirect back here.
+    let cancelled = false;
     const fetchTourneys = async () => {
       try {
         setLoading(true);
         const res = await api.get('/tournaments');
+        if (cancelled) return;
         setTournaments(res);
         if (!routeTournamentId && res.length > 0) {
           // Entered without a specific tournament (e.g. from the sidebar) — pin
@@ -47,10 +51,11 @@ export const OrgTeamsPage: React.FC = () => {
       } catch (err) {
         console.error('Failed to load tournaments', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchTourneys();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
