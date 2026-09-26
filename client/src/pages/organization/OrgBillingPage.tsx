@@ -29,6 +29,8 @@ interface UsageResponse {
     ads: UsageMetric;
   };
   invoices: Invoice[];
+  /** The free plan covers the first tournament only; after that it isn't offered. */
+  free_plan_used?: boolean;
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -97,8 +99,8 @@ export const OrgBillingPage: React.FC = () => {
     return <ErrorState message={loadError || 'Billing details could not be loaded.'} onRetry={fetchData} />;
   }
 
-  const { subscription, plan, usage, invoices } = data;
-  const otherPlans = allPlans.filter(p => p.id !== plan?.id);
+  const { subscription, plan, usage, invoices, free_plan_used } = data;
+  const otherPlans = allPlans.filter(p => p.id !== plan?.id && !(free_plan_used && p.price === 0));
   // Highlight the cheapest plan that's a step up from the current one.
   const recommendedPlanId = otherPlans.find(p => p.price > (plan?.price ?? 0))?.id;
 
@@ -143,7 +145,7 @@ export const OrgBillingPage: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {plan && (
+          {plan && !(free_plan_used && plan.price === 0) && (
             <button
               onClick={handleRenew}
               disabled={renewing}

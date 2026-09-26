@@ -58,6 +58,22 @@ class BillingTest extends TestCase
         $this->assertTrue($this->billing->checkLimit('org-highland-fc', 'tournaments')['allowed']);
     }
 
+    public function test_the_free_plan_is_not_offered_again_once_a_tournament_exists(): void
+    {
+        $this->createTournamentFor('org-green-valley');
+        $this->actingAsUser('admin@greenvalley.com');
+
+        $this->getJson('/api/organizations/org-green-valley/usage')
+            ->assertOk()
+            ->assertJsonPath('free_plan_used', true);
+
+        $this->postJson('/api/organizations/org-green-valley/subscribe/order', ['plan_id' => 'plan-free'])
+            ->assertStatus(409);
+        $this->postJson('/api/organizations/org-green-valley/subscribe', ['plan_id' => 'plan-free'])
+            ->assertStatus(409)
+            ->assertJsonPath('error', fn ($e) => str_contains($e, 'first tournament only'));
+    }
+
     public function test_creating_a_tournament_past_the_plan_limit_is_refused_over_http(): void
     {
         $this->billing->subscribePlan('org-green-valley', 'plan-free', 'upi');

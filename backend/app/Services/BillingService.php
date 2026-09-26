@@ -163,6 +163,7 @@ class BillingService
             'subscription' => $subscription,
             'plan' => $plan,
             'usage' => $usage,
+            'free_plan_used' => $this->freePlanUsed($organizationId),
         ];
     }
 
@@ -294,6 +295,16 @@ class BillingService
             'amount_paid' => 0,
             'currency' => $plan->currency,
         ]);
+    }
+
+    /**
+     * A free plan pays for a club's first tournament only. Once the club has
+     * created one — cancelled ones included, or cancelling would hand the
+     * free plan back — no free plan is on offer to it again.
+     */
+    public function freePlanUsed(string $organizationId): bool
+    {
+        return Tournament::query()->where('organization_id', $organizationId)->exists();
     }
 
     /**

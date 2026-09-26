@@ -155,7 +155,9 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           id="main-content"
           // `min-w-0` lets the flex child shrink below its content width, which
           // is what stops wide tables from pushing the whole page sideways.
-          className={`flex-1 min-w-0 ${hasSidebar ? 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full' : ''}`}
+          // The tall bottom padding lets a page's last button (Save Settings)
+          // scroll clear of the floating "Ask Scorey" launcher.
+          className={`flex-1 min-w-0 ${hasSidebar ? 'p-4 sm:p-6 lg:p-8 pb-24 sm:pb-24 lg:pb-24 max-w-7xl mx-auto w-full' : ''}`}
         >
           <ErrorBoundary resetKey={location.pathname}>
           <Suspense fallback={<PageLoader />}>{children}</Suspense>

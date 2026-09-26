@@ -21,6 +21,8 @@ use Illuminate\Http\Request;
 
 class OrganizationController extends Controller
 {
+    private const FREE_PLAN_USED = 'The free plan covers your first tournament only, and it has been used. Choose a paid plan to host more.';
+
     public function __construct(
         private readonly BillingService $billing,
         private readonly PaymentGatewayService $gateway,
@@ -142,6 +144,10 @@ class OrganizationController extends Controller
         }
 
         if ((float) $plan->price <= 0) {
+            if ($this->billing->freePlanUsed($id)) {
+                return response()->json(['error' => self::FREE_PLAN_USED], 409);
+            }
+
             return response()->json(['configured' => false]);
         }
 
@@ -201,6 +207,8 @@ class OrganizationController extends Controller
             }
 
             $verifiedTransactionReference = $data['razorpay_payment_id'];
+        } elseif ($plan && $this->billing->freePlanUsed($id)) {
+            return response()->json(['error' => self::FREE_PLAN_USED], 409);
         }
 
         try {

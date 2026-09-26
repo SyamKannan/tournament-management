@@ -38,10 +38,15 @@ export const PlanPickerModal: React.FC<PlanPickerModalProps> = ({
     const fetchPlans = async () => {
       try {
         setLoadingPlans(true);
-        const res = await api.get('/plans');
+        const [res, usage] = await Promise.all([
+          api.get('/plans'),
+          api.get(`/organizations/${organizationId}/usage`).catch(() => null),
+        ]);
         if (Array.isArray(res)) {
-          setPlans(res);
-          setSelectedPlanId((res.find((p: Plan) => p.id !== currentPlanId) ?? res[0])?.id ?? null);
+          // The free plan covers the first tournament only — once used, it isn't offered.
+          const offered: Plan[] = usage?.free_plan_used ? res.filter((p: Plan) => p.price > 0) : res;
+          setPlans(offered);
+          setSelectedPlanId((offered.find(p => p.id !== currentPlanId) ?? offered[0])?.id ?? null);
         }
       } catch (err) {
         console.error('Failed to load plans', err);
@@ -51,7 +56,7 @@ export const PlanPickerModal: React.FC<PlanPickerModalProps> = ({
     };
 
     fetchPlans();
-  }, [currentPlanId]);
+  }, [currentPlanId, organizationId]);
 
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
 
