@@ -7,6 +7,7 @@ import { PhoneInput } from '../../components/PhoneInput';
 import type { Organization, OrganizationType, Player } from '../../types';
 import { Camera, Save, KeyRound, Building2, UserCircle2, ShieldCheck, LogOut } from 'lucide-react';
 import { label } from '../../lib/labels';
+import NumberInput from '../../components/NumberInput';
 
 const ROLE_LABELS: Record<string, string> = {
   SUPER_ADMIN: 'Platform Super Admin',
@@ -499,23 +500,21 @@ export const MyProfilePage: React.FC = () => {
           <div className="grid sm:grid-cols-2 gap-3 text-xs">
             <div>
               <label htmlFor="myprofile-age" className="block text-slate-300 font-semibold mb-1">Age</label>
-              <input id="myprofile-age"
-                type="number"
+              <NumberInput id="myprofile-age"
                 min={5}
                 max={100}
-                value={player.age ?? ''}
-                onChange={(e) => setPlayer({ ...player, age: Number(e.target.value) })}
+                value={player.age}
+                onValueChange={(n) => setPlayer({ ...player, age: n })}
                 className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
               />
             </div>
             <div>
               <label htmlFor="myprofile-jersey-number" className="block text-slate-300 font-semibold mb-1">Jersey Number</label>
-              <input id="myprofile-jersey-number"
-                type="number"
+              <NumberInput id="myprofile-jersey-number"
                 min={0}
                 max={99}
-                value={player.jersey_number ?? ''}
-                onChange={(e) => setPlayer({ ...player, jersey_number: Number(e.target.value) })}
+                value={player.jersey_number}
+                onValueChange={(n) => setPlayer({ ...player, jersey_number: n })}
                 className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
               />
             </div>

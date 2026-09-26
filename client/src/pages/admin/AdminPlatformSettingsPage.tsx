@@ -8,6 +8,7 @@ import { PhoneInput } from '../../components/PhoneInput';
 import { COUNTRIES } from '../../lib/countries';
 
 import { ALL_PAYMENT_METHODS, ONLINE_PAYMENT_METHODS, PAYMENT_METHOD_META } from '../../lib/paymentMethods';
+import NumberInput from '../../components/NumberInput';
 
 const FLOWS: { id: PaymentFlow; title: string; blurb: string; icon: typeof Receipt }[] = [
   {
@@ -243,11 +244,10 @@ export const AdminPlatformSettingsPage: React.FC = () => {
             </label>
             <div>
               <label htmlFor="adminplatformsettings-grace-period-days" className="block text-slate-400 mb-1">Grace Period Days</label>
-              <input id="adminplatformsettings-grace-period-days"
-                type="number"
+              <NumberInput id="adminplatformsettings-grace-period-days"
                 min="0"
                 value={settings.grace_period_days}
-                onChange={(e) => setSettings({ ...settings, grace_period_days: Number(e.target.value) })}
+                onValueChange={(n) => setSettings({ ...settings, grace_period_days: n })}
                 className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
               />
             </div>

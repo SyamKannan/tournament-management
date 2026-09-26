@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { formatMoney } from '../lib/format';
 import { useSingleFlight } from '../lib/useSingleFlight';
 import { X, CheckCircle, IndianRupee } from 'lucide-react';
+import NumberInput from './NumberInput';
 
 interface OfflinePaymentModalProps {
   team: Team | null;
@@ -92,12 +93,11 @@ const OfflinePaymentForm: React.FC<OfflinePaymentModalProps & { team: Team }> = 
 
           <div>
             <label htmlFor="offlinepaymentmodal-amount-collected" className="block text-slate-300 font-medium mb-1.5">Amount Collected (₹)</label>
-            <input id="offlinepaymentmodal-amount-collected"
-              type="number"
+            <NumberInput id="offlinepaymentmodal-amount-collected"
               min="1"
               max={currentRemaining}
               value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
+              onValueChange={setAmount}
               required
               className="w-full px-3.5 py-2.5 rounded-xl glass-input font-mono font-bold text-sm text-emerald-400"
             />

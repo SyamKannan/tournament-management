@@ -24,6 +24,22 @@ import { formatMoney } from '../../lib/format';
 
 type PosterTemplate = 'auto' | 'arena' | 'split' | 'classic';
 
+// A cleared number field stays empty while typing; Number('') would put a 0 back in front of the digits.
+const numberOrEmpty = (value: string): number | '' => (value === '' ? '' : Number(value));
+
+// Picking a format fills in the overs; any other number of overs is saved as "N overs".
+// The scoring engine only reads total_overs — the format is the name shown to people.
+const CRICKET_FORMATS = [
+  { value: '6 overs', label: '6 Overs', overs: 6 },
+  { value: '8 overs', label: '8 Overs', overs: 8 },
+  { value: 'T10', label: 'T10 (10 Overs)', overs: 10 },
+  { value: '12 overs', label: '12 Overs', overs: 12 },
+  { value: '15 overs', label: '15 Overs', overs: 15 },
+  { value: 'T20', label: 'T20 (20 Overs)', overs: 20 },
+  { value: '50 overs', label: 'One Day (50 Overs)', overs: 50 },
+];
+const cricketFormatFor = (overs: number) => CRICKET_FORMATS.find(f => f.overs === overs)?.value ?? `${overs} overs`;
+
 const POSTER_TEMPLATES: { id: PosterTemplate; label: string }[] = [
   { id: 'auto', label: 'Surprise me' },
   { id: 'arena', label: 'Arena' },
@@ -79,22 +95,22 @@ export const OrgTournamentsPage: React.FC = () => {
   const [location, setLocation] = useState('Payyanad Stadium, Manjeri');
   const [district, setDistrict] = useState('Malappuram');
   const [format, setFormat] = useState('league_knockout');
-  const [maxTeams, setMaxTeams] = useState<number>(8);
+  const [maxTeams, setMaxTeams] = useState<number | ''>(8);
   const [planTeamLimit, setPlanTeamLimit] = useState<number | null>(null);
-  const [groundFee, setGroundFee] = useState<number>(5000);
+  const [groundFee, setGroundFee] = useState<number | ''>(5000);
   const [allowPartial, setAllowPartial] = useState<boolean>(true);
   const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[]>(ALL_PAYMENT_METHODS);
-  const [prizeMoney, setPrizeMoney] = useState<number>(50000);
+  const [prizeMoney, setPrizeMoney] = useState<number | ''>(50000);
   const [footballFormat, setFootballFormat] = useState('7-a-side');
   const [cricketFormat, setCricketFormat] = useState('T20');
-  const [totalOvers, setTotalOvers] = useState<number>(20);
+  const [totalOvers, setTotalOvers] = useState<number | ''>(20);
 
   // Auction specific toggle & config
   const [hasAuction, setHasAuction] = useState<boolean>(FEATURE_AUCTION_ENABLED);
   const [auctionStartTime, setAuctionStartTime] = useState('');
   const [auctionEndTime, _setAuctionEndTime] = useState('');
-  const [teamPurse, setTeamPurse] = useState<number>(100000);
-  const [minBidIncrement, setMinBidIncrement] = useState<number>(500);
+  const [teamPurse, setTeamPurse] = useState<number | ''>(100000);
+  const [minBidIncrement, setMinBidIncrement] = useState<number | ''>(500);
 
   const fetchTournaments = async () => {
     try {
@@ -138,8 +154,8 @@ export const OrgTournamentsPage: React.FC = () => {
       .catch(err => console.error('Failed to load plan limits', err));
   }, [organization]);
 
-  const handleMaxTeamsChange = (value: number) => {
-    setMaxTeams(planTeamLimit ? Math.min(value, planTeamLimit) : value);
+  const handleMaxTeamsChange = (value: number | '') => {
+    setMaxTeams(planTeamLimit && value !== '' ? Math.min(value, planTeamLimit) : value);
   };
 
   const handleCopyLink = (token: string) => {
@@ -332,7 +348,11 @@ export const OrgTournamentsPage: React.FC = () => {
       toast.warning('Select at least one accepted payment method.');
       return;
     }
-    if (planTeamLimit && maxTeams > planTeamLimit) {
+    if (sportCode === 'cricket' && !(Number(totalOvers) >= 1)) {
+      toast.warning('Enter how many overs each innings has.');
+      return;
+    }
+    if (planTeamLimit && Number(maxTeams) > planTeamLimit) {
       toast.warning(`Your plan allows up to ${planTeamLimit} teams per tournament. Upgrade your plan for more.`);
       return;
     }
@@ -736,7 +756,7 @@ export const OrgTournamentsPage: React.FC = () => {
                         <input aria-label="Team Purse (₹)"
                           type="number"
                           value={teamPurse}
-                          onChange={(e) => setTeamPurse(Number(e.target.value))}
+                          onChange={(e) => setTeamPurse(numberOrEmpty(e.target.value))}
                           className="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-amber-400 font-mono font-bold text-xs"
                         />
                       </div>
@@ -746,7 +766,7 @@ export const OrgTournamentsPage: React.FC = () => {
                         <input aria-label="Min Bid Inc (₹)"
                           type="number"
                           value={minBidIncrement}
-                          onChange={(e) => setMinBidIncrement(Number(e.target.value))}
+                          onChange={(e) => setMinBidIncrement(numberOrEmpty(e.target.value))}
                           className="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-cyan-400 font-mono font-bold text-xs"
                         />
                       </div>
@@ -777,7 +797,7 @@ export const OrgTournamentsPage: React.FC = () => {
                       min="2"
                       max={planTeamLimit ?? undefined}
                       value={maxTeams}
-                      onChange={(e) => handleMaxTeamsChange(Number(e.target.value))}
+                      onChange={(e) => handleMaxTeamsChange(numberOrEmpty(e.target.value))}
                       className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
                     />
                     {planTeamLimit && (
@@ -791,21 +811,33 @@ export const OrgTournamentsPage: React.FC = () => {
                     <label className="block text-slate-300 font-semibold mb-1">Cricket Format</label>
                     <select aria-label="Cricket Format"
                       value={cricketFormat}
-                      onChange={(e) => setCricketFormat(e.target.value)}
+                      onChange={(e) => {
+                        setCricketFormat(e.target.value);
+                        const preset = CRICKET_FORMATS.find(f => f.value === e.target.value);
+                        if (preset) setTotalOvers(preset.overs);
+                      }}
                       className="w-full px-3 py-2 rounded-xl glass-input bg-slate-900"
                     >
-                      <option value="T10">T10 (10 Overs)</option>
-                      <option value="T20">T20 (20 Overs)</option>
-                      <option value="15 overs">15 Overs</option>
+                      {CRICKET_FORMATS.map(f => (
+                        <option key={f.value} value={f.value}>{f.label}</option>
+                      ))}
+                      {!CRICKET_FORMATS.some(f => f.value === cricketFormat) && (
+                        <option value={cricketFormat}>Custom ({totalOvers || '?'} Overs)</option>
+                      )}
                     </select>
                   </div>
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Total Overs</label>
                     <input aria-label="Total Overs"
                       type="number"
-                      min="5"
+                      min="1"
+                      max="50"
                       value={totalOvers}
-                      onChange={(e) => setTotalOvers(Number(e.target.value))}
+                      onChange={(e) => {
+                        const overs = numberOrEmpty(e.target.value);
+                        setTotalOvers(overs);
+                        if (overs !== '') setCricketFormat(cricketFormatFor(overs));
+                      }}
                       className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
                     />
                   </div>
@@ -816,7 +848,7 @@ export const OrgTournamentsPage: React.FC = () => {
                       min="2"
                       max={planTeamLimit ?? undefined}
                       value={maxTeams}
-                      onChange={(e) => handleMaxTeamsChange(Number(e.target.value))}
+                      onChange={(e) => handleMaxTeamsChange(numberOrEmpty(e.target.value))}
                       className="w-full px-3.5 py-2 rounded-xl glass-input font-mono"
                     />
                     {planTeamLimit && (
@@ -839,7 +871,7 @@ export const OrgTournamentsPage: React.FC = () => {
                       type="number"
                       min="0"
                       value={groundFee}
-                      onChange={(e) => setGroundFee(Number(e.target.value))}
+                      onChange={(e) => setGroundFee(numberOrEmpty(e.target.value))}
                       className="w-full px-3 py-1.5 rounded-xl glass-input font-mono font-bold text-emerald-400"
                     />
                   </div>
@@ -904,7 +936,7 @@ export const OrgTournamentsPage: React.FC = () => {
                   type="number"
                   min="0"
                   value={prizeMoney}
-                  onChange={(e) => setPrizeMoney(Number(e.target.value))}
+                  onChange={(e) => setPrizeMoney(numberOrEmpty(e.target.value))}
                   className="w-full px-3.5 py-2 rounded-xl glass-input font-mono font-bold text-emerald-400"
                 />
               </div>

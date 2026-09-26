@@ -467,6 +467,12 @@
   transform: translateY(-2px);
 }
 
+/* A card holding a form stays put: lifting it moved every field under the
+   pointer, and an open <select> list jittered and jumped with it. */
+.glass-card:has(input, select, textarea):hover {
+  transform: none;
+}
+
 .glass-card-static {
   background: var(--glass-card-bg);
   backdrop-filter: blur(16px);

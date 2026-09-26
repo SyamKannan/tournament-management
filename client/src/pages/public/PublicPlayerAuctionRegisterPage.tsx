@@ -9,6 +9,7 @@ import { PhoneInput } from '../../components/PhoneInput';
 import { FieldError, fieldErrorId, useFieldErrors } from '../../components/ui/FieldError';
 import { useDraft, useLeaveWarning } from '../../lib/useDraft';
 import { usePreferences } from '../../i18n';
+import NumberInput from '../../components/NumberInput';
 
 /** Everything typed so far, kept on the device until the player is registered. */
 interface Draft {
@@ -352,8 +353,8 @@ export const PublicPlayerAuctionRegisterPage: React.FC = () => {
 
               <div>
                 <label htmlFor="pa-age" className={labelClass}>{t('pa.age')} <span className="text-rose-400" aria-hidden="true">*</span></label>
-                <input id="pa-age" type="number" inputMode="numeric" min={14} max={50} value={age}
-                  onChange={e => { setAge(Number(e.target.value)); fields.clear('age'); }} required
+                <NumberInput id="pa-age" inputMode="numeric" min={14} max={50} value={age}
+                  onValueChange={(n) => { setAge(n); fields.clear('age'); }} required
                   className={`${inputClass} font-semibold`} {...field('age')} />
                 <FieldError id={fieldErrorId('age')} message={fields.get('age')} />
               </div>

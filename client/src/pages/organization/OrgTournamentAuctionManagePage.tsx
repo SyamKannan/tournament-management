@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { label } from '../../lib/labels';
 import { formatDate, formatMoney } from '../../lib/format';
+import NumberInput from '../../components/NumberInput';
 
 export const OrgTournamentAuctionManagePage: React.FC = () => {
   const confirm = useConfirm();
@@ -867,40 +868,36 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                     Total Team Virtual Purse Budget (₹) *
                     <span className="text-xs text-amber-400 font-normal ml-1.5">(Points only, no cash value)</span>
                   </label>
-                  <input id="orgtournamentauctionmanage-total-team-virtual-purse-budget-"
-                    type="number"
+                  <NumberInput id="orgtournamentauctionmanage-total-team-virtual-purse-budget-"
                     value={teamPurse}
-                    onChange={(e) => setTeamPurse(Number(e.target.value))}
+                    onValueChange={setTeamPurse}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono font-bold outline-none"
                   />
                 </div>
 
                 <div>
                   <label htmlFor="orgtournamentauctionmanage-minimum-bid-increment" className="block text-slate-300 font-semibold mb-1">Minimum Bid Increment (₹) *</label>
-                  <input id="orgtournamentauctionmanage-minimum-bid-increment"
-                    type="number"
+                  <NumberInput id="orgtournamentauctionmanage-minimum-bid-increment"
                     value={minBidIncrement}
-                    onChange={(e) => setMinBidIncrement(Number(e.target.value))}
+                    onValueChange={setMinBidIncrement}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono font-bold outline-none"
                   />
                 </div>
 
                 <div>
                   <label htmlFor="orgtournamentauctionmanage-max-players-per-team-roster" className="block text-slate-300 font-semibold mb-1">Max Players per Team Roster</label>
-                  <input id="orgtournamentauctionmanage-max-players-per-team-roster"
-                    type="number"
+                  <NumberInput id="orgtournamentauctionmanage-max-players-per-team-roster"
                     value={maxPlayersPerTeam}
-                    onChange={(e) => setMaxPlayersPerTeam(Number(e.target.value))}
+                    onValueChange={setMaxPlayersPerTeam}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none"
                   />
                 </div>
 
                 <div>
                   <label htmlFor="orgtournamentauctionmanage-min-players-required-per-team" className="block text-slate-300 font-semibold mb-1">Min Players Required per Team</label>
-                  <input id="orgtournamentauctionmanage-min-players-required-per-team"
-                    type="number"
+                  <NumberInput id="orgtournamentauctionmanage-min-players-required-per-team"
                     value={minPlayersPerTeam}
-                    onChange={(e) => setMinPlayersPerTeam(Number(e.target.value))}
+                    onValueChange={setMinPlayersPerTeam}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-bold outline-none"
                   />
                 </div>
@@ -1324,10 +1321,9 @@ export const OrgTournamentAuctionManagePage: React.FC = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label htmlFor="orgtournamentauctionmanage-disbursed-amount" className="block text-slate-300 font-semibold mb-1">Disbursed Amount (₹) *</label>
-                      <input id="orgtournamentauctionmanage-disbursed-amount"
-                        type="number"
+                      <NumberInput id="orgtournamentauctionmanage-disbursed-amount"
                         value={paymentFormAmount}
-                        onChange={(e) => setPaymentFormAmount(Number(e.target.value))}
+                        onValueChange={setPaymentFormAmount}
                         className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono font-bold outline-none"
                       />
                     </div>

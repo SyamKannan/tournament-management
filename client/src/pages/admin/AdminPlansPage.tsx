@@ -9,6 +9,7 @@ import {
   Plus, Edit2, Trash2,
   X, Check, Power, PowerOff, GripVertical, ChevronLeft, ChevronRight, Flame, Award
 } from 'lucide-react';
+import NumberInput from '../../components/NumberInput';
 
 export const AdminPlansPage: React.FC = () => {
   const confirm = useConfirm();
@@ -434,12 +435,11 @@ export const AdminPlansPage: React.FC = () => {
                 </div>
                 <div>
                   <label htmlFor="adminplans-price" className="block text-slate-300 font-semibold mb-1">Price (₹) *</label>
-                  <input id="adminplans-price"
-                    type="number"
+                  <NumberInput id="adminplans-price"
                     min="0"
                     placeholder="2499"
                     value={price}
-                    onChange={(e) => setPrice(Number(e.target.value))}
+                    onValueChange={setPrice}
                     required
                     className="w-full px-3.5 py-2 rounded-xl glass-input font-mono font-bold text-emerald-400"
                   />
@@ -494,41 +494,37 @@ export const AdminPlansPage: React.FC = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <label htmlFor="adminplans-tournaments" className="block text-slate-400 text-xs mb-1">Tournaments</label>
-                    <input id="adminplans-tournaments"
-                      type="number"
+                    <NumberInput id="adminplans-tournaments"
                       min="1"
                       value={tournamentLimit}
-                      onChange={(e) => setTournamentLimit(Number(e.target.value))}
+                      onValueChange={setTournamentLimit}
                       className="w-full px-3 py-1.5 rounded-xl glass-input font-mono text-center"
                     />
                   </div>
                   <div>
                     <label htmlFor="adminplans-teams-limit" className="block text-slate-400 text-xs mb-1">Teams Limit</label>
-                    <input id="adminplans-teams-limit"
-                      type="number"
+                    <NumberInput id="adminplans-teams-limit"
                       min="1"
                       value={teamLimit}
-                      onChange={(e) => setTeamLimit(Number(e.target.value))}
+                      onValueChange={setTeamLimit}
                       className="w-full px-3 py-1.5 rounded-xl glass-input font-mono text-center"
                     />
                   </div>
                   <div>
                     <label htmlFor="adminplans-players-limit" className="block text-slate-400 text-xs mb-1">Players Limit</label>
-                    <input id="adminplans-players-limit"
-                      type="number"
+                    <NumberInput id="adminplans-players-limit"
                       min="1"
                       value={playerLimit}
-                      onChange={(e) => setPlayerLimit(Number(e.target.value))}
+                      onValueChange={setPlayerLimit}
                       className="w-full px-3 py-1.5 rounded-xl glass-input font-mono text-center"
                     />
                   </div>
                   <div>
                     <label htmlFor="adminplans-ads-limit" className="block text-slate-400 text-xs mb-1">Ads Limit</label>
-                    <input id="adminplans-ads-limit"
-                      type="number"
+                    <NumberInput id="adminplans-ads-limit"
                       min="0"
                       value={adLimit}
-                      onChange={(e) => setAdLimit(Number(e.target.value))}
+                      onValueChange={setAdLimit}
                       className="w-full px-3 py-1.5 rounded-xl glass-input font-mono text-center"
                     />
                   </div>
