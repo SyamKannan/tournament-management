@@ -64,7 +64,7 @@ export const DemoCheckoutModal: React.FC<DemoCheckoutModalProps> = ({ order, nam
 
   return (
     <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+      <div className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-clip max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="px-5 py-4 bg-gradient-to-r from-emerald-600/25 to-teal-600/10 border-b border-slate-800">
           <div className="flex items-start justify-between gap-3">

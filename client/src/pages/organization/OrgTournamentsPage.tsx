@@ -607,7 +607,7 @@ export const OrgTournamentsPage: React.FC = () => {
       {/* Create Tournament Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-          <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-clip max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
               <h3 className="text-base font-bold text-white font-heading">
                 {editingId ? 'Edit Tournament' : 'Create New Tournament'}
@@ -1042,7 +1042,7 @@ export const OrgTournamentsPage: React.FC = () => {
       {/* Interactive Map Location Picker Modal */}
       {showMapModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-          <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-clip flex flex-col max-h-[90vh]">
             <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
@@ -1101,7 +1101,7 @@ export const OrgTournamentsPage: React.FC = () => {
       {/* Generated Poster Preview Modal */}
       {posterTournament && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-          <div className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          <div className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-clip max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
               <h3 className="text-base font-bold text-white font-heading flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-fuchsia-400" />

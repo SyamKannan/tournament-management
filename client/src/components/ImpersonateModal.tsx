@@ -213,7 +213,7 @@ export const ImpersonateModal: React.FC<ImpersonateModalProps> = ({ isOpen, onCl
   // Portal to <body>: the navbar's backdrop-blur would otherwise make `fixed` relative to the navbar.
   return createPortal(
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-4xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh] max-h-[88dvh]">
+      <div className="relative w-full max-w-4xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-clip flex flex-col max-h-[88vh] max-h-[88dvh]">
         {/* Header */}
         <div className="shrink-0 px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
           <div className="flex items-center gap-3">

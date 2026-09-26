@@ -225,6 +225,17 @@
     accent-color: #bbeb1f;
   }
 
+  /* A visually hidden checkbox (`sr-only`) is absolutely positioned. Inside a
+     label that isn't positioned, it anchors to some outer box instead — in a
+     dialog, the card — and ticking it made the browser scroll that card to
+     bring the input into view, sliding the header off and leaving a blank
+     gap under the buttons. Anchoring it to its own label keeps focus scrolling
+     where the label is. :where() keeps this from overriding a label's own
+     positioning classes. */
+  :where(label:has(input.sr-only)) {
+    position: relative;
+  }
+
   /* Long emails, IDs and URLs wrap instead of pushing the page sideways. */
   body {
     overflow-wrap: break-word;
