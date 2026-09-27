@@ -487,6 +487,11 @@ class AuctionController extends Controller
 
         $data = $request->validate(['player_id' => ['required', 'string']]);
 
+        // Calling a player starts (or resumes) the auction — but an ended one stays ended.
+        if (in_array($auction->status, ['completed', 'cancelled'], true)) {
+            return response()->json(['error' => "This auction is {$auction->status}. Reopen it before calling players."], 409);
+        }
+
         $player = AuctionPlayer::query()->whereKey($data['player_id'])->where('auction_id', $auction->id)->first();
 
         if (! $player) {
@@ -494,7 +499,14 @@ class AuctionController extends Controller
         }
 
         if (! in_array($player->status, ['registered', 'approved', 'unsold'], true)) {
-            return response()->json(['error' => "This player cannot be called — their status is {$player->status}."], 400);
+            $why = match ($player->status) {
+                'in_hammer' => 'they are already on the hammer',
+                'sold' => 'they have already been sold',
+                'rejected' => 'their registration was rejected',
+                default => 'they are not in the pool',
+            };
+
+            return response()->json(['error' => "This player cannot be called — {$why}."], 400);
         }
 
         if ($auction->hammer_state === 'bidding' && $auction->current_bid_team_id && $auction->current_player_id !== $player->id) {
@@ -1065,6 +1077,15 @@ class AuctionController extends Controller
         ], [
             'status.required' => 'Status is required',
         ]);
+
+        // Ending with a player still on the hammer would leave them there for good.
+        if ($data['status'] === 'completed') {
+            $onHammer = AuctionPlayer::query()->where('auction_id', $auction->id)->where('status', 'in_hammer')->first();
+
+            if ($onHammer) {
+                return response()->json(['error' => "Sell {$onHammer->full_name} or mark them unsold before ending the auction."], 409);
+            }
+        }
 
         DB::transaction(function () use ($auction, $data) {
             $auction->status = $data['status'];

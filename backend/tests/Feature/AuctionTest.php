@@ -56,6 +56,34 @@ class AuctionTest extends TestCase
         $this->assertSame((float) $player->base_price, (float) $response->json('auction.current_bid_amount'));
     }
 
+    public function test_an_ended_auction_cannot_be_restarted_by_calling_a_player(): void
+    {
+        $this->actingAsUser('admin@greenvalley.com');
+        $player = $this->approvedPoolPlayer();
+
+        foreach (['completed', 'cancelled'] as $status) {
+            Auction::whereKey(self::AUCTION_ID)->update(['status' => $status]);
+
+            $this->postJson('/api/auctions/'.self::AUCTION_ID.'/call-player', ['player_id' => $player->id])
+                ->assertStatus(409);
+            $this->assertSame($status, Auction::find(self::AUCTION_ID)->status);
+        }
+    }
+
+    public function test_the_auction_cannot_end_with_a_player_on_the_hammer(): void
+    {
+        $this->actingAsUser('admin@greenvalley.com');
+        $player = $this->approvedPoolPlayer();
+        $this->postJson('/api/auctions/'.self::AUCTION_ID.'/call-player', ['player_id' => $player->id])->assertOk();
+
+        $this->postJson('/api/auctions/'.self::AUCTION_ID.'/status', ['status' => 'completed'])
+            ->assertStatus(409)
+            ->assertJsonPath('error', "Sell {$player->full_name} or mark them unsold before ending the auction.");
+
+        $this->postJson('/api/auctions/'.self::AUCTION_ID.'/unsold-player')->assertOk();
+        $this->postJson('/api/auctions/'.self::AUCTION_ID.'/status', ['status' => 'completed'])->assertOk();
+    }
+
     public function test_a_bid_below_the_minimum_increment_is_refused(): void
     {
         $this->actingAsUser('admin@greenvalley.com');

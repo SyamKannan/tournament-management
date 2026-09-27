@@ -5,6 +5,7 @@ const HOMES: Partial<Record<UserRole, string>> = {
   ORG_ADMIN: '/organization/dashboard',
   PLAYER: '/player/dashboard',
   TEAM_MANAGER: '/team/dashboard',
+  SCORER: '/organization/scorer',
 };
 
 /** Where a signed-in user of this role lands: after login, impersonation, or opening a page their role can't use. */

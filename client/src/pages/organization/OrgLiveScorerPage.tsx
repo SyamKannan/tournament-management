@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SportsLoader } from '../../components/ui/SportsLoader';
+import { ErrorState } from '../../components/ui/Feedback';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import type {
@@ -89,6 +90,7 @@ export const OrgLiveScorerPage: React.FC = () => {
   const [matchData, setMatchData] = useState<MatchPayload | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [tab, setTab] = useState<ConsoleTab>('scoring');
   const [tabChosen, setTabChosen] = useState(false);
   const [activeScoringTeam, setActiveScoringTeam] = useState<'A' | 'B'>('A');
@@ -131,8 +133,9 @@ export const OrgLiveScorerPage: React.FC = () => {
 
   const fetchMatch = async () => {
     try {
-      const res: MatchPayload = await api.get(`/matches/${matchId || 'match-fb-live-1'}`);
+      const res: MatchPayload = await api.get(`/matches/${matchId}`);
       setMatchData(res);
+      setLoadError('');
 
       // Open on whatever still needs doing, but only before the scorer has
       // picked a tab themselves — nothing is more annoying than a screen that
@@ -164,6 +167,9 @@ export const OrgLiveScorerPage: React.FC = () => {
       serverCreaseRef.current = server;
     } catch (err) {
       console.error('Failed to load live match', err);
+      // Only the first load needs saying: a later refetch failing leaves the
+      // pad on its last good state rather than wiping the scorer's screen.
+      setLoadError((err as Error)?.message || 'Could not load this match.');
     } finally {
       setLoading(false);
     }
@@ -179,7 +185,7 @@ export const OrgLiveScorerPage: React.FC = () => {
   // keeps this console honest about what the others have already recorded.
   // No polling here: a refetch mid-over would fight the scorer's own inputs,
   // so we only catch up when the socket reconnects.
-  useRoomSocket(`match:${matchId || 'match-fb-live-1'}`, msg => {
+  useRoomSocket(`match:${matchId}`, msg => {
     if ([
       'SCORE_UPDATED', 'MATCH_STATUS_CHANGED', 'LINEUP_UPDATED', 'SCOREBOARD_STAGE_CHANGED',
       'TOSS_CALLED', 'TOSS_DECIDED', 'TOSS_RECORDED', 'TOSS_RESET',
@@ -408,6 +414,17 @@ export const OrgLiveScorerPage: React.FC = () => {
     setTab(next);
     setTabChosen(true);
   };
+
+  if (!matchData && !loading && loadError) {
+    return (
+      <div className="p-4 sm:p-8 max-w-xl mx-auto space-y-4">
+        <ErrorState title="Couldn't open this match" message={loadError} onRetry={() => { setLoading(true); fetchMatch(); }} />
+        <Link to="/organization/scorer" className="block text-center text-sm font-semibold text-emerald-400 hover:underline">
+          Pick another match
+        </Link>
+      </div>
+    );
+  }
 
   if (loading || !matchData) {
     return (

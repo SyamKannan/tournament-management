@@ -365,6 +365,12 @@ class ScoringEngine
             $this->assertTossDone($match);
         }
 
+        // Ending a match that never kicked off would enter a 0-0 draw into the
+        // table; a match that didn't happen is cancelled or a walkover instead.
+        if (in_array($action, ['finish', 'half_time'], true) && in_array($match->status, ['scheduled', 'toss'], true)) {
+            throw new \RuntimeException('The match has not kicked off yet. Start the clock first.');
+        }
+
         return DB::transaction(function () use ($match, $action, $payload) {
             $this->lockMatch($match->id);
 

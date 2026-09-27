@@ -362,6 +362,8 @@ routes/api.php               the entire route table, single file
   disabled button alone lets a same-frame double tap through) and awaits its refetch.
 - Long public forms keep a device draft (`useDraft`, `useLeaveWarning`).
 - Screens nobody touches for minutes (scorer, scoreboard and auction TV) call `useWakeLock`.
+- A `SCORER` lands on `/organization/scorer` (the club's open fixtures, `ScorerMatchPickerPage`) and its
+  sidebar shows only Live Scorer and Posters — the only club routes that role can open.
 - Auction: `POST /api/auctions/{id}/reopen-hammer` undoes the latest sold/unsold call while
   that player is still on the hammer (refused once paid for or named in a lineup).
 - Team registration calls `…/registration/{token}/validate` *before* opening checkout; a

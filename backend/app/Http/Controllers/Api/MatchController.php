@@ -649,9 +649,9 @@ class MatchController extends Controller
     {
         $data = $request->validate([
             'innings' => ['required', 'integer', 'in:1,2'],
-            'runs_scored' => ['nullable', 'integer', 'min:0'],
+            'runs_scored' => ['nullable', 'integer', 'min:0', 'max:7'],
             'extras' => ['nullable', 'string', 'in:wide,no_ball,bye,leg_bye,none'],
-            'extras_runs' => ['nullable', 'integer', 'min:0'],
+            'extras_runs' => ['nullable', 'integer', 'min:0', 'max:8'],
             'is_wicket' => ['nullable', 'boolean'],
             'wicket_type' => ['nullable', 'string', 'in:bowled,caught,lbw,run_out,stumped,hit_wicket,caught_and_bowled,retired_hurt,obstructing_field'],
             'dismissed_player_id' => ['nullable', 'string'],

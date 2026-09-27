@@ -114,6 +114,20 @@ class FootballScoringTest extends TestCase
         $this->assertSame($match->team_a_id, $match->winner_team_id);
     }
 
+    public function test_a_match_that_never_kicked_off_cannot_be_finished(): void
+    {
+        foreach (['finish', 'half_time'] as $action) {
+            try {
+                $this->scoring->updateFootballTimer('match-fb-sched-2', $action);
+                $this->fail("{$action} was accepted before kick-off");
+            } catch (\RuntimeException $e) {
+                $this->assertStringContainsString('not kicked off', $e->getMessage());
+            }
+        }
+
+        $this->assertSame('scheduled', GameMatch::find('match-fb-sched-2')->status);
+    }
+
     public function test_a_shoot_out_decides_a_level_match_without_changing_the_score(): void
     {
         $match = GameMatch::find(self::MATCH_ID);

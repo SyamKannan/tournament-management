@@ -81,6 +81,7 @@ const OrgTournamentsPage = lazyPage(() => import('./pages/organization/OrgTourna
 const OrgTeamsPage = lazyPage(() => import('./pages/organization/OrgTeamsPage'), 'OrgTeamsPage');
 const OrgFixturesPage = lazyPage(() => import('./pages/organization/OrgFixturesPage'), 'OrgFixturesPage');
 const OrgLiveScorerPage = lazyPage(() => import('./pages/organization/OrgLiveScorerPage'), 'OrgLiveScorerPage');
+const ScorerMatchPickerPage = lazyPage(() => import('./pages/organization/ScorerMatchPickerPage'), 'ScorerMatchPickerPage');
 const OrgSponsorsAdsPage = lazyPage(() => import('./pages/organization/OrgSponsorsAdsPage'), 'OrgSponsorsAdsPage');
 const OrgAnnouncementsPage = lazyPage(() => import('./pages/organization/OrgAnnouncementsPage'), 'OrgAnnouncementsPage');
 const OrgNotificationsPage = lazyPage(() => import('./pages/organization/OrgNotificationsPage'), 'OrgNotificationsPage');
@@ -335,7 +336,7 @@ export const App: React.FC = () => {
                 } />
                 <Route path="/organization/scorer" element={
                   <ProtectedRoute allowedRoles={['ORG_ADMIN', 'SCORER']}>
-                    <OrgLiveScorerPage />
+                    <ScorerMatchPickerPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/organization/posters" element={

@@ -182,6 +182,19 @@ class CricketScoringTest extends TestCase
         $this->assertGreaterThan(0, $response->json('state.team_a_runs'));
     }
 
+    public function test_an_impossible_number_of_runs_off_one_ball_is_refused(): void
+    {
+        $this->actingAsUser('admin@malabar.com');
+        $before = $this->scoring->cricketState(self::MATCH_ID)->team_a_runs;
+
+        foreach ([['runs_scored' => 44], ['extras' => 'wide', 'extras_runs' => 40]] as $ball) {
+            $this->postJson('/api/matches/'.self::MATCH_ID.'/cricket/ball', ['innings' => 1] + $ball)
+                ->assertStatus(422);
+        }
+
+        $this->assertSame($before, $this->scoring->cricketState(self::MATCH_ID)->team_a_runs);
+    }
+
     /* --------------------------------------------- Extras, strike and stats */
 
     public function test_a_no_ball_hit_for_four_credits_the_bat_and_the_penalty_separately(): void

@@ -5,7 +5,7 @@ import { usePlatformConfig } from '../context/PlatformConfigContext';
 import {
   LayoutDashboard, CreditCard, Building2, Trophy, Users, Calendar,
   Radio, Megaphone, FileText, Settings, History, X, Gamepad2, Image as ImageIcon,
-  Receipt, PlusCircle, BellRing, MapPin, UserCog, MessageSquareHeart, LifeBuoy, ScrollText
+  Receipt, PlusCircle, BellRing, MapPin, UserCog, MessageSquareHeart, LifeBuoy, ScrollText, Activity
 } from 'lucide-react';
 import { useSupportBadge } from '../lib/useSupportBadge';
 
@@ -49,6 +49,12 @@ const ORG_LINKS = [
   { to: '/organization/support', label: 'Help & Support', icon: LifeBuoy, supportBadge: true },
 ];
 
+// A scorer shares the club workspace but can open only these two.
+const SCORER_LINKS = [
+  { to: '/organization/scorer', label: 'Live Scorer', icon: Activity },
+  { to: '/organization/posters', label: 'Posters', icon: ImageIcon },
+];
+
 const TEAM_LINKS = [
   { to: '/team/dashboard', label: 'Overview', icon: LayoutDashboard },
   { to: '/team/squad', label: 'My Squad', icon: Users },
@@ -57,7 +63,7 @@ const TEAM_LINKS = [
   { to: '/team/payments', label: 'Payments & Invoices', icon: Receipt },
 ];
 
-const WORKSPACE_LINKS = { admin: ADMIN_LINKS, organization: ORG_LINKS, team: TEAM_LINKS };
+const WORKSPACE_LINKS = { admin: ADMIN_LINKS, organization: ORG_LINKS, team: TEAM_LINKS, scorer: SCORER_LINKS };
 
 /** Exactly one item is lit: an explicit `also` match first, else the longest prefix. */
 function activeLinkFor(pathname: string, links: { to: string; also?: RegExp }[]): string | undefined {
@@ -79,7 +85,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ type, open, onClose }) => {
   const { messagingEnabled } = usePlatformConfig();
   // A section that cannot do anything is not shown at all: with no gateway
   // connected, "WhatsApp & SMS" would only ever report messages nobody got.
-  const links = WORKSPACE_LINKS[type].filter(
+  const pool = WORKSPACE_LINKS[type === 'organization' && user?.role === 'SCORER' ? 'scorer' : type];
+  const links = pool.filter(
     (link: { requiresMessaging?: boolean }) => !link.requiresMessaging || messagingEnabled,
   );
   const activeTo = activeLinkFor(useLocation().pathname, links);
