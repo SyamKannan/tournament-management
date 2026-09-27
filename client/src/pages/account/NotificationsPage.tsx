@@ -7,6 +7,7 @@ import { Pager } from '../../components/ui/Pager';
 import { usePaginatedList } from '../../lib/usePaginatedList';
 import {
   NOTIFICATIONS_CHANGED, type UserNotification, markAllNotificationsRead, markNotificationRead, timeAgo,
+  useNotificationBadge,
 } from '../../lib/notifications';
 import { formatDateTime } from '../../lib/format';
 
@@ -36,7 +37,8 @@ export const NotificationsPage: React.FC = () => {
     if (item.link) navigate(item.link);
   };
 
-  const hasUnread = list.rows.some(item => !item.read_at) || tab === 'unread';
+  // The server's count, not this page's rows: the unread ones may all be on page 2.
+  const unread = useNotificationBadge(true);
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -45,7 +47,7 @@ export const NotificationsPage: React.FC = () => {
           <h1 className="text-2xl font-black font-heading text-white">Notifications</h1>
           <p className="text-sm text-slate-400 mt-1">What happened with your tournaments, teams and account</p>
         </div>
-        {hasUnread && list.total > 0 && !isImpersonating && (
+        {unread > 0 && !isImpersonating && (
           <button
             onClick={() => markAllNotificationsRead().catch(() => { /* reload shows the truth */ })}
             className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700/80 hover:bg-slate-800
@@ -104,11 +106,12 @@ export const NotificationsPage: React.FC = () => {
                 >
                   <span
                     className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${item.read_at ? 'bg-transparent' : 'bg-cyan-400'}`}
-                    aria-label={item.read_at ? undefined : 'Unread'}
+                    aria-hidden="true"
                   />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-3">
                       <span className={`text-sm ${item.read_at ? 'text-slate-300' : 'text-white font-semibold'}`}>
+                        {!item.read_at && <span className="sr-only">Unread: </span>}
                         {item.title}
                       </span>
                       <time dateTime={item.created_at} title={formatDateTime(item.created_at)}

@@ -21,6 +21,9 @@ export const NotificationBell: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<UserNotification[] | null>(null);
   const [error, setError] = useState(false);
+  // On a phone the panel spans the screen just under the header, which is
+  // taller while the impersonation banner is showing.
+  const [panelTop, setPanelTop] = useState(72);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -74,7 +77,11 @@ export const NotificationBell: React.FC = () => {
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={() => setOpen(value => !value)}
+        onClick={() => {
+          const header = ref.current?.closest('header');
+          if (header) setPanelTop(Math.round(header.getBoundingClientRect().bottom) + 8);
+          setOpen(value => !value);
+        }}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
@@ -93,7 +100,8 @@ export const NotificationBell: React.FC = () => {
         <div
           role="dialog"
           aria-label="Notifications"
-          className="fixed sm:absolute left-4 right-4 sm:left-auto sm:right-0 top-16 sm:top-auto sm:mt-2 sm:w-96
+          style={{ '--panel-top': `${panelTop}px` } as React.CSSProperties}
+          className="fixed sm:absolute left-4 right-4 sm:left-auto sm:right-0 top-[var(--panel-top)] sm:top-full sm:mt-2 sm:w-96
                      rounded-2xl bg-slate-900/98 border border-slate-800 shadow-2xl shadow-black/50 z-50
                      backdrop-blur-xl animate-toast-in overflow-hidden"
         >
@@ -132,10 +140,11 @@ export const NotificationBell: React.FC = () => {
                     >
                       <span
                         className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${item.read_at ? 'bg-transparent' : 'bg-cyan-400'}`}
-                        aria-label={item.read_at ? undefined : 'Unread'}
+                        aria-hidden="true"
                       />
                       <span className="min-w-0 flex-1">
                         <span className={`block text-sm truncate ${item.read_at ? 'text-slate-300' : 'text-white font-semibold'}`}>
+                          {!item.read_at && <span className="sr-only">Unread: </span>}
                           {item.title}
                         </span>
                         <span className="block text-xs text-slate-400 line-clamp-2 whitespace-pre-line mt-0.5">{item.body}</span>
