@@ -412,6 +412,27 @@ class ApiContractTest extends TestCase
             ->assertJsonStructure(['user', 'player', 'team', 'tournament', 'organization', 'stats']);
     }
 
+    public function test_the_notification_feed_is_a_page_of_items_the_bell_reads(): void
+    {
+        $user = $this->actingAsUser('admin@greenvalley.com');
+
+        app(\App\Services\Notifications\NotificationService::class)->dispatch(
+            'team_registered',
+            [['name' => $user->name, 'user_id' => $user->id]],
+            ['team' => 'Test Team', 'tournament' => 'Test Cup'],
+            'org-green-valley',
+        );
+
+        $this->getJson('/api/me/notifications')
+            ->assertOk()
+            ->assertJsonStructure([
+                'data' => ['*' => ['id', 'event', 'title', 'body', 'link', 'related_type', 'related_id', 'read_at', 'created_at']],
+                'page', 'per_page', 'total', 'total_pages', 'has_more',
+            ]);
+
+        $this->getJson('/api/me/notifications/unread-count')->assertOk()->assertJsonStructure(['unread']);
+    }
+
     public function test_money_and_counts_are_returned_as_numbers_not_strings(): void
     {
         $tournament = $this->getJson('/api/tournaments/public/malappuram-7s-football-2026')->json('tournament');

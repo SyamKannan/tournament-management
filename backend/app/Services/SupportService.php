@@ -193,6 +193,7 @@ class SupportService
                 'phone' => $creator->phone,
                 'whatsapp' => $creator->phone,
                 'role' => $creator->role,
+                'user_id' => $creator->id,
             ]],
             $ticket->organization_id !== null => Audience::organizers($ticket->organization_id),
             default => [[

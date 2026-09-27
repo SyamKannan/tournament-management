@@ -46,3 +46,8 @@ Schedule::command('subscriptions:sweep')
 Schedule::command('support:sweep')
     ->dailyAt('03:15')
     ->withoutOverlapping();
+
+// In-app notifications read three months ago; unread ones are kept.
+Schedule::command('notifications:prune')
+    ->dailyAt('03:45')
+    ->withoutOverlapping();

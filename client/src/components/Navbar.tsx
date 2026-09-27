@@ -11,6 +11,7 @@ import { label } from '../lib/labels';
 import { BrandMark } from './brand/BrandMark';
 import { PreferencesMenu } from './PreferencesMenu';
 import { ImpersonationBanner } from './ImpersonationBanner';
+import { NotificationBell } from './NotificationBell';
 
 interface NavbarProps {
   /** Shown only on workspace routes, where a sidebar exists to open. */
@@ -215,6 +216,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) =
                   <WorkspaceIcon className="w-4 h-4" aria-hidden="true" />
                   {workspace.label}
                 </Link>}
+
+                <NotificationBell />
 
                 <div className="relative" ref={menuRef}>
                   <button

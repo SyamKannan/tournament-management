@@ -22,7 +22,7 @@ final class Audience
      * team row; a linked user account is preferred when there is one, since
      * that is the number they keep up to date.
      *
-     * @return array<int, array{name: string, phone: ?string, whatsapp: ?string, role: string}>
+     * @return array<int, array{name: string, phone: ?string, whatsapp: ?string, role: string, user_id?: ?string}>
      */
     public static function teamManager(?Team $team): array
     {
@@ -37,6 +37,7 @@ final class Audience
             'phone' => $user->phone ?? $team->manager_phone,
             'whatsapp' => $team->manager_whatsapp ?: ($user->phone ?? $team->manager_phone),
             'role' => 'TEAM_MANAGER',
+            'user_id' => $user?->id,
         ]];
     }
 
@@ -44,7 +45,7 @@ final class Audience
      * Every approved team's manager in a tournament — the fixture list going
      * out, or the tournament being called off.
      *
-     * @return array<int, array{name: string, phone: ?string, whatsapp: ?string, role: string}>
+     * @return array<int, array{name: string, phone: ?string, whatsapp: ?string, role: string, user_id?: ?string}>
      */
     public static function tournamentManagers(string $tournamentId, bool $approvedOnly = true): array
     {
@@ -63,7 +64,7 @@ final class Audience
      * The organizer's own admins — who hears about a registration coming in or
      * a plan about to lapse.
      *
-     * @return array<int, array{name: string, phone: ?string, whatsapp: ?string, role: string}>
+     * @return array<int, array{name: string, phone: ?string, whatsapp: ?string, role: string, user_id?: ?string}>
      */
     public static function organizers(string $organizationId): array
     {
@@ -76,6 +77,7 @@ final class Audience
                 'phone' => $user->phone,
                 'whatsapp' => $user->phone,
                 'role' => 'ORG_ADMIN',
+                'user_id' => $user->id,
             ])
             ->all();
 
@@ -103,7 +105,7 @@ final class Audience
      * A player, from either the squad record or the auction entry — the two
      * hold the same person's number in different columns.
      *
-     * @return array<int, array{name: string, phone: ?string, whatsapp: ?string, role: string}>
+     * @return array<int, array{name: string, phone: ?string, whatsapp: ?string, role: string, user_id?: ?string}>
      */
     public static function player(Player|AuctionPlayer|null $player): array
     {
@@ -118,6 +120,10 @@ final class Audience
             'phone' => $player->mobile,
             'whatsapp' => $player->mobile,
             'role' => 'PLAYER',
+            // Only an account the auction entry is already tied to. Never
+            // matched by phone: a number typed on a public form is not proof
+            // of whose account it is.
+            'user_id' => $player instanceof AuctionPlayer ? $player->user_id : null,
         ]];
     }
 }

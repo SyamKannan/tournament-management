@@ -112,6 +112,30 @@ final class NotificationCatalog
         ],
     ];
 
+    /**
+     * How each event reads in the in-app feed: a headline and the screen a tap
+     * opens (a client route). The body is the message itself.
+     *
+     * An event missing here never reaches the feed — `password_reset_code` on
+     * purpose: a code must not sit in a list anyone at that device can open.
+     * The link is chosen for the audience, since only they receive it.
+     */
+    private const IN_APP = [
+        'team_registered' => ['title' => 'New team: {team}', 'link' => '/organization/teams'],
+        'team_approved' => ['title' => '{team} is confirmed', 'link' => '/team/dashboard'],
+        'team_rejected' => ['title' => '{team} was declined', 'link' => '/team/dashboard'],
+        'payment_received' => ['title' => 'Payment received: {amount}', 'link' => '/team/payments'],
+        'fee_due_reminder' => ['title' => 'Entry fee still due', 'link' => '/team/payments'],
+        'fixtures_published' => ['title' => 'Fixtures are out', 'link' => '/team/fixtures'],
+        'match_reminder' => ['title' => 'Match coming up', 'link' => '/team/fixtures'],
+        'match_result' => ['title' => 'Match result', 'link' => '/team/fixtures'],
+        'tournament_cancelled' => ['title' => '{tournament} cancelled', 'link' => '/team/dashboard'],
+        'auction_player_sold' => ['title' => 'You were sold to {team}', 'link' => '/player/dashboard'],
+        'subscription_expiring' => ['title' => 'Your plan ends soon', 'link' => '/organization/billing'],
+        'subscription_expired' => ['title' => 'Your plan has ended', 'link' => '/organization/billing'],
+        'support_reply' => ['title' => 'Support replied to {reference}', 'link' => '/organization/support'],
+    ];
+
     /** @return array<int, string> */
     public static function events(): array
     {
@@ -153,6 +177,37 @@ final class NotificationCatalog
         }
 
         return $out;
+    }
+
+    /**
+     * The feed entry for an event, or null when it never goes to the feed.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{title: string, link: string}|null
+     */
+    public static function inApp(string $event, array $data): ?array
+    {
+        $definition = self::IN_APP[$event] ?? null;
+
+        if (! $definition) {
+            return null;
+        }
+
+        // A headline missing any of its names ("New team: ") would read
+        // half-finished, so it falls back to the catalogue's description.
+        $missing = false;
+        $title = preg_replace_callback('/\{(\w+)\}/', function (array $m) use ($data, &$missing) {
+            $value = trim((string) ($data[$m[1]] ?? ''));
+            $missing = $missing || $value === '';
+
+            return $value;
+        }, $definition['title']) ?? '';
+
+        if ($missing || trim($title) === '') {
+            $title = self::EVENTS[$event]['description'];
+        }
+
+        return ['title' => $title, 'link' => $definition['link']];
     }
 
     /**

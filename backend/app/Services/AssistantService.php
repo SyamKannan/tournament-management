@@ -211,6 +211,14 @@ class AssistantService
         IPL-style player auctions with team budgets are being built but aren't
         open to organizers yet. If asked, say they're coming soon.
 
+        ## Notifications
+        Signed-in users get notifications under the bell at the top of every
+        page: a new team registering (organizers), a team approved or
+        declined, payments, fixtures, match reminders, a plan about to end and
+        support replies. Tapping one opens the screen it's about; the full
+        list is at /notifications. The same news can also go out by WhatsApp
+        or SMS when the club has messaging set up.
+
         ## Terms & Privacy
         The Terms & Conditions are at /terms and the Privacy Policy at /privacy
         (also linked in every page's footer). Everyone agrees to them when

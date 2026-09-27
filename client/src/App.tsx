@@ -60,6 +60,7 @@ const AuctionTVPage = lazyPage(() => import('./pages/auction/AuctionTVPage'), 'A
 const PlayerDashboardPage = lazyPage(() => import('./pages/player/PlayerDashboardPage'), 'PlayerDashboardPage');
 const PublicPlayerProfilePage = lazyPage(() => import('./pages/public/PublicPlayerProfilePage'), 'PublicPlayerProfilePage');
 const MyProfilePage = lazyPage(() => import('./pages/account/MyProfilePage'), 'MyProfilePage');
+const NotificationsPage = lazyPage(() => import('./pages/account/NotificationsPage'), 'NotificationsPage');
 
 // Super Admin Pages
 const AdminDashboard = lazyPage(() => import('./pages/admin/AdminDashboard'), 'AdminDashboard');
@@ -209,6 +210,11 @@ export const App: React.FC = () => {
                 <Route path="/account/profile" element={
                   <ProtectedRoute>
                     <MyProfilePage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/notifications" element={
+                  <ProtectedRoute>
+                    <NotificationsPage />
                   </ProtectedRoute>
                 } />
 

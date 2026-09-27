@@ -59,8 +59,9 @@ hour catches up and a double run sends nothing twice.
 | `notifications:retry` | every 10 min | re-queues failed sends still under `max_attempts` |
 | `subscriptions:sweep` | 06:30 daily | expires subscriptions past `end_date` + `grace_period_days`, warns before |
 | `support:sweep` | 03:15 daily | closes support tickets resolved 7+ days ago with no reply |
+| `notifications:prune` | 03:45 daily | deletes in-app notifications read 90+ days ago (unread are kept) |
 
-All three sweeps take `--dry-run`.
+All the sweeps and `notifications:prune` take `--dry-run`.
 
 ## Architecture
 
@@ -129,6 +130,14 @@ fail a team approval, same rule as `RealtimeBroadcaster`.
   *and* at delivery, so opting out after queueing still stops the send.
 - Phone numbers go through `Support\Phone::normalize()` (E.164, India assumed for bare
   10-digit) — that is what makes opt-out matching work regardless of how it was typed.
+- **In-app feed (the bell).** `dispatch()` also calls `InAppNotifier`, which writes a
+  `user_notifications` row for each recipient carrying a `user_id` (`Audience` sets it: org admins,
+  a team's `manager_user_id`, an auction entry's `user_id` — never matched by phone). It needs no
+  gateway and ignores phone opt-outs, but obeys `notifications.enabled` and the per-org switches.
+  Headline and link per event are `NotificationCatalog::IN_APP`; an event missing there (the reset
+  code) never reaches the feed. API: `/api/me/notifications` (paged, `?unread=1`), `unread-count`,
+  `{id}/read`, `read-all` — scoped to the caller, and an impersonation session can't mark anything
+  read. Client: `NotificationBell` in the Navbar (polls, no WS room), page `/notifications`.
 
 **Fixtures and brackets.** `Fixtures\FixtureBuilder` builds the whole schedule for four
 formats — `league` (optionally home and away), `knockout`, `group_stage`, `league_knockout`.
@@ -322,7 +331,7 @@ swallows failures on purpose — scoring/bidding/announcements must keep returni
 API responses even when the gateway is down or unreachable. Don't make broadcast calls
 blocking or failure-sensitive.
 
-**Data model.** 26 tables, human-readable string primary keys (`org-green-valley`,
+**Data model.** 27 tables, human-readable string primary keys (`org-green-valley`,
 `tourney_1724500000000`) because public share links and the client depend on them being
 stable and readable — don't switch these to auto-increment ints. Structured config
 (tournament settings, payment rules, plan features, auction base prices, receipt
@@ -415,7 +424,9 @@ super admin and impersonation exemptions, admin publishing and acceptance list),
 `CachingTest` (hits, invalidation by scoring/edits/reorder, staff/public separation, after-commit
 flush, Redis outage; one test runs against a live Redis if `REDIS_TEST_HOST`:`REDIS_TEST_PORT` answers),
 `SecurityRegressionTest` (demo-role endpoint, self-declared fees, cross-tournament payments, public contact
-leaks, player-record takeover by phone, cross-club resets and opt-ins).
+leaks, player-record takeover by phone, cross-club resets and opt-ins),
+`InAppNotificationTest` (feed written from real flows, no gateway/phone needed, reset code excluded,
+per-org switches, dedupe, per-account isolation, impersonation can't clear, prune).
 
 No client-side test suite exists — `npm run typecheck` is the only automated client
 check.

@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\TeamController;
 use App\Http\Controllers\Api\TossController;
 use App\Http\Controllers\Api\TournamentController;
 use App\Http\Controllers\Api\UploadController;
+use App\Http\Controllers\Api\UserNotificationController;
 use App\Http\Controllers\Api\VenueController;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
@@ -98,6 +99,16 @@ Route::prefix('auth')->group(function () {
     // An existing account agreeing to the current terms. Everything else that
     // needs a signed-in user answers TERMS_NOT_ACCEPTED until this is done.
     Route::post('accept-terms', [LegalController::class, 'accept'])->middleware('auth.required');
+});
+
+/* ------------------------------------------------------- In-app notifications */
+
+// The caller's own feed; scoped to their user id, so no tenant check.
+Route::prefix('me/notifications')->middleware('auth.required')->group(function () {
+    Route::get('/', [UserNotificationController::class, 'index']);
+    Route::get('unread-count', [UserNotificationController::class, 'unreadCount']);
+    Route::post('read-all', [UserNotificationController::class, 'markAllRead']);
+    Route::post('{id}/read', [UserNotificationController::class, 'markRead']);
 });
 
 /* --------------------------------------------------------------- Super admin */

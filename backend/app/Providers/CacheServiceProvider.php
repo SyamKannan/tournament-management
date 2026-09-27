@@ -15,6 +15,7 @@ use App\Models\Review;
 use App\Models\RevokedToken;
 use App\Models\Sport;
 use App\Models\Tournament;
+use App\Models\UserNotification;
 use App\Support\Cached;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +38,7 @@ class CacheServiceProvider extends ServiceProvider
         NotificationOptOut::class,
         PasswordReset::class,
         RevokedToken::class,
+        UserNotification::class,
     ];
 
     private const PLATFORM = [Plan::class, Sport::class, PlatformSetting::class, Review::class, LegalDocument::class];

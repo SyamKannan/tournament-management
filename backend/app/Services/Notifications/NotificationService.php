@@ -35,7 +35,10 @@ class NotificationService
      */
     private const IGNORES_OPT_OUT = ['password_reset_code'];
 
-    public function __construct(private readonly ChannelManager $channels) {}
+    public function __construct(
+        private readonly ChannelManager $channels,
+        private readonly InAppNotifier $inApp,
+    ) {}
 
     /**
      * Write and queue one message per recipient, returning the rows created.
@@ -44,7 +47,7 @@ class NotificationService
      * recipient with no dialable number, or one that has opted out, is recorded
      * as skipped rather than silently dropped.
      *
-     * @param  array<int, array{name?: string, phone?: ?string, whatsapp?: ?string, role?: string}>  $recipients
+     * @param  array<int, array{name?: string, phone?: ?string, whatsapp?: ?string, role?: string, user_id?: ?string}>  $recipients
      * @param  array<string, mixed>  $data
      * @return array<int, Notification>
      */
@@ -116,6 +119,15 @@ class NotificationService
             if ($notification->status === 'queued') {
                 SendNotification::dispatch($notification->id);
             }
+        }
+
+        // The in-app feed, for recipients with an account. Written whether or
+        // not a phone was reachable — no gateway, no number, an opted-out
+        // phone: the bell still rings for the account itself.
+        try {
+            $this->inApp->record($event, $recipients, $data, $body, $organizationId, $relatedType, $relatedId, $dedupeKey);
+        } catch (\Throwable $e) {
+            Log::warning('notification.in_app_failed', ['event' => $event, 'error' => $e->getMessage()]);
         }
 
         return $created;
