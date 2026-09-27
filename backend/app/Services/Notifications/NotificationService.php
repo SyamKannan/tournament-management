@@ -28,6 +28,13 @@ use Illuminate\Support\Facades\Log;
  */
 class NotificationService
 {
+    /**
+     * Sent because the person asked for it just now, not because an organizer
+     * did. An opt-out stops what clubs send; it must not stop someone getting
+     * back into their own account.
+     */
+    private const IGNORES_OPT_OUT = ['password_reset_code'];
+
     public function __construct(private readonly ChannelManager $channels) {}
 
     /**
@@ -93,8 +100,8 @@ class NotificationService
                 'recipient_role' => (string) ($recipient['role'] ?? NotificationCatalog::audience($event)),
                 'to' => $to ?? '',
                 'body' => $body,
-                'status' => $this->initialStatus($to),
-                'error' => $this->initialError($to),
+                'status' => $this->initialStatus($to, $event),
+                'error' => $this->initialError($to, $event),
                 'related_type' => $relatedType,
                 'related_id' => $relatedId,
                 'dedupe_key' => $key,
@@ -130,7 +137,7 @@ class NotificationService
         // Opting out between queueing and sending has to be honoured — a
         // reminder queued last night must not go out this morning to someone
         // who asked to be left alone since.
-        if ($this->hasOptedOut($notification->to)) {
+        if (! in_array($notification->event, self::IGNORES_OPT_OUT, true) && $this->hasOptedOut($notification->to)) {
             return $this->finish($notification, 'skipped', error: 'Recipient has opted out');
         }
 
@@ -184,11 +191,34 @@ class NotificationService
         );
     }
 
-    public function optIn(string $phone): void
+    /**
+     * Start contacting a number again. Only the organization that recorded
+     * the opt-out may lift it: the list is platform-wide, so any club undoing
+     * a request made to another club would override what the person asked for.
+     *
+     * @return bool false when the opt-out belongs to another organization
+     */
+    public function optIn(string $phone, ?string $organizationId = null): bool
     {
-        if ($normalized = Phone::normalize($phone)) {
-            NotificationOptOut::query()->whereKey($normalized)->delete();
+        $normalized = Phone::normalize($phone);
+
+        if (! $normalized) {
+            return true;
         }
+
+        $optOut = NotificationOptOut::query()->whereKey($normalized)->first();
+
+        if (! $optOut) {
+            return true;
+        }
+
+        if ($organizationId !== null && $optOut->organization_id !== null && $optOut->organization_id !== $organizationId) {
+            return false;
+        }
+
+        $optOut->delete();
+
+        return true;
     }
 
     public function hasOptedOut(?string $phone): bool
@@ -285,22 +315,27 @@ class NotificationService
 
     /* ------------------------------------------------------------- Internals */
 
-    private function initialStatus(?string $to): string
+    private function initialStatus(?string $to, string $event): string
     {
         if (! $to) {
             return 'skipped';
         }
 
-        return $this->hasOptedOut($to) ? 'skipped' : 'queued';
+        return $this->blockedByOptOut($to, $event) ? 'skipped' : 'queued';
     }
 
-    private function initialError(?string $to): ?string
+    private function initialError(?string $to, string $event): ?string
     {
         if (! $to) {
             return 'No usable phone number on file';
         }
 
-        return $this->hasOptedOut($to) ? 'Recipient has opted out' : null;
+        return $this->blockedByOptOut($to, $event) ? 'Recipient has opted out' : null;
+    }
+
+    private function blockedByOptOut(string $to, string $event): bool
+    {
+        return ! in_array($event, self::IGNORES_OPT_OUT, true) && $this->hasOptedOut($to);
     }
 
     /**

@@ -74,11 +74,17 @@ class LineupService
      */
     private function defaultPlayingCount(GameMatch $match): int
     {
+        $settings = Tournament::find($match->tournament_id)?->settings ?? [];
+
         if ($match->sport_code !== 'football') {
-            return self::DEFAULT_PLAYING_COUNT;
+            // A six-a-side village cricket cup plays six, and is all out at
+            // five wickets — not after ten.
+            $xi = (int) ($settings['playing_xi_count'] ?? 0);
+
+            return $xi >= 2 ? $xi : self::DEFAULT_PLAYING_COUNT;
         }
 
-        $format = (string) (Tournament::find($match->tournament_id)?->settings['football_format'] ?? '');
+        $format = (string) ($settings['football_format'] ?? '');
 
         return preg_match('/^(\d+)\s*-?\s*a\s*-?\s*side/i', $format, $found) && (int) $found[1] > 0
             ? (int) $found[1]
@@ -107,6 +113,12 @@ class LineupService
             if (! in_array($entry['player_id'], $squad, true)) {
                 throw new \RuntimeException('One of those players is not in this team’s squad');
             }
+        }
+
+        $ids = array_column($entries, 'player_id');
+
+        if (count($ids) !== count(array_unique($ids))) {
+            throw new \RuntimeException('A player is named twice in that team sheet');
         }
 
         DB::transaction(function () use ($match, $teamId, $entries) {

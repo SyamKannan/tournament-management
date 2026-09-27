@@ -5,6 +5,7 @@ namespace App\Exceptions;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -45,7 +46,9 @@ class ApiExceptionRenderer
      */
     public function __invoke(\Throwable $e, Request $request): ?JsonResponse
     {
-        if (! $request->is('api/*') && ! $request->expectsJson()) {
+        // Already a finished response (thrown to leave a transaction early):
+        // the framework hands it back exactly as built.
+        if ((! $request->is('api/*') && ! $request->expectsJson()) || $e instanceof HttpResponseException) {
             return null;
         }
 

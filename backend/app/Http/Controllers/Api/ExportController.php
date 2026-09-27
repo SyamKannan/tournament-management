@@ -211,7 +211,10 @@ class ExportController extends Controller
                 $team->manager_phone,
                 (float) ($payment->total_fee ?? $tournament->ground_fee ?? 0),
                 (float) ($payment->paid_amount ?? 0),
-                (float) ($payment->remaining_amount ?? ($tournament->ground_fee ?? 0)),
+                // A side that is out (rejected, withdrawn) owes nothing more.
+                in_array($team->status, Team::HOLDS_PLACE, true)
+                    ? (float) ($payment->remaining_amount ?? ($tournament->ground_fee ?? 0))
+                    : 0.0,
                 $payment->status ?? 'unpaid',
                 $payment->payment_method ?? '',
                 $payment->receipt_number ?? '',

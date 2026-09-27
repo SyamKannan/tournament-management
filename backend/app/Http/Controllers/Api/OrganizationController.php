@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Sponsor;
+use App\Models\Subscription;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\Tournament;
@@ -19,6 +20,7 @@ use App\Support\Paginate;
 use App\Support\TournamentStage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class OrganizationController extends Controller
 {
@@ -41,20 +43,25 @@ class OrganizationController extends Controller
             return response()->json(['error' => 'Organization not found or inactive'], 404);
         }
 
-        $active = Tournament::query()
+        $listed = Tournament::query()
             ->where('organization_id', $organization->id)
             ->whereNotIn('status', ['cancelled', 'draft'])
             ->get();
-        $stages = TournamentStage::forMany($active);
+        $stages = TournamentStage::forMany($listed);
+
+        // "Past" is what has actually finished. The stored status never moves
+        // to `completed` on its own, so filtering on it left this list empty —
+        // and a completed one also showed up under "active".
+        [$past, $active] = $listed->partition(
+            fn (Tournament $t) => in_array($stages[$t->id], ['completed', 'matches_finished'], true)
+        );
 
         return response()->json([
             'organization' => $organization,
             'active_tournaments' => $active->map(fn (Tournament $t) => [...$t->toArray(), 'stage' => $stages[$t->id]])->values(),
-            'past_tournaments' => Tournament::query()
-                ->where('organization_id', $organization->id)
-                ->where('status', 'completed')
-                ->get(),
-            'sponsors' => Sponsor::query()->where('organization_id', $organization->id)->get(),
+            'past_tournaments' => $past->map(fn (Tournament $t) => [...$t->toArray(), 'stage' => $stages[$t->id]])->values(),
+            // A sponsor's phone and email are the organizer's business contacts, not the public's.
+            'sponsors' => Sponsor::query()->where('organization_id', $organization->id)->get()->makeHidden(['phone', 'email']),
         ]);
     }
 
@@ -141,10 +148,10 @@ class OrganizationController extends Controller
             'plan_id.required' => 'Plan ID is required',
         ]);
 
-        $plan = Plan::find($data['plan_id']);
+        $plan = $this->purchasablePlan($data['plan_id'], $id);
 
         if (! $plan) {
-            return response()->json(['error' => 'Plan not found'], 404);
+            return response()->json(['error' => 'That plan is no longer offered. Choose another one.'], 404);
         }
 
         if ((float) $plan->price <= 0) {
@@ -188,8 +195,12 @@ class OrganizationController extends Controller
             'plan_id.required' => 'Plan ID is required',
         ]);
 
-        $plan = Plan::find($data['plan_id']);
+        $plan = $this->purchasablePlan($data['plan_id'], $id);
         $verifiedTransactionReference = null;
+
+        if (! $plan) {
+            return response()->json(['error' => 'That plan is no longer offered. Choose another one.'], 404);
+        }
 
         // A paid plan always needs a verified checkout result from the
         // subscription flow's gateway — never a self-reported payment.
@@ -200,28 +211,60 @@ class OrganizationController extends Controller
 
             // Checked against the plan's price, so a cheap plan's checkout
             // can't be used to switch on an expensive one.
-            if (! $this->gateway->verify('subscription', $data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'], (float) $plan->price)) {
+            // …and opened by this club for this plan, not by another club.
+            if (! $this->gateway->verify('subscription', $data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'], (float) $plan->price, [
+                'organization_id' => $id,
+                'plan_id' => $plan->id,
+            ])) {
                 return response()->json(['error' => 'Payment verification failed. Please try again.'], 400);
             }
 
-            // One payment buys one period. A signed result stays valid forever,
-            // so without this it could be sent again next month to renew free.
-            if (Invoice::query()->where('transaction_reference', $data['razorpay_payment_id'])->exists()) {
-                return response()->json(['error' => 'This payment has already been used to activate a plan. Refresh the page to see your current plan.'], 409);
-            }
-
             $verifiedTransactionReference = $data['razorpay_payment_id'];
-        } elseif ($plan && $this->billing->freePlanUsed($id)) {
+        } elseif ($this->billing->freePlanUsed($id)) {
             return response()->json(['error' => self::FREE_PLAN_USED], 409);
         }
 
+        $alreadyUsed = 'This payment has already been used to activate a plan. Refresh the page to see your current plan.';
+
         try {
-            return response()->json(
-                $this->billing->subscribePlan($id, $data['plan_id'], $data['payment_method'] ?? 'upi', $verifiedTransactionReference)
-            );
+            $result = DB::transaction(function () use ($id, $data, $verifiedTransactionReference) {
+                // One payment buys one period. A signed result stays valid
+                // forever, so without this it could be sent again next month
+                // to renew free. Claimed in the transaction, so two taps can't.
+                if ($verifiedTransactionReference && (
+                    Invoice::query()->where('transaction_reference', $verifiedTransactionReference)->exists()
+                    || ! $this->gateway->spend($verifiedTransactionReference, 'subscription', 'subscription', $id)
+                )) {
+                    return null;
+                }
+
+                return $this->billing->subscribePlan($id, $data['plan_id'], $data['payment_method'] ?? 'upi', $verifiedTransactionReference);
+            });
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 400);
         }
+
+        return $result
+            ? response()->json($result)
+            : response()->json(['error' => $alreadyUsed], 409);
+    }
+
+    /**
+     * A plan an organizer may buy: an active one, or the plan the club is
+     * already on — taking a plan off sale stops new clubs buying it, not the
+     * clubs on it renewing.
+     */
+    private function purchasablePlan(string $planId, string $organizationId): ?Plan
+    {
+        $plan = Plan::find($planId);
+
+        if (! $plan) {
+            return null;
+        }
+
+        $current = Subscription::query()->where('organization_id', $organizationId)->value('plan_id');
+
+        return $plan->status === 'active' || $current === $plan->id ? $plan : null;
     }
 
     /* ------------------------------------------------------------- Members */
@@ -271,6 +314,18 @@ class OrganizationController extends Controller
         if (in_array($member->role, ['ORG_ADMIN', 'SUPER_ADMIN'], true)) {
             return response()->json([
                 'error' => 'Another administrator\'s password can only be reset by platform support.',
+            ], 403);
+        }
+
+        // A team manager is listed here because they entered one of this club's
+        // tournaments, but the same account may run teams for other clubs too.
+        // Handing this club its password would hand it those clubs' pages.
+        if ($member->organization_id !== $id && Team::query()
+            ->where('manager_user_id', $member->id)
+            ->where('organization_id', '!=', $id)
+            ->exists()) {
+            return response()->json([
+                'error' => 'This account also manages teams for other organizers, so only platform support can reset its password.',
             ], 403);
         }
 

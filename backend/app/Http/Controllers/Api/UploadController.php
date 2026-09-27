@@ -9,6 +9,7 @@ use App\Support\Ids;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Image uploads for logos and player photos.
@@ -35,6 +36,17 @@ class UploadController extends Controller
 
     private const MAX_BYTES = 10 * 1024 * 1024;
 
+    /** Every folder the client uploads into. */
+    private const FOLDERS = ['profiles', 'players', 'clubs', 'logos', 'tournaments', 'teams', 'sponsors', 'posters', 'support'];
+
+    /** A support screenshot is a screenshot, not a banner. */
+    private const SUPPORT_MAX_BYTES = 4 * 1024 * 1024;
+
+    /** Per person (or address, signed out) per day, for uploads no quota counts. */
+    private const SUPPORT_DAILY = 30;
+
+    private const ANONYMOUS_DAILY = 150;
+
     public function __construct(private readonly BillingService $billing) {}
 
     public function upload(Request $request): JsonResponse
@@ -46,8 +58,18 @@ class UploadController extends Controller
             'folder' => ['nullable', 'string', 'max:64'],
         ]);
 
-        $folder = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string) $request->input('folder', 'profiles')) ?: 'profiles';
+        // Only the folders the app uploads into; anything else lands in
+        // `profiles` rather than a directory a caller made up.
+        $requested = (string) $request->input('folder', 'profiles');
+        $folder = in_array($requested, self::FOLDERS, true) ? $requested : 'profiles';
         $targetDir = public_path("uploads/{$folder}");
+
+        // Nobody's quota covers these two, so each has its own ceiling: the
+        // support folder was also a way round a club's storage limit (upload
+        // the crest "as a screenshot"), and anonymous uploads had none at all.
+        if ($limited = $this->denyUncounted($request, $folder)) {
+            return $limited;
+        }
 
         if (! File::isDirectory($targetDir)) {
             File::makeDirectory($targetDir, 0755, true, true);
@@ -123,6 +145,35 @@ class UploadController extends Controller
         }
 
         return response()->json(['error' => 'No image file or base64 data provided'], 422);
+    }
+
+    private function denyUncounted(Request $request, string $folder): ?JsonResponse
+    {
+        $user = $request->user();
+
+        if ($folder !== 'support' && $user?->organization_id) {
+            return null; // the club's own storage quota applies
+        }
+
+        $size = (int) ($request->file('image') ?? $request->file('file'))?->getSize()
+            ?: (int) (strlen((string) $request->input('base64', '')) * 3 / 4);
+
+        if ($folder === 'support' && $size > self::SUPPORT_MAX_BYTES) {
+            return response()->json(['error' => 'Screenshots can be up to 4 MB.'], 422);
+        }
+
+        [$bucket, $max] = $folder === 'support'
+            ? ['support', self::SUPPORT_DAILY]
+            : ['anonymous', self::ANONYMOUS_DAILY];
+        $key = "upload-daily:{$bucket}:".($user?->id ?? $request->ip());
+
+        if (RateLimiter::tooManyAttempts($key, $max)) {
+            return response()->json(['error' => 'That is a lot of uploads for one day. Please try again tomorrow.'], 429);
+        }
+
+        RateLimiter::hit($key, 86400);
+
+        return null;
     }
 
     private function stored(Request $request, string $folder, string $filename, int $bytes, ?string $organizationId): JsonResponse

@@ -6,6 +6,7 @@ use App\Models\GameMatch;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Support\Ids;
+use App\Support\LocalTime;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -240,6 +241,8 @@ class FixtureBuilder
             $slots[$position] = $seeds[$seedNumber - 1] ?? null;
         }
 
+        $slots = $this->avoidSameGroupTies($slots);
+
         $created = [];
         $number = $firstMatchNumber;
         $roundCount = (int) log($size, 2);
@@ -450,6 +453,42 @@ class FixtureBuilder
         return $order;
     }
 
+    /**
+     * Seeding order alone pairs two sides from one group whenever the group
+     * count isn't a power of two (three groups: C1 meets C2 in round one).
+     * Swap the second side of a clashing pair with another pair's second side
+     * when that leaves neither pair a same-group tie.
+     *
+     * @param  array<int, array|null>  $slots  first-round slots, pairs at (0,1), (2,3), …
+     * @return array<int, array|null>
+     */
+    private function avoidSameGroupTies(array $slots): array
+    {
+        $group = fn (?array $side) => ($side['type'] ?? null) === 'group' ? (string) $side['group'] : null;
+        $clash = fn (?array $a, ?array $b) => $group($a) !== null && $group($a) === $group($b);
+        $pairs = intdiv(count($slots), 2);
+
+        for ($i = 0; $i < $pairs; $i++) {
+            if (! $clash($slots[2 * $i], $slots[2 * $i + 1])) {
+                continue;
+            }
+
+            for ($j = 0; $j < $pairs; $j++) {
+                if ($j === $i || $slots[2 * $j] === null || $slots[2 * $j + 1] === null) {
+                    continue;
+                }
+
+                if (! $clash($slots[2 * $i], $slots[2 * $j + 1]) && ! $clash($slots[2 * $j], $slots[2 * $i + 1])) {
+                    [$slots[2 * $i + 1], $slots[2 * $j + 1]] = [$slots[2 * $j + 1], $slots[2 * $i + 1]];
+
+                    break;
+                }
+            }
+        }
+
+        return $slots;
+    }
+
     private function bracketSize(int $entrants): int
     {
         $size = 2;
@@ -499,7 +538,8 @@ class FixtureBuilder
             }
 
             try {
-                $date = Carbon::parse($candidate);
+                // A date the organizer typed is a date on their own calendar.
+                $date = LocalTime::parse((string) $candidate);
 
                 // A bare date has no kick-off time: use the one the organizer set on
                 // the tournament, else the afternoon once the heat is off — not midnight.
@@ -515,7 +555,7 @@ class FixtureBuilder
             }
         }
 
-        return Carbon::now()->addDay()->setTime(...$this->firstKickOff($tournament));
+        return LocalTime::now()->addDay()->setTime(...$this->firstKickOff($tournament));
     }
 
     /** @return array{int, int} */

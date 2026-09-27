@@ -70,6 +70,9 @@ class ImageUploadTest extends TestCase
         $path = $response->json('path');
         $this->written[] = $path;
 
-        $this->assertStringStartsWith('uploads/routes/', $path);
+        // Not a folder the app uses, so it lands in the default one — never
+        // anywhere outside public/uploads.
+        $this->assertStringStartsWith('uploads/profiles/', $path);
+        $this->assertStringNotContainsString('..', $path);
     }
 }

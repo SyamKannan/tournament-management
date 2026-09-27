@@ -25,12 +25,30 @@ class RegistrationWindow
                 : 'This tournament has already finished.';
         }
 
+        // A draft isn't published: its link must not take entries yet.
+        if ($tournament->status === 'draft') {
+            return 'This tournament is not open for entries yet.';
+        }
+
+        // Nor before the day the organizer said entries open.
+        if ($tournament->registration_opening) {
+            try {
+                $opensAt = LocalTime::parse((string) $tournament->registration_opening);
+
+                if ($opensAt->isFuture()) {
+                    return 'Registration opens on '.$opensAt->format('j M Y').'.';
+                }
+            } catch (\Exception) {
+            }
+        }
+
         $deadline = $link?->deadline ?: $tournament->registration_closing;
 
         if ($deadline) {
             try {
                 // A date with no time means entries close at the end of that day.
-                $closesAt = Carbon::parse($deadline);
+                // "Closes on the 30th" is the end of the 30th where the club is.
+                $closesAt = LocalTime::parse((string) $deadline);
 
                 if ($closesAt->equalTo($closesAt->copy()->startOfDay())) {
                     $closesAt = $closesAt->endOfDay();

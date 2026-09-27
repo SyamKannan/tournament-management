@@ -436,7 +436,8 @@ export const ScoreboardTVPage: React.FC = () => {
 
   // Goals under the side they counted for: an own goal is scored by one team's
   // player and credited to the other, and a penalty is as much a goal as any.
-  const footballEvents = football_state?.events || [];
+  // Shoot-out kicks decide the tie but are not goals, so they stay off this list.
+  const footballEvents = (football_state?.events || []).filter(event => event.period !== 'penalties');
   const goalsFor = (teamId: string) => footballEvents.filter(event =>
     ((event.event_type === 'goal' || event.event_type === 'penalty_goal') && event.team_id === teamId) ||
     (event.event_type === 'own_goal' && event.team_id !== teamId));
@@ -713,11 +714,18 @@ export const ScoreboardTVPage: React.FC = () => {
                     <span className={`w-2 h-2 rounded-full ${football_state?.is_timer_running ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} />
                     <span>{match.status === 'completed' ? 'Full Time' : periodLabel(football_state?.current_half)}</span>
                   </span>
-                  {football_state?.current_half !== 'penalties' && (
+                  {football_state?.current_half !== 'penalties' ? (
                     <>
                       <span className="w-1 h-3 bg-slate-800" />
                       <span className="font-mono tv-sub font-black text-white tracking-wider">
                         {formatClock(footballClock)}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-1 h-3 bg-slate-800" />
+                      <span className="font-mono tv-sub font-black text-amber-300 tracking-wider">
+                        {football_state?.team_a_penalties ?? 0} – {football_state?.team_b_penalties ?? 0}
                       </span>
                     </>
                   )}

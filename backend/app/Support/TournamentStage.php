@@ -32,7 +32,7 @@ class TournamentStage
     {
         $ids = $tournaments->pluck('id');
 
-        $entered = Team::query()->whereIn('tournament_id', $ids)->where('status', '!=', 'withdrawn')
+        $entered = Team::query()->whereIn('tournament_id', $ids)->whereIn('status', Team::HOLDS_PLACE)
             ->selectRaw('tournament_id, count(*) as n')->groupBy('tournament_id')->pluck('n', 'tournament_id');
         $links = RegistrationLink::query()->whereIn('tournament_id', $ids)->get()->keyBy('tournament_id');
         $matches = GameMatch::query()->whereIn('tournament_id', $ids)->get(['tournament_id', 'status'])->groupBy('tournament_id');

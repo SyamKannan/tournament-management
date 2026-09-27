@@ -85,7 +85,9 @@ class SweepSubscriptions extends Command
                         $subscription->id,
                         // One notice per subscription, ever — the sweep runs
                         // daily and this is not news twice.
-                        "subscription_expired:{$subscription->id}",
+                        // Per period: the row is reused when the club renews, so
+                        // the subscription id alone silenced every later notice.
+                        "subscription_expired:{$subscription->id}:{$endsOn->format('Y-m-d')}",
                     );
                 }
 
@@ -119,7 +121,7 @@ class SweepSubscriptions extends Command
                     $organization->id,
                     'subscription',
                     $subscription->id,
-                    "subscription_expiring:{$subscription->id}:{$threshold}",
+                    "subscription_expiring:{$subscription->id}:{$endsOn->format('Y-m-d')}:{$threshold}",
                 );
             }
         }

@@ -160,7 +160,14 @@ class NotificationController extends Controller
             'phone' => ['required', 'string', 'max:32'],
         ]);
 
-        $this->notifications->optIn($data['phone']);
+        // A super admin works for the platform, not a club, and may lift any.
+        $asOrganization = $request->user()->role === 'SUPER_ADMIN' ? null : $organizationId;
+
+        if (! $this->notifications->optIn($data['phone'], $asOrganization)) {
+            return response()->json([
+                'error' => 'This number asked another organizer to stop messaging it. Only that organizer — or the person themselves — can change that.',
+            ], 403);
+        }
 
         return response()->json(['message' => 'This number will be contacted again.']);
     }

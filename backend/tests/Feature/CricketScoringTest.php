@@ -498,6 +498,106 @@ class CricketScoringTest extends TestCase
         $this->assertSame($inningsRuns, $bowledFirst->runs_conceded);
     }
 
+    public function test_a_state_opened_before_the_toss_follows_the_toss(): void
+    {
+        $fresh = $this->freshMatch();
+
+        // Someone opens the match page before the toss: the row is made with A batting.
+        $this->assertSame($fresh->team_a_id, $this->scoring->cricketState($fresh->id)->batting_team_id);
+
+        // The toss then puts B in to bat.
+        $fresh->forceFill(['toss_winner_team_id' => $fresh->team_b_id, 'toss_decision' => 'bat', 'batting_first_team_id' => $fresh->team_b_id])->save();
+
+        $state = $this->scoring->cricketState($fresh->id);
+        $this->assertSame($fresh->team_b_id, $state->batting_team_id);
+        $this->assertSame($fresh->team_a_id, $state->bowling_team_id);
+    }
+
+    public function test_undo_reaches_back_across_an_innings_switch(): void
+    {
+        $this->bowlSingle();
+        $before = $this->scoring->cricketState(self::MATCH_ID);
+
+        $this->scoring->switchCricketInnings(self::MATCH_ID);
+        $state = $this->scoring->undoLastCricketBall(self::MATCH_ID);
+
+        $this->assertSame(1, (int) $state->current_innings);
+        $this->assertNull($state->target_runs);
+        $this->assertSame($before->batting_team_id, $state->batting_team_id);
+        $this->assertSame($before->team_a_runs - 1, $state->team_a_runs);
+        $this->assertSame('in_progress', GameMatch::find(self::MATCH_ID)->status);
+
+        // …and the first innings can be scored again.
+        $this->bowlDot();
+    }
+
+    public function test_a_tied_match_shares_the_points(): void
+    {
+        $match = GameMatch::find(self::MATCH_ID);
+        $match->forceFill(['status' => 'completed', 'winner_team_id' => null, 'result_summary' => 'Match tied'])->save();
+        $this->scoring->recalculateCricketStandings($match->tournament_id);
+
+        foreach ([$match->team_a_id, $match->team_b_id] as $teamId) {
+            $standing = Standing::query()->where('tournament_id', $match->tournament_id)->where('team_id', $teamId)->first();
+            $this->assertGreaterThanOrEqual(1, $standing->drawn);
+            $this->assertGreaterThanOrEqual(1, $standing->points, 'a tie must be worth something');
+        }
+    }
+
+    public function test_a_run_out_non_striker_is_the_one_replaced(): void
+    {
+        $this->setBatters('pl-kk-1', 'pl-kk-2');
+
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID, 'innings' => 1, 'runsScored' => 0, 'extras' => 'none',
+            'isWicket' => true, 'wicketType' => 'run_out', 'dismissedPlayerId' => 'pl-kk-2', 'nextStrikerId' => 'pl-kk-4',
+        ]);
+
+        $state = $this->scoring->cricketState(self::MATCH_ID);
+        $legal = CricketDelivery::query()->where('match_id', self::MATCH_ID)->where('innings', 1)->whereNotIn('extras', ['wide', 'no_ball'])->count();
+        $pair = [$state->current_striker_id, $state->current_non_striker_id];
+
+        // Whatever the end of the over did to the ends, the batter who wasn't out is still in.
+        $this->assertContains('pl-kk-1', $pair);
+        $this->assertContains('pl-kk-4', $pair);
+        $this->assertNotContains('pl-kk-2', $pair, $legal % 6 === 0 ? 'over ended' : 'mid-over');
+    }
+
+    public function test_a_batter_cannot_be_bowled_off_a_no_ball_and_retiring_is_not_a_wicket(): void
+    {
+        try {
+            $this->scoring->recordCricketBall([
+                'matchId' => self::MATCH_ID, 'innings' => 1, 'runsScored' => 0, 'extras' => 'no_ball',
+                'isWicket' => true, 'wicketType' => 'bowled',
+            ]);
+            $this->fail('bowled off a no-ball was accepted');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('no-ball', $e->getMessage());
+        }
+
+        $before = $this->scoring->cricketState(self::MATCH_ID)->team_a_wickets;
+        $this->scoring->recordCricketBall([
+            'matchId' => self::MATCH_ID, 'innings' => 1, 'runsScored' => 0, 'extras' => 'none',
+            'isWicket' => true, 'wicketType' => 'retired_hurt', 'nextStrikerId' => 'pl-kk-4',
+        ]);
+
+        $this->assertSame($before, $this->scoring->cricketState(self::MATCH_ID)->team_a_wickets);
+    }
+
+    private function freshMatch(): GameMatch
+    {
+        $live = GameMatch::find(self::MATCH_ID);
+        $fresh = $live->replicate();
+        $fresh->forceFill([
+            'id' => 'match-crick-fresh-'.uniqid(),
+            'status' => 'scheduled',
+            'toss_winner_team_id' => null, 'toss_decision' => null, 'batting_first_team_id' => null,
+            'winner_team_id' => null, 'result_summary' => null,
+        ])->save();
+
+        return $fresh;
+    }
+
     /** The first-innings card as it stands right now. */
     private function currentCard(): array
     {

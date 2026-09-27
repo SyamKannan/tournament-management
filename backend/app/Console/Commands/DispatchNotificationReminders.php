@@ -10,6 +10,8 @@ use App\Models\Tournament;
 use App\Models\Venue;
 use App\Services\Notifications\Audience;
 use App\Services\Notifications\NotificationService;
+use App\Support\LocalTime;
+use App\Support\TournamentStage;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 
@@ -103,7 +105,7 @@ class DispatchNotificationReminders extends Command
                 $sent += $this->queue($notifications, $dryRun, 'match_reminder', Audience::teamManager($team), [
                     'team' => $team->name,
                     'opponent' => $teams->get($opponentId)?->name ?? 'the other side',
-                    'kickoff' => $kickoff->format('D j M, g:ia'),
+                    'kickoff' => LocalTime::format($kickoff, 'D j M, g:ia'),
                     'venue_line' => $venue?->name ? ' at '.$venue->name : '',
                     'tournament' => $tournament?->name ?? '',
                 ], $tournament?->organization_id, 'match', $match->id, "match_reminder:{$match->id}:{$window}h:{$teamId}");
@@ -123,7 +125,27 @@ class DispatchNotificationReminders extends Command
         $tournaments = Tournament::query()
             ->whereIn('status', ['registration_open', 'registration_closed', 'upcoming', 'ongoing'])
             ->where('ground_fee', '>', 0)
-            ->get()
+            ->get();
+
+        // The stored status never moves on from "registration open", so it
+        // can't tell a finished tournament from a running one. A balance still
+        // owed after every match is played — or after the tournament's last
+        // day — is the organizer's to chase in person, not a weekly SMS forever.
+        $stages = TournamentStage::forMany($tournaments);
+        $today = LocalTime::now()->startOfDay();
+
+        $tournaments = $tournaments
+            ->reject(function (Tournament $tournament) use ($stages, $today) {
+                if (($stages[$tournament->id] ?? null) === 'matches_finished') {
+                    return true;
+                }
+
+                try {
+                    return $tournament->end_date && LocalTime::parse((string) $tournament->end_date)->endOfDay()->lessThan($today);
+                } catch (\Throwable) {
+                    return false;
+                }
+            })
             ->keyBy('id');
 
         if ($tournaments->isEmpty()) {
@@ -209,7 +231,7 @@ class DispatchNotificationReminders extends Command
         }
 
         try {
-            return Carbon::parse($value);
+            return LocalTime::parse($value);
         } catch (\Throwable) {
             return null;
         }

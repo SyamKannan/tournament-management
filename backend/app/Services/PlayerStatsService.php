@@ -586,6 +586,12 @@ class PlayerStatsService
         };
 
         foreach ($events as $event) {
+            // A shoot-out kick decides a tie; it is not a goal (or a missed
+            // penalty) in anyone's record.
+            if ($event->period === 'penalties' && in_array($event->event_type, ['penalty_goal', 'penalty_missed'], true)) {
+                continue;
+            }
+
             $playerId = $line($event->player_id);
 
             match ($event->event_type) {

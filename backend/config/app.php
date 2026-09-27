@@ -99,6 +99,13 @@ return [
     'timezone' => 'UTC',
 
     /*
+    | The clock the grounds run on. Times are stored in UTC, but a kick-off
+    | "at 4pm", a registration deadline "on the 30th" and the time printed in
+    | an SMS all mean the organizers' own time — see App\Support\LocalTime.
+    */
+    'local_timezone' => env('APP_LOCAL_TIMEZONE', 'Asia/Kolkata'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------

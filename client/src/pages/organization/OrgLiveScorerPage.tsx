@@ -668,6 +668,12 @@ export const OrgLiveScorerPage: React.FC = () => {
                 ? `${football_state?.team_a_score ?? 0} : ${football_state?.team_b_score ?? 0}`
                 : `${inningsRuns}/${inningsWickets}`}
             </div>
+            {/* Shoot-out kicks decide the tie but never change the score. */}
+            {isFootball && football_state?.team_a_penalties != null && (
+              <div className="text-xs font-bold text-amber-300 mt-1">
+                Penalties {football_state.team_a_penalties} : {football_state.team_b_penalties ?? 0}
+              </div>
+            )}
           </div>
 
           <div className="text-center shrink-0">
@@ -915,7 +921,7 @@ export const OrgLiveScorerPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <button
                   onClick={() => postFootballEvent('goal')}
-                  disabled={!canRecordFootball || pickedIsSentOff}
+                  disabled={!canRecordFootball || pickedIsSentOff || currentPeriod === 'penalties'}
                   className="col-span-2 py-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <span className="text-xl">⚽</span>
@@ -939,7 +945,7 @@ export const OrgLiveScorerPage: React.FC = () => {
 
                 <button
                   onClick={() => postFootballEvent('own_goal')}
-                  disabled={!canRecordFootball}
+                  disabled={!canRecordFootball || currentPeriod === 'penalties'}
                   title={`Scored by a ${scoringTeam.name} player, counts for ${otherTeam.name}`}
                   className="col-span-2 py-3.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-200 font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed"
                 >

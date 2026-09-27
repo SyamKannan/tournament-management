@@ -186,7 +186,9 @@ class SupportService
         $creator = $ticket->creator;
 
         $recipients = match (true) {
-            $creator && $creator->phone !== '' => [[
+            // A null phone is as unreachable as an empty one — fall through to
+            // the club's organizers rather than sending to nobody.
+            $creator && filled($creator->phone) => [[
                 'name' => $creator->name,
                 'phone' => $creator->phone,
                 'whatsapp' => $creator->phone,

@@ -73,7 +73,8 @@ class PlayerController extends Controller
 
         return response()->json([
             'player' => $this->publicPlayer($player),
-            'team' => $player->team_id ? Team::find($player->team_id) : null,
+            // Public and anonymous: the team sheet, never the manager's contacts.
+            'team' => $this->withoutTeamContacts($player->team_id ? Team::find($player->team_id) : null),
             'tournament' => Tournament::find($player->tournament_id),
             'organization' => Organization::find($player->organization_id),
             'stats' => $this->stats->forPlayer($player),
@@ -309,10 +310,17 @@ class PlayerController extends Controller
     {
         $user = $request->user();
 
-        $player = Player::query()
-            ->where('id', $user->id)
-            ->orWhere(fn ($query) => $query->whereNotNull('mobile')->where('mobile', $user->phone))
-            ->first();
+        // Their own profile first. A squad entry that only shares the phone
+        // number is a fallback for player accounts, read-only and without the
+        // private fields: a phone on an account is typed, never verified, so
+        // it cannot be what hands someone another person's record.
+        $player = Player::query()->whereKey($user->id)->first();
+        $linkedByPhone = false;
+
+        if (! $player && $user->role === 'PLAYER' && filled($user->phone)) {
+            $player = Player::query()->where('mobile', $user->phone)->orderByDesc('created_at')->first();
+            $linkedByPhone = $player !== null;
+        }
 
         if (! $player) {
             return response()->json(['error' => 'Player profile not found'], 404);
@@ -321,13 +329,16 @@ class PlayerController extends Controller
         $auctionEntry = AuctionPlayer::query()
             ->where('player_id', $player->id)
             ->orWhere('id', $player->id)
-            ->orWhere(fn ($q) => $q->whereNotNull('mobile')->where('mobile', $player->mobile))
             ->first();
+
+        if ($linkedByPhone) {
+            $player->makeHidden(self::PRIVATE_PLAYER_FIELDS);
+        }
 
         return response()->json([
             'user' => $user->toAuthPayload(),
             'player' => $player,
-            'team' => Team::find($player->team_id),
+            'team' => $this->withoutTeamContacts($player->team_id ? Team::find($player->team_id) : null),
             'tournament' => Tournament::find($player->tournament_id),
             'organization' => Organization::find($player->organization_id),
             'stats' => $this->stats->forPlayer($player),
@@ -365,10 +376,10 @@ class PlayerController extends Controller
         }
         $user->save();
 
-        $player = Player::query()->where('id', $user->id)->first();
-        if (! $player) {
-            $player = Player::query()->whereNotNull('mobile')->where('mobile', $user->phone)->first();
-        }
+        // Only the account's own profile. Matching on the phone let anyone who
+        // typed another person's number into their account rewrite that
+        // person's squad entry — in any club.
+        $player = Player::query()->whereKey($user->id)->first();
 
         if ($player) {
             $playerUpdates = [];

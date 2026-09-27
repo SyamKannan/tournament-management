@@ -25,6 +25,7 @@ use App\Services\ScoringEngine;
 use App\Support\Audit;
 use App\Support\Cached;
 use App\Support\Ids;
+use App\Support\LocalTime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -60,7 +61,13 @@ class MatchController extends Controller
     public function forTournament(Request $request, string $tournamentId): JsonResponse
     {
         // Staff see the teams' contacts; everyone else shares one entry.
-        $staff = $this->isOrganizationStaff($request, Tournament::query()->whereKey($tournamentId)->value('organization_id'));
+        $tournament = Tournament::query()->whereKey($tournamentId)->first(['id', 'organization_id', 'status']);
+        $staff = $this->isOrganizationStaff($request, $tournament?->organization_id);
+
+        // A draft's fixtures are the organizer's to see before anyone else.
+        if ($tournament?->status === 'draft' && ! $staff) {
+            return response()->json(['error' => 'Tournament not found'], 404);
+        }
 
         return Cached::json(Cached::tournament($tournamentId), $staff ? 'fixtures:staff' : 'fixtures', 'hub',
             fn () => $this->fixtureList($tournamentId, $staff));
@@ -346,7 +353,10 @@ class MatchController extends Controller
                 $tournament->id,
                 // One announcement per published schedule. Regenerating the
                 // fixtures is a new schedule, so the count keeps it distinct.
-                sprintf('fixtures_published:%s:%d', $tournament->id, count($matches)),
+                // One key per schedule, not per match count: a regenerated
+                // draw with as many matches is new news, and its fresh match
+                // ids say so; a retry of the same generation is not.
+                sprintf('fixtures_published:%s:%s', $tournament->id, md5(implode(',', array_map(fn (GameMatch $m) => $m->id, $matches)))),
             );
         }
     }
@@ -358,7 +368,7 @@ class MatchController extends Controller
         }
 
         try {
-            return Carbon::parse($scheduledAt)->format('D j M, g:ia');
+            return LocalTime::format(LocalTime::parse($scheduledAt), 'D j M, g:ia');
         } catch (\Throwable) {
             return '';
         }

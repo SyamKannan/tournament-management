@@ -90,11 +90,13 @@ class AuctionService
             return null;
         }
 
+        // Only their team in this tournament — a team from another tournament
+        // can't bid here, so it isn't offered as theirs either.
         return Team::query()
             ->where('manager_user_id', $user->id)
             ->where('tournament_id', $auction->tournament_id)
-            ->first()
-            ?? Team::query()->where('manager_user_id', $user->id)->first();
+            ->where('status', 'approved')
+            ->first();
     }
 
     /**
@@ -108,15 +110,14 @@ class AuctionService
      */
     public function teamPurses(Auction $auction): array
     {
-        $teams = Team::query()->where('tournament_id', $auction->tournament_id)->get();
-
-        if ($teams->isEmpty()) {
-            $teams = Team::query()->where('organization_id', $auction->organization_id)->get();
-        }
-
-        if ($teams->isEmpty()) {
-            $teams = Team::query()->limit(4)->get();
-        }
+        // The sides actually in the tournament. There used to be fallbacks — the
+        // club's teams from other tournaments, then any four teams on the
+        // platform — which put other clubs' teams on a public auction screen.
+        // A rejected or withdrawn side has no purse.
+        $teams = Team::query()
+            ->where('tournament_id', $auction->tournament_id)
+            ->where('status', 'approved')
+            ->get();
 
         $soldPlayers = AuctionPlayer::query()
             ->where('auction_id', $auction->id)

@@ -30,20 +30,32 @@ class ReportController extends Controller
             return $denied;
         }
 
-        $teams = Team::query()->where('tournament_id', $tournament->id)->get();
         $payments = RegistrationPayment::query()
             ->where('tournament_id', $tournament->id)
             ->get()
             ->keyBy('team_id');
 
-        $expectedPerTeam = (float) ($tournament->ground_fee ?? 0);
+        // Teams still in, plus any rejected or withdrawn side that paid
+        // something — that money is held (or owed back) all the same. A team
+        // turned away before paying owes nothing and isn't expected to.
+        $teams = Team::query()
+            ->where('tournament_id', $tournament->id)
+            ->where(fn ($q) => $q->holdingPlace()->orWhereIn('id', $payments->filter(fn ($p) => (float) $p->paid_amount > 0)->keys()))
+            ->get();
+
         $totalExpected = 0.0;
         $totalCollected = 0.0;
         $totalPending = 0.0;
 
-        $records = $teams->map(function (Team $team) use ($payments, $expectedPerTeam, &$totalExpected, &$totalCollected, &$totalPending) {
+        $records = $teams->map(function (Team $team) use ($payments, $tournament, &$totalExpected, &$totalCollected, &$totalPending) {
             $payment = $payments->get($team->id);
             $paid = (float) ($payment->paid_amount ?? 0);
+            // What this team was charged: the fee on its payment row, fixed when
+            // it registered — not whatever the tournament's fee is today. A team
+            // no longer in owes only what it has already handed over.
+            $expectedPerTeam = in_array($team->status, Team::HOLDS_PLACE, true)
+                ? (float) ($payment->total_fee ?? $tournament->ground_fee ?? 0)
+                : $paid;
             $pending = max(0, $expectedPerTeam - $paid);
 
             $totalExpected += $expectedPerTeam;

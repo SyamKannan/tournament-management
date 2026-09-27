@@ -95,6 +95,13 @@ class ScoringEngine
                 throw new \RuntimeException('It is half time. Start the second half before recording a goal.');
             }
 
+            // A shoot-out is kicks, scored or missed — nothing else is played in it.
+            $shootOut = $state->current_half === 'penalties';
+
+            if ($shootOut && ! in_array($params['eventType'], ['penalty_goal', 'penalty_missed', 'yellow_card', 'red_card'], true)) {
+                throw new \RuntimeException('During the shoot-out, record each kick as a penalty scored or missed.');
+            }
+
             $params = $this->validateFootballEvent($match, $state, $params);
 
             // Left out, the minute is read off the clock: the minute a goal
@@ -102,6 +109,7 @@ class ScoringEngine
             $minute = $params['minute'] ?? intdiv($state->clock_seconds, 60) + 1;
 
             $event = FootballEvent::create([
+                'period' => $state->current_half,
                 'id' => Ids::unique('ev'),
                 'match_id' => $match->id,
                 'sequence' => $this->nextFootballSequence($match->id),
@@ -117,7 +125,7 @@ class ScoringEngine
 
             // The minute on the event is the scorer's to set, and may be typed
             // in after the fact; the clock is not moved by it.
-            $this->applyGoal($state, $match, $params['eventType'], $params['teamId'], 1);
+            $this->applyGoal($state, $match, $event, 1);
             $state->save();
 
             $this->recalculateFootballStandings($match->tournament_id);
@@ -260,7 +268,7 @@ class ScoringEngine
                 return $state;
             }
 
-            $this->applyGoal($state, $match, $last->event_type, $last->team_id, -1);
+            $this->applyGoal($state, $match, $last, -1);
             $state->save();
 
             $last->delete();
@@ -278,10 +286,23 @@ class ScoringEngine
 
     /**
      * Apply (direction = 1) or reverse (direction = -1) an event's effect on the
-     * scoreline. Own goals credit the opposing side.
+     * scoreline. Own goals credit the opposing side. A kick scored in the
+     * shoot-out goes to the shoot-out tally, never the score.
      */
-    private function applyGoal(FootballMatchState $state, GameMatch $match, string $eventType, string $teamId, int $direction): void
+    private function applyGoal(FootballMatchState $state, GameMatch $match, FootballEvent $event, int $direction): void
     {
+        $eventType = $event->event_type;
+        $teamId = $event->team_id;
+
+        if ($event->period === 'penalties') {
+            if ($eventType === 'penalty_goal') {
+                $column = $teamId === $match->team_a_id ? 'team_a_penalties' : 'team_b_penalties';
+                $state->{$column} = max(0, (int) $state->{$column} + $direction);
+            }
+
+            return;
+        }
+
         $scoringEvent = in_array($eventType, ['goal', 'penalty_goal'], true);
         $ownGoal = $eventType === 'own_goal';
 
@@ -381,12 +402,21 @@ class ScoringEngine
                         throw new \RuntimeException('Unknown period');
                     }
 
+                    if ($half === 'penalties'
+                        && (Tournament::find($match->tournament_id)?->settings['enable_penalty_shootout'] ?? true) === false) {
+                        throw new \RuntimeException('This tournament does not settle matches with a penalty shoot-out.');
+                    }
+
                     $this->stopClock($state);
                     $state->current_half = $half;
 
-                    // A shoot-out has no clock; every other period starts
-                    // with it set to where that period begins, and running.
-                    if ($half !== 'penalties') {
+                    // A shoot-out has no clock, and its tally starts at nil;
+                    // every other period starts with the clock set to where
+                    // that period begins, and running.
+                    if ($half === 'penalties') {
+                        $state->team_a_penalties ??= 0;
+                        $state->team_b_penalties ??= 0;
+                    } else {
                         $state->elapsed_seconds = $this->footballPeriodStart($match, $half);
                         $this->runClock($state);
                     }
@@ -488,6 +518,25 @@ class ScoringEngine
         $b = $state->team_b_score;
 
         if ($a === $b) {
+            // Level after play: a shoot-out, if one was taken, decides it.
+            $penA = (int) $state->team_a_penalties;
+            $penB = (int) $state->team_b_penalties;
+
+            if ($penA !== $penB) {
+                $winnerId = $penA > $penB ? $match->team_a_id : $match->team_b_id;
+                $match->winner_team_id = $winnerId;
+                $match->result_summary = sprintf(
+                    '%s won %d - %d on penalties (%d - %d)',
+                    Team::query()->whereKey($winnerId)->value('name') ?: ($penA > $penB ? 'Team A' : 'Team B'),
+                    max($penA, $penB),
+                    min($penA, $penB),
+                    $a,
+                    $b,
+                );
+
+                return;
+            }
+
             $match->winner_team_id = null;
             $match->result_summary = "Match drawn {$a} - {$b}";
 
@@ -513,7 +562,7 @@ class ScoringEngine
         }
 
         $teams = Team::query()->where('tournament_id', $tournamentId)->where('status', 'approved')->get();
-        $matches = GameMatch::query()->where('tournament_id', $tournamentId)->get();
+        $matches = $this->tableMatches(GameMatch::query()->where('tournament_id', $tournamentId)->get());
         $states = FootballMatchState::query()
             ->whereIn('match_id', $matches->pluck('id'))
             ->get()
@@ -529,21 +578,35 @@ class ScoringEngine
             foreach ($matches as $match) {
                 $state = $states->get($match->id);
 
-                if (! $state || ($match->team_a_id !== $team->id && $match->team_b_id !== $team->id)) {
+                if ($match->team_a_id !== $team->id && $match->team_b_id !== $team->id) {
                     continue;
                 }
 
-                if (! in_array($match->status, ['in_progress', 'completed', 'half_time'], true)) {
+                // A live match counts on its current score (the table moves
+                // with play); a finished one on its recorded result, which is
+                // also what a walkover or an organizer's correction sets — a
+                // result entered by hand has no goals on the state row to go on.
+                $finished = $match->status === 'completed';
+
+                if (! in_array($match->status, ['in_progress', 'completed', 'half_time'], true) || (! $state && ! $finished)) {
                     continue;
                 }
 
                 $played++;
                 $isTeamA = $match->team_a_id === $team->id;
-                $mine = $isTeamA ? $state->team_a_score : $state->team_b_score;
-                $theirs = $isTeamA ? $state->team_b_score : $state->team_a_score;
+                $mine = $state ? ($isTeamA ? $state->team_a_score : $state->team_b_score) : 0;
+                $theirs = $state ? ($isTeamA ? $state->team_b_score : $state->team_a_score) : 0;
 
                 $goalsFor += $mine;
                 $goalsAgainst += $theirs;
+
+                if ($finished) {
+                    [$mine, $theirs] = match (true) {
+                        ! $match->winner_team_id => [0, 0],
+                        $match->winner_team_id === $team->id => [1, 0],
+                        default => [0, 1],
+                    };
+                }
 
                 if ($mine > $theirs) {
                     $won++;
@@ -591,31 +654,39 @@ class ScoringEngine
     public function cricketState(string $matchId): ?CricketMatchState
     {
         $state = CricketMatchState::query()->where('match_id', $matchId)->first();
+        $match = GameMatch::find($matchId);
 
         if ($state) {
+            // The row is made the first time anyone looks at the match — the
+            // public hub, the scorer opening the console — which is usually
+            // before the toss. Until a ball is bowled, who bats and how long
+            // the innings is still follow the toss and the settings; otherwise
+            // a side put in by the toss would be scored as the other one and
+            // the result credited to the wrong team.
+            if ($match && ! $state->deliveries()->exists() && (int) $state->current_innings === 1) {
+                [$battingTeamId, $bowlingTeamId] = $this->firstInningsSides($match);
+                $state->batting_team_id = $battingTeamId;
+                $state->bowling_team_id = $bowlingTeamId;
+                $state->total_overs = $this->configuredOvers($match);
+
+                if ($state->isDirty()) {
+                    $state->save();
+                }
+            }
+
             return $state->load('deliveries');
         }
-
-        $match = GameMatch::find($matchId);
 
         if (! $match) {
             return null;
         }
 
-        // Who bats first is decided by the pre-match coin toss (TossService,
-        // recorded on `matches`); before that's set, default to team A so a
-        // state row can still be inspected pre-toss.
-        $battingTeamId = $match->batting_first_team_id ?: $match->team_a_id;
-        $bowlingTeamId = $battingTeamId === $match->team_a_id ? $match->team_b_id : $match->team_a_id;
-
-        // A T10 village cup and a T20 league both run through here, so the
-        // innings length is the tournament's own setting.
-        $totalOvers = (int) (Tournament::find($match->tournament_id)?->settings['total_overs'] ?? 20);
+        [$battingTeamId, $bowlingTeamId] = $this->firstInningsSides($match);
 
         return CricketMatchState::create([
             'id' => Ids::unique('crick_state'),
             'match_id' => $matchId,
-            'total_overs' => $totalOvers > 0 ? $totalOvers : 20,
+            'total_overs' => $this->configuredOvers($match),
             'current_innings' => 1,
             'batting_team_id' => $battingTeamId,
             'bowling_team_id' => $bowlingTeamId,
@@ -627,6 +698,29 @@ class ScoringEngine
             'team_b_overs' => 0,
             'current_run_rate' => 0,
         ])->load('deliveries');
+    }
+
+    /**
+     * Who bats first is decided by the pre-match coin toss (TossService,
+     * recorded on `matches`); before that's set, team A, so a state row can
+     * still be inspected pre-toss.
+     *
+     * @return array{0: string, 1: string} batting, bowling
+     */
+    private function firstInningsSides(GameMatch $match): array
+    {
+        $battingTeamId = $match->batting_first_team_id ?: $match->team_a_id;
+        $bowlingTeamId = $battingTeamId === $match->team_a_id ? $match->team_b_id : $match->team_a_id;
+
+        return [(string) $battingTeamId, (string) $bowlingTeamId];
+    }
+
+    /** A T10 village cup and a T20 league both run through here: the tournament's own innings length. */
+    private function configuredOvers(GameMatch $match): int
+    {
+        $totalOvers = (int) (Tournament::find($match->tournament_id)?->settings['total_overs'] ?? 20);
+
+        return $totalOvers > 0 ? $totalOvers : 20;
     }
 
     /**
@@ -670,7 +764,12 @@ class ScoringEngine
                 }
             }
 
+            $this->assertDismissalFitsDelivery($params, $extras);
+
             $isLegalBall = ! in_array($extras, ['wide', 'no_ball'], true);
+            // Retiring hurt takes a batter off but is not a wicket: it doesn't
+            // bring a side closer to all out.
+            $fallsWicket = $params['isWicket'] && ($params['wicketType'] ?? null) !== 'retired_hurt';
             // No extra was signalled, so nothing can be added as one.
             $extrasRuns = $extras === 'none' ? 0 : ($params['extrasRuns'] ?? 1);
             $totalDeliveryRuns = $params['runsScored'] + $extrasRuns;
@@ -716,14 +815,14 @@ class ScoringEngine
 
             if ($innings === 1) {
                 $state->team_a_runs += $totalDeliveryRuns;
-                if ($params['isWicket']) {
+                if ($fallsWicket) {
                     $state->team_a_wickets++;
                 }
                 $state->team_a_overs = $this->oversNotation($legalBallsAfter);
                 $state->current_run_rate = $oversDecimal > 0 ? round($state->team_a_runs / $oversDecimal, 2) : 0;
             } else {
                 $state->team_b_runs += $totalDeliveryRuns;
-                if ($params['isWicket']) {
+                if ($fallsWicket) {
                     $state->team_b_wickets++;
                 }
                 $state->team_b_overs = $this->oversNotation($legalBallsAfter);
@@ -809,12 +908,46 @@ class ScoringEngine
             $swap();
         }
 
+        // The new batter takes the dismissed batter's place — which is the
+        // non-striker's end when the non-striker was run out. Replacing the
+        // striker every time left the run-out batter at the crease and sent
+        // the batter who wasn't out back to the pavilion.
+        if ($params['isWicket'] && ! empty($params['nextStrikerId'])) {
+            $dismissed = $params['dismissedPlayerId'] ?? null;
+
+            if ($dismissed && $dismissed === $state->current_non_striker_id) {
+                $state->current_non_striker_id = $params['nextStrikerId'];
+            } else {
+                $state->current_striker_id = $params['nextStrikerId'];
+            }
+        }
+
+        // Ends change at the end of the over, after the new batter is in.
         if ($isLegalBall && $legalBallsAfter % 6 === 0) {
             $swap();
         }
+    }
 
-        if ($params['isWicket'] && ! empty($params['nextStrikerId'])) {
-            $state->current_striker_id = $params['nextStrikerId'];
+    /**
+     * Only some dismissals can happen off a wide or a no-ball: a batter can't
+     * be bowled or caught off a no-ball, nor bowled off a wide.
+     */
+    private function assertDismissalFitsDelivery(array $params, string $extras): void
+    {
+        if (! $params['isWicket']) {
+            return;
+        }
+
+        $allowed = match ($extras) {
+            'wide' => ['stumped', 'run_out', 'hit_wicket', 'obstructing_field', 'retired_hurt'],
+            'no_ball' => ['run_out', 'obstructing_field', 'retired_hurt'],
+            default => null,
+        };
+
+        if ($allowed !== null && ! in_array($params['wicketType'] ?? null, $allowed, true)) {
+            throw new \RuntimeException($extras === 'wide'
+                ? 'Off a wide, a batter can only be stumped, run out, out hit wicket or obstructing the field.'
+                : 'Off a no-ball, a batter can only be run out or out obstructing the field.');
         }
     }
 
@@ -846,7 +979,26 @@ class ScoringEngine
             }
 
             $totalDeliveryRuns = $last->runs_scored + $last->extras_runs;
-            $innings = $last->innings;
+            $innings = (int) $last->innings;
+
+            // Innings switched but the chase not started: the ball being taken
+            // back is the first innings' last, so the switch is undone with it —
+            // back to the first innings, sides as they were, no target. Left as
+            // it was, the ball came off the total but the console stayed in the
+            // second innings and refused to score the first one again.
+            if ($innings === 1 && (int) $state->current_innings === 2) {
+                $state->current_innings = 1;
+                [$state->batting_team_id, $state->bowling_team_id] = [$state->bowling_team_id, $state->batting_team_id];
+                $state->target_runs = null;
+                $state->required_run_rate = 0;
+
+                if (in_array($match->status, ['innings_break', 'completed'], true)) {
+                    $match->status = 'in_progress';
+                    $match->winner_team_id = null;
+                    $match->result_summary = null;
+                    $match->save();
+                }
+            }
 
             // The delivery row records who was where when it was bowled, so
             // undoing it restores exactly that — otherwise the next ball would
@@ -869,16 +1021,27 @@ class ScoringEngine
 
             if ($innings === 1) {
                 $state->team_a_runs = max(0, $state->team_a_runs - $totalDeliveryRuns);
-                if ($last->is_wicket) {
+                if ($last->is_wicket && $last->wicket_type !== 'retired_hurt') {
                     $state->team_a_wickets = max(0, $state->team_a_wickets - 1);
                 }
                 $state->team_a_overs = $this->oversNotation($legalCount);
             } else {
                 $state->team_b_runs = max(0, $state->team_b_runs - $totalDeliveryRuns);
-                if ($last->is_wicket) {
+                if ($last->is_wicket && $last->wicket_type !== 'retired_hurt') {
                     $state->team_b_wickets = max(0, $state->team_b_wickets - 1);
                 }
                 $state->team_b_overs = $this->oversNotation($legalCount);
+            }
+
+            // The rates on screen follow the ball taken back, as they follow one bowled.
+            $runs = $innings === 1 ? $state->team_a_runs : $state->team_b_runs;
+            $oversDecimal = $legalCount / 6;
+            $state->current_run_rate = $oversDecimal > 0 ? round($runs / $oversDecimal, 2) : 0;
+
+            if ($innings === 2 && $state->target_runs) {
+                $runsRemaining = $state->target_runs - $state->team_b_runs;
+                $oversRemaining = max(0, $state->total_overs * 6 - $legalCount) / 6;
+                $state->required_run_rate = ($oversRemaining > 0 && $runsRemaining > 0) ? round($runsRemaining / $oversRemaining, 2) : 0;
             }
 
             $state->save();
@@ -1067,7 +1230,7 @@ class ScoringEngine
         }
 
         $teams = Team::query()->where('tournament_id', $tournamentId)->where('status', 'approved')->get();
-        $matches = GameMatch::query()->where('tournament_id', $tournamentId)->get();
+        $matches = $this->tableMatches(GameMatch::query()->where('tournament_id', $tournamentId)->get());
         $states = CricketMatchState::query()
             ->whereIn('match_id', $matches->pluck('id'))
             ->get()
@@ -1076,7 +1239,7 @@ class ScoringEngine
         [$forWin, $forNoResult, $forLoss] = $this->tablePoints($tournament, 2);
 
         foreach ($teams as $team) {
-            $played = $won = $lost = $noResult = $points = 0;
+            $played = $won = $lost = $tied = $noResult = $points = 0;
             $runsScored = $runsConceded = 0;
             $oversFaced = $oversBowled = 0.0;
             $form = [];
@@ -1084,32 +1247,35 @@ class ScoringEngine
             foreach ($matches as $match) {
                 $state = $states->get($match->id);
 
-                if (! $state || ($match->team_a_id !== $team->id && $match->team_b_id !== $team->id)) {
+                if ($match->team_a_id !== $team->id && $match->team_b_id !== $team->id) {
                     continue;
                 }
 
                 // `abandoned` belongs here: the no-result branch below shares a
-                // point out for a match rained off, and it could never be
-                // reached while this filter skipped the only status that gets
-                // there. `cancelled` stays out — a match called off before a
-                // ball was bowled is not a fixture either side played.
-                if (! in_array($match->status, ['in_progress', 'completed', 'innings_break', 'abandoned'], true)) {
+                // point out for a match rained off. `cancelled` stays out — a
+                // match called off before a ball was bowled is not a fixture
+                // either side played. A match abandoned before a ball has no
+                // state row, and is still a no result.
+                if (! in_array($match->status, ['in_progress', 'completed', 'innings_break', 'abandoned'], true)
+                    || (! $state && $match->status !== 'abandoned')) {
                     continue;
                 }
 
                 $played++;
 
-                // `team_a_*` / `team_b_*` on the state row are really the
-                // first- and second-innings tallies, not team A's and team B's
-                // — which innings a side batted in is decided by the toss. Key
-                // off that, or every net run rate flips whenever the toss put
-                // team B in first.
-                $battedFirst = ($match->batting_first_team_id ?: $match->team_a_id) === $team->id;
+                if ($state) {
+                    // `team_a_*` / `team_b_*` on the state row are really the
+                    // first- and second-innings tallies, not team A's and team
+                    // B's — which innings a side batted in is decided by the
+                    // toss. Key off that, or every net run rate flips whenever
+                    // the toss put team B in first.
+                    $battedFirst = ($match->batting_first_team_id ?: $match->team_a_id) === $team->id;
 
-                $runsScored += $battedFirst ? $state->team_a_runs : $state->team_b_runs;
-                $oversFaced += $battedFirst ? $state->team_a_overs : $state->team_b_overs;
-                $runsConceded += $battedFirst ? $state->team_b_runs : $state->team_a_runs;
-                $oversBowled += $battedFirst ? $state->team_b_overs : $state->team_a_overs;
+                    $runsScored += $battedFirst ? $state->team_a_runs : $state->team_b_runs;
+                    $oversFaced += $this->oversAsDecimal($battedFirst ? $state->team_a_overs : $state->team_b_overs);
+                    $runsConceded += $battedFirst ? $state->team_b_runs : $state->team_a_runs;
+                    $oversBowled += $this->oversAsDecimal($battedFirst ? $state->team_b_overs : $state->team_a_overs);
+                }
 
                 if ($match->winner_team_id === $team->id) {
                     $won++;
@@ -1119,10 +1285,16 @@ class ScoringEngine
                     $lost++;
                     $points += $forLoss;
                     $form[] = 'L';
-                } elseif (in_array($match->status, ['abandoned', 'cancelled'], true)) {
+                } elseif ($match->status === 'abandoned') {
                     $noResult++;
                     $points += $forNoResult;
                     $form[] = 'NR';
+                } elseif ($match->status === 'completed') {
+                    // Finished level (and no super over): a tie shares the
+                    // points the same way a no result does.
+                    $tied++;
+                    $points += $forNoResult;
+                    $form[] = 'T';
                 }
             }
 
@@ -1131,9 +1303,11 @@ class ScoringEngine
 
             $this->upsertStanding($tournamentId, $team->id, 'std_crick', [
                 'organization_id' => $tournament->organization_id,
+                // The bracket reads a group's qualifiers off this column.
+                'group_name' => $team->group_name ?: 'Group A',
                 'played' => $played,
                 'won' => $won,
-                'drawn' => 0,
+                'drawn' => $tied,
                 'lost' => $lost,
                 'no_result' => $noResult,
                 'runs_scored' => $runsScored,
@@ -1213,6 +1387,12 @@ class ScoringEngine
      */
     private function rankStandings(string $tournamentId, callable $separators): void
     {
+        // A team that was withdrawn, rejected or suspended after playing keeps
+        // its row otherwise, and is ranked — and can "qualify" — as if it
+        // were still in. The table is the approved teams.
+        $approved = Team::query()->where('tournament_id', $tournamentId)->where('status', 'approved')->pluck('id');
+        Standing::query()->where('tournament_id', $tournamentId)->whereNotIn('team_id', $approved)->delete();
+
         $standings = Standing::query()->where('tournament_id', $tournamentId)->get()->all();
 
         if (! $standings) {
@@ -1352,10 +1532,11 @@ class ScoringEngine
         $football = $tournament->sport_code === 'football';
         [$forWin, $forDraw, $forLoss] = $this->tablePoints($tournament, $football ? 3 : 2);
 
-        $matches = GameMatch::query()
+        $matches = $this->tableMatches(GameMatch::query()
             ->where('tournament_id', $tournamentId)
+            ->get())
             ->whereIn('status', ['completed', 'in_progress', 'half_time', 'innings_break'])
-            ->get();
+            ->values();
 
         if ($matches->isEmpty()) {
             return [];
@@ -1370,20 +1551,30 @@ class ScoringEngine
         foreach ($matches as $match) {
             $state = $states->get($match->id);
 
-            if (! $state || $match->team_a_id === '' || $match->team_b_id === '') {
+            $finished = $match->status === 'completed';
+
+            if ((! $state && ! $finished) || ! $match->team_a_id || ! $match->team_b_id) {
                 continue;
             }
 
-            [$scoreA, $scoreB] = $football
-                ? [(int) $state->team_a_score, (int) $state->team_b_score]
-                : $this->cricketScoresByTeam($match, $state);
+            [$scoreA, $scoreB] = match (true) {
+                ! $state => [0, 0],
+                $football => [(int) $state->team_a_score, (int) $state->team_b_score],
+                default => $this->cricketScoresByTeam($match, $state),
+            };
 
             foreach ([[$match->team_a_id, $match->team_b_id, $scoreA, $scoreB], [$match->team_b_id, $match->team_a_id, $scoreB, $scoreA]] as [$teamId, $opponentId, $mine, $theirs]) {
                 $records[$teamId][$opponentId] ??= ['points' => 0, 'difference' => 0, 'scored' => 0];
 
-                $records[$teamId][$opponentId]['points'] += match (true) {
-                    $mine > $theirs => $forWin,
-                    $mine === $theirs => $forDraw,
+                // A finished match's recorded result decides the points, as it
+                // does in the table itself (walkovers, corrections, shoot-outs).
+                $outcome = $finished
+                    ? ($match->winner_team_id ? ($match->winner_team_id === $teamId ? 1 : -1) : 0)
+                    : $mine <=> $theirs;
+
+                $records[$teamId][$opponentId]['points'] += match ($outcome) {
+                    1 => $forWin,
+                    0 => $forDraw,
                     default => $forLoss,
                 };
                 $records[$teamId][$opponentId]['difference'] += $mine - $theirs;
@@ -1416,6 +1607,22 @@ class ScoringEngine
      * @param  array<int, Standing>  $items
      * @return array<int, array<int, Standing>>
      */
+    /**
+     * The matches the table is made of. Once a tournament has a league or
+     * group stage, its knockout rounds are played for the trophy, not for
+     * points — a semi-final used to add a win to the group table. A pure
+     * knockout has nothing else, so its matches stay.
+     *
+     * @param  \Illuminate\Support\Collection<int, GameMatch>  $matches
+     * @return \Illuminate\Support\Collection<int, GameMatch>
+     */
+    private function tableMatches($matches)
+    {
+        $league = $matches->filter(fn (GameMatch $match) => $match->bracket_round === null);
+
+        return $league->isNotEmpty() ? $league->values() : $matches;
+    }
+
     private function groupBy(array $items, callable $key): array
     {
         $groups = [];
@@ -1431,6 +1638,15 @@ class ScoringEngine
      * Cricket overs read as `overs.balls` (14.3 means fourteen overs, three balls)
      * rather than as a true decimal.
      */
+    /** "12.3" overs is twelve and a half overs, not 12.3 of them. */
+    private function oversAsDecimal(float|int|string|null $notation): float
+    {
+        $notation = (float) $notation;
+        $overs = (int) floor($notation);
+
+        return $overs + (int) round(($notation - $overs) * 10) / 6;
+    }
+
     private function oversNotation(int $legalBalls): float
     {
         return (float) (intdiv($legalBalls, 6).'.'.($legalBalls % 6));

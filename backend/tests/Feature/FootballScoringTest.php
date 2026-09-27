@@ -114,6 +114,52 @@ class FootballScoringTest extends TestCase
         $this->assertSame($match->team_a_id, $match->winner_team_id);
     }
 
+    public function test_a_shoot_out_decides_a_level_match_without_changing_the_score(): void
+    {
+        $match = GameMatch::find(self::MATCH_ID);
+        $state = $this->scoring->footballState(self::MATCH_ID);
+        $state->forceFill(['team_a_score' => 1, 'team_b_score' => 1])->save();
+
+        $this->scoring->updateFootballTimer(self::MATCH_ID, 'set_half', ['half' => 'penalties']);
+
+        $kick = fn (string $team, string $player, string $type) => $this->scoring->addFootballEvent([
+            'matchId' => self::MATCH_ID, 'teamId' => $team, 'playerId' => $player, 'eventType' => $type,
+        ]);
+
+        $kick($match->team_a_id, 'pl-mb-3', 'penalty_goal');
+        $kick($match->team_b_id, 'pl-gvs-2', 'penalty_missed');
+        $kick($match->team_a_id, 'pl-mb-3', 'penalty_goal');
+        $kick($match->team_b_id, 'pl-gvs-2', 'penalty_goal');
+
+        $during = $this->scoring->footballState(self::MATCH_ID);
+        $this->assertSame([1, 1], [$during->team_a_score, $during->team_b_score], 'a shoot-out kick is not a goal');
+        $this->assertSame([2, 1], [$during->team_a_penalties, $during->team_b_penalties]);
+
+        // Undo takes the kick back off the shoot-out tally, not the score.
+        $this->scoring->undoLastFootballEvent(self::MATCH_ID);
+        $this->assertSame(0, $this->scoring->footballState(self::MATCH_ID)->team_b_penalties);
+
+        $this->expectOpenPlayRefused($match->team_a_id);
+
+        $this->scoring->updateFootballTimer(self::MATCH_ID, 'finish');
+
+        $match->refresh();
+        $this->assertSame($match->team_a_id, $match->winner_team_id);
+        $this->assertStringContainsString('on penalties (1 - 1)', (string) $match->result_summary);
+    }
+
+    private function expectOpenPlayRefused(string $teamId): void
+    {
+        try {
+            $this->scoring->addFootballEvent([
+                'matchId' => self::MATCH_ID, 'teamId' => $teamId, 'playerId' => 'pl-mb-3', 'eventType' => 'goal',
+            ]);
+            $this->fail('an open-play goal was accepted during the shoot-out');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('shoot-out', $e->getMessage());
+        }
+    }
+
     public function test_scoring_over_http_returns_the_updated_state(): void
     {
         $match = GameMatch::find(self::MATCH_ID);

@@ -199,7 +199,22 @@ class AdminController extends Controller
             return response()->json(['error' => 'Plan not found'], 404);
         }
 
+        // A club still on this plan would be left pointing at nothing, and every
+        // limit check would answer "Plan not found" — it couldn't host anything.
+        // The free plan is what every new signup is put on.
+        $inUse = Subscription::query()->where('plan_id', $plan->id)->count();
+
+        if ($plan->id === BillingService::FREE_PLAN_ID || $inUse > 0) {
+            return response()->json([
+                'error' => $plan->id === BillingService::FREE_PLAN_ID
+                    ? 'The free plan is what new clubs start on, so it cannot be deleted. Set it to inactive to stop offering it.'
+                    : sprintf('%d club(s) are on this plan. Set it to archived instead — they keep it, and nobody new can buy it.', $inUse),
+            ], 409);
+        }
+
         $plan->delete();
+
+        Cached::flush('platform');
 
         $this->audit($request, 'DELETED_PLAN', 'Plan', $id, sprintf('Deleted plan [%s]', $plan->name));
 
@@ -409,6 +424,19 @@ class AdminController extends Controller
         $generated = empty($data['admin_password']);
         $initialPassword = $generated ? $this->passwords->generate() : $data['admin_password'];
         $adminEmail = $data['admin_email'] ?? $data['email'];
+
+        // Sign-in matches on a lowercased email; a second account on the same
+        // address would leave one of the two unable to sign in.
+        if (User::query()->whereRaw('LOWER(email) = ?', [mb_strtolower(trim($adminEmail))])->exists()) {
+            return response()->json([
+                'error' => 'An account with this email address already exists. Use a different admin email.',
+                'errors' => ['admin_email' => ['An account with this email address already exists.']],
+            ], 422);
+        }
+
+        if (! Plan::query()->whereKey($data['plan_id'])->exists()) {
+            return response()->json(['error' => 'Choose a plan that exists.'], 422);
+        }
 
         $organization = DB::transaction(function () use ($data, $request, $initialPassword, $adminEmail) {
             $organizationId = Ids::timestamped('org');

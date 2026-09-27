@@ -280,6 +280,16 @@ class SupportController extends Controller
         ], ['body.required' => 'Write a reply first.', ...$this->attachmentMessages()]);
 
         $internal = (bool) ($data['internal'] ?? false);
+
+        // Closed is final (support:sweep, or the admin closing it). A public
+        // reply would silently reopen it as "awaiting the club"; an internal
+        // note changes nothing the club sees, so that stays allowed.
+        if ($ticket->status === 'closed' && ! $internal) {
+            return response()->json([
+                'error' => 'This ticket is closed. Reopen it (set it back to open) before replying, or add an internal note.',
+            ], 422);
+        }
+
         $this->support->reply($ticket, $request->user(), 'admin', $data['body'], $this->attachments($data['attachments'] ?? []), $internal);
 
         if (! $internal) {

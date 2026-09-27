@@ -244,7 +244,9 @@ Route::prefix('teams')->group(function () {
     });
 
     Route::get('{id}', [TeamController::class, 'show']);
-    Route::get('{id}/receipt', [TeamController::class, 'receipt']);
+    // Carries the manager's name and phone and the payment reference: the
+    // organizer's and the team's own, not a public page.
+    Route::get('{id}/receipt', [TeamController::class, 'receipt'])->middleware('auth.required');
 
     Route::middleware(['auth.required', 'role:ORG_ADMIN,SUPER_ADMIN'])->group(function () {
         Route::put('{id}/status', [TeamController::class, 'updateStatus']);

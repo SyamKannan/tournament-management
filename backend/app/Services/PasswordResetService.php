@@ -107,11 +107,16 @@ class PasswordResetService
             return ['user' => null, 'error' => 'That code is not valid or has expired.'];
         }
 
-        if (! Hash::check($code, $reset->code_hash)) {
-            // Count the miss before answering, so the ceiling applies even to a
-            // caller hammering the endpoint.
-            $reset->increment('attempts');
+        // Each guess claims an attempt before it is compared, in one
+        // conditional update: read-then-increment let parallel requests all
+        // see "4 attempts so far" and each get a guess past the ceiling.
+        $claimed = PasswordReset::query()
+            ->whereKey($reset->id)
+            ->whereNull('used_at')
+            ->where('attempts', '<', PasswordReset::MAX_ATTEMPTS)
+            ->increment('attempts');
 
+        if (! $claimed || ! Hash::check($code, $reset->code_hash)) {
             return ['user' => null, 'error' => 'That code is not valid or has expired.'];
         }
 
@@ -131,22 +136,32 @@ class PasswordResetService
      */
     private function findUser(string $identifier): ?User
     {
-        if ($phone = Phone::normalize($identifier)) {
-            // Stored numbers are not normalised, so compare on the digits.
-            $user = User::query()
-                ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '+', ''), '-', ''), '(', '') LIKE ?", ['%'.substr($phone, -10)])
-                ->first();
-
-            if ($user) {
-                return $user;
-            }
-        }
-
+        // An email is an email, even one with ten digits in it — reading its
+        // digits as a phone number found somebody else's account.
         if (str_contains($identifier, '@')) {
             return User::query()->whereRaw('LOWER(email) = ?', [mb_strtolower(trim($identifier))])->first();
         }
 
-        return null;
+        $phone = Phone::normalize($identifier);
+
+        if (! $phone) {
+            return null;
+        }
+
+        // Stored numbers are not normalised: narrow on the last ten digits in
+        // SQL, then compare properly.
+        $matches = User::query()
+            ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '+', ''), '-', ''), '(', ''), ')', ''), '.', '') LIKE ?", ['%'.substr($phone, -10)])
+            ->limit(20)
+            ->get()
+            ->filter(fn (User $user) => Phone::normalize($user->phone) === $phone)
+            ->values();
+
+        // Phone numbers aren't unique: one person often holds a player and a
+        // manager account on the same number. Picking one of them would reset
+        // whichever the database happened to return, so a shared number sends
+        // nothing and the person is told to use their email instead.
+        return $matches->count() === 1 ? $matches->first() : null;
     }
 
     private function normalizeIdentifier(string $identifier): string

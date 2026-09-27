@@ -16,6 +16,7 @@ use App\Services\LegalService;
 use App\Services\Notifications\Audience;
 use App\Services\Notifications\NotificationService;
 use App\Services\PaymentGatewayService;
+use App\Services\ScoringEngine;
 use App\Services\TournamentPaymentService;
 use App\Support\Audit;
 use App\Support\Ids;
@@ -23,6 +24,7 @@ use App\Support\RegistrationWindow;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\ValidationException;
 
 class TeamController extends Controller
@@ -33,6 +35,7 @@ class TeamController extends Controller
         private readonly PaymentGatewayService $gateway,
         private readonly NotificationService $notifications,
         private readonly LegalService $legal,
+        private readonly ScoringEngine $scoring,
     ) {}
 
     /* ------------------------------------------- Public registration wizard */
@@ -58,7 +61,7 @@ class TeamController extends Controller
 
         $currentTeams = Team::query()
             ->where('tournament_id', $tournament->id)
-            ->where('status', '!=', 'withdrawn')
+            ->holdingPlace()
             ->count();
 
         return response()->json([
@@ -117,7 +120,7 @@ class TeamController extends Controller
                 $amount,
                 'INR',
                 'reg-'.Ids::token(10),
-                ['tournament_id' => $tournament->id, 'purpose' => 'ground_fee'],
+                $this->registrationOrderContext($tournament),
                 $tournament->payment_config['enabled_methods'] ?? Tournament::PAYMENT_METHODS,
                 $data['method'] ?? null,
             );
@@ -164,7 +167,7 @@ class TeamController extends Controller
 
         $currentTeams = Team::query()
             ->where('tournament_id', $tournament->id)
-            ->where('status', '!=', 'withdrawn')
+            ->holdingPlace()
             ->count();
 
         if ($currentTeams >= $tournament->max_teams) {
@@ -192,7 +195,10 @@ class TeamController extends Controller
             'players.*.full_name' => ['required', 'string', 'max:255'],
             'players.*.jersey_number' => ['nullable', 'integer'],
             'payment_option' => ['nullable', 'string', 'in:full,partial'],
-            'payment_method' => ['nullable', 'string', 'in:'.implode(',', [...Tournament::PAYMENT_METHODS, 'online', 'cash', 'bank_transfer', 'other'])],
+            // Only what the registration page offers: an online checkout or
+            // paying at the ground. "cash" or "other" here would be a public
+            // caller declaring the fee paid with nothing to verify it.
+            'payment_method' => ['nullable', 'string', 'in:'.implode(',', Tournament::PAYMENT_METHODS)],
             'transaction_id' => ['nullable', 'string', 'max:255'],
             'razorpay_payment_id' => ['nullable', 'string', 'max:255'],
             'razorpay_order_id' => ['nullable', 'string', 'max:255'],
@@ -238,7 +244,7 @@ class TeamController extends Controller
         $playerLimit = $this->billing->planLimitFor($tournament->organization_id, 'players');
 
         if ($playerLimit !== null) {
-            $currentPlayers = Player::query()->where('organization_id', $tournament->organization_id)->count();
+            $currentPlayers = $this->billing->usedFor($tournament->organization_id, 'players');
 
             if ($currentPlayers + count($players) > $playerLimit) {
                 return [response()->json([
@@ -262,7 +268,7 @@ class TeamController extends Controller
         if ($managerUserId && Team::query()
             ->where('tournament_id', $tournament->id)
             ->where('manager_user_id', $managerUserId)
-            ->where('status', '!=', 'withdrawn')
+            ->holdingPlace()
             ->exists()) {
             return [response()->json(['error' => 'You already have a team in this tournament.'], 409), []];
         }
@@ -270,7 +276,7 @@ class TeamController extends Controller
         $normalizedPhone = preg_replace('/\D+/', '', $data['manager_phone']);
         $alreadyRegistered = Team::query()
             ->where('tournament_id', $tournament->id)
-            ->where('status', '!=', 'withdrawn')
+            ->holdingPlace()
             ->get(['manager_phone'])
             ->contains(fn ($team) => preg_replace('/\D+/', '', $team->manager_phone) === $normalizedPhone && $normalizedPhone !== '');
 
@@ -352,101 +358,33 @@ class TeamController extends Controller
                 return response()->json(['error' => 'Payment verification is required to complete registration.'], 400);
             }
 
-            if (! $this->gateway->verify('registration', $data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'], $amountToPay)) {
+            // Opened for this tournament's fee — not another tournament's at the same price.
+            if (! $this->gateway->verify('registration', $data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'], $amountToPay, $this->registrationOrderContext($tournament))) {
                 return response()->json(['error' => 'Payment verification failed. Please try again.'], 400);
             }
 
             // One payment settles one registration.
-            if (RegistrationPayment::query()->where('transaction_id', $data['razorpay_payment_id'])->exists()) {
+            if ($this->gateway->isSpent($data['razorpay_payment_id'])) {
                 return response()->json(['error' => 'This payment has already been used for a registration.'], 409);
             }
 
             $verifiedTransactionId = $data['razorpay_payment_id'];
         }
 
-        $result = DB::transaction(function () use ($data, $players, $tournament, $link, $paymentOption, $paymentMethod, $payAtGround, $verifiedTransactionId, $request, $managerUserId) {
-            $team = Team::create([
-                'id' => Ids::timestamped('team'),
-                'tournament_id' => $tournament->id,
-                'organization_id' => $tournament->organization_id,
-                'name' => $data['team_name'],
-                'short_name' => $data['short_name'] ?? mb_strtoupper(mb_substr($data['team_name'], 0, 4)),
-                'logo' => $data['logo'] ?? 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&auto=format&fit=crop&q=80',
-                'village' => $data['village'] ?? '',
-                'panchayat' => $data['panchayat'] ?? '',
-                'district' => $data['district'] ?? '',
-                'jersey_color' => $data['jersey_color'] ?? '#3B82F6',
-                'secondary_jersey_color' => $data['secondary_jersey_color'] ?? null,
-                'captain_name' => $data['captain_name'] ?? ($players[0]['full_name'] ?? $data['manager_name']),
-                'manager_name' => $data['manager_name'],
-                'manager_phone' => $data['manager_phone'],
-                'manager_whatsapp' => $data['manager_whatsapp'] ?? $data['manager_phone'],
-                'manager_email' => $data['manager_email'] ?? '',
-                'manager_address' => $data['manager_address'] ?? '',
-                'manager_user_id' => $managerUserId,
-                'status' => 'pending',
-                'group_name' => 'Group A',
-                'legal_accepted' => $this->legal->hasDocuments() ? $this->legal->snapshotForTeam($request) : null,
-            ]);
+        try {
+            $result = $this->createRegistration($data, $players, $tournament, $link, $paymentOption, $paymentMethod, $payAtGround, $verifiedTransactionId, $request, $managerUserId);
+        } catch (HttpResponseException $refused) {
+            // Refused inside the transaction (the last place went meanwhile):
+            // a verified payment is still real money, so it goes on the
+            // organizer's refund list exactly as a refused pre-check does.
+            $error = $refused->getResponse();
 
-            foreach (array_values($players) as $index => $player) {
-                Player::create([
-                    'id' => Ids::unique('pl'),
-                    'team_id' => $team->id,
-                    'tournament_id' => $tournament->id,
-                    'organization_id' => $tournament->organization_id,
-                    'full_name' => $player['full_name'],
-                    'photo' => $player['photo'] ?? null,
-                    'age' => isset($player['age']) ? (int) $player['age'] : null,
-                    'dob' => $player['dob'] ?? null,
-                    'mobile' => $player['mobile'] ?? null,
-                    'jersey_number' => (int) ($player['jersey_number'] ?? 0) ?: $index + 1,
-                    'is_captain' => (bool) ($player['is_captain'] ?? $index === 0),
-                    'is_wicketkeeper' => (bool) ($player['is_wicketkeeper'] ?? false),
-                    'football_position' => $player['football_position'] ?? null,
-                    'cricket_role' => $player['cricket_role'] ?? null,
-                    'cricket_bowling_style' => $player['cricket_bowling_style'] ?? null,
-                    'cricket_batting_style' => $player['cricket_batting_style'] ?? null,
-                ]);
+            if ($error instanceof JsonResponse && $verifiedTransactionId) {
+                $this->recordOrphanedPayment($request, $token, $error, alreadyVerified: true);
             }
 
-            $payment = $this->payments->processPayment([
-                'teamId' => $team->id,
-                'tournamentId' => $tournament->id,
-                'organizationId' => $tournament->organization_id,
-                'paymentOption' => $paymentOption,
-                'paymentMethod' => $paymentMethod,
-                // Paying at the ground defers the whole fee — nothing is collected now.
-                'customAmount' => $payAtGround ? 0.0 : null,
-                'transactionId' => $payAtGround
-                    ? null
-                    : ($verifiedTransactionId ?? $data['transaction_id'] ?? strtoupper($paymentMethod).'_TXN_'.strtoupper(Ids::token(7))),
-                'notes' => $payAtGround
-                    ? 'Team opted to pay the ground fee in person at the venue'
-                    : sprintf('Public registration ground fee payment (%s, %s)', strtoupper($paymentOption), strtoupper($paymentMethod)),
-            ]);
-
-            $link->increment('current_registrations');
-
-            Audit::log([
-                'organization_id' => $tournament->organization_id,
-                'user_id' => $team->id,
-                'user_name' => $data['manager_name'],
-                'user_role' => 'TEAM_MANAGER',
-                'action' => 'REGISTERED_TEAM_PUBLIC',
-                'entity_type' => 'Team',
-                'entity_id' => $team->id,
-                'details' => sprintf(
-                    'Team [%s] registered for tournament [%s]. Ground Fee Paid: ₹%s',
-                    $team->name,
-                    $tournament->name,
-                    $payment['payment']->paid_amount
-                ),
-                'ip_address' => $request->ip(),
-            ]);
-
-            return ['team' => $team, ...$payment];
-        });
+            return $error;
+        }
 
         // After the transaction, not inside it: a queued notification must not
         // be rolled back into existence or lost with a retry, and the organizer
@@ -479,6 +417,135 @@ class TeamController extends Controller
     }
 
     /**
+     * The registration itself: team, squad, payment and receipt in one
+     * transaction. Throws an HttpResponseException to refuse from inside it.
+     *
+     * @return array{team: Team, payment: RegistrationPayment, receipt: RegistrationReceipt}
+     */
+    private function createRegistration(array $data, array $players, Tournament $tournament, RegistrationLink $link, string $paymentOption, string $paymentMethod, bool $payAtGround, ?string $verifiedTransactionId, Request $request, ?string $managerUserId): array
+    {
+        return DB::transaction(function () use ($data, $players, $tournament, $link, $paymentOption, $paymentMethod, $payAtGround, $verifiedTransactionId, $request, $managerUserId) {
+            $teamId = Ids::timestamped('team');
+
+            // The pre-check counted places before this transaction. Two teams
+            // submitting for the last place at once both passed it; counting
+            // again under a lock on the link lets only one of them in.
+            RegistrationLink::query()->whereKey($link->id)->lockForUpdate()->first();
+
+            if (Team::query()->where('tournament_id', $tournament->id)->holdingPlace()->count() >= $tournament->max_teams) {
+                throw new HttpResponseException(response()->json([
+                    'error' => "Tournament registration is full (Max {$tournament->max_teams} teams)",
+                ], 400));
+            }
+
+            // Claimed inside the transaction, so two submissions of the same
+            // payment racing each other cannot both create a team.
+            if ($verifiedTransactionId && ! $this->gateway->spend($verifiedTransactionId, 'registration', 'ground_fee', $teamId)) {
+                throw new HttpResponseException(response()->json([
+                    'error' => 'This payment has already been used for a registration.',
+                ], 409));
+            }
+
+            $team = Team::create([
+                'id' => $teamId,
+                'tournament_id' => $tournament->id,
+                'organization_id' => $tournament->organization_id,
+                'name' => $data['team_name'],
+                'short_name' => $data['short_name'] ?? mb_strtoupper(mb_substr($data['team_name'], 0, 4)),
+                'logo' => $data['logo'] ?? 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&auto=format&fit=crop&q=80',
+                'village' => $data['village'] ?? '',
+                'panchayat' => $data['panchayat'] ?? '',
+                'district' => $data['district'] ?? '',
+                'jersey_color' => $data['jersey_color'] ?? '#3B82F6',
+                'secondary_jersey_color' => $data['secondary_jersey_color'] ?? null,
+                'captain_name' => $data['captain_name'] ?? ($players[0]['full_name'] ?? $data['manager_name']),
+                'manager_name' => $data['manager_name'],
+                'manager_phone' => $data['manager_phone'],
+                'manager_whatsapp' => $data['manager_whatsapp'] ?? $data['manager_phone'],
+                'manager_email' => $data['manager_email'] ?? '',
+                'manager_address' => $data['manager_address'] ?? '',
+                'manager_user_id' => $managerUserId,
+                'status' => 'pending',
+                'group_name' => 'Group A',
+                'legal_accepted' => $this->legal->hasDocuments() ? $this->legal->snapshotForTeam($request) : null,
+            ]);
+
+            // A blank number takes the lowest one nobody chose — numbering by list
+            // position gave the third player #3 when someone else had picked 3.
+            $taken = array_filter(array_map(fn ($p) => (int) ($p['jersey_number'] ?? 0), $players));
+            $nextFree = function () use (&$taken): int {
+                $n = 1;
+
+                while (in_array($n, $taken, true)) {
+                    $n++;
+                }
+
+                $taken[] = $n;
+
+                return $n;
+            };
+
+            foreach (array_values($players) as $index => $player) {
+                Player::create([
+                    'id' => Ids::unique('pl'),
+                    'team_id' => $team->id,
+                    'tournament_id' => $tournament->id,
+                    'organization_id' => $tournament->organization_id,
+                    'full_name' => $player['full_name'],
+                    'photo' => $player['photo'] ?? null,
+                    'age' => isset($player['age']) ? (int) $player['age'] : null,
+                    'dob' => $player['dob'] ?? null,
+                    'mobile' => $player['mobile'] ?? null,
+                    'jersey_number' => (int) ($player['jersey_number'] ?? 0) ?: $nextFree(),
+                    'is_captain' => (bool) ($player['is_captain'] ?? $index === 0),
+                    'is_wicketkeeper' => (bool) ($player['is_wicketkeeper'] ?? false),
+                    'football_position' => $player['football_position'] ?? null,
+                    'cricket_role' => $player['cricket_role'] ?? null,
+                    'cricket_bowling_style' => $player['cricket_bowling_style'] ?? null,
+                    'cricket_batting_style' => $player['cricket_batting_style'] ?? null,
+                ]);
+            }
+
+            $payment = $this->payments->processPayment([
+                'teamId' => $team->id,
+                'tournamentId' => $tournament->id,
+                'organizationId' => $tournament->organization_id,
+                'paymentOption' => $paymentOption,
+                'paymentMethod' => $paymentMethod,
+                // Paying at the ground defers the whole fee — nothing is collected now.
+                'customAmount' => $payAtGround ? 0.0 : null,
+                'transactionId' => $payAtGround
+                    ? null
+                    : ($verifiedTransactionId ?? strtoupper($paymentMethod).'_TXN_'.strtoupper(Ids::token(7))),
+                'notes' => $payAtGround
+                    ? 'Team opted to pay the ground fee in person at the venue'
+                    : sprintf('Public registration ground fee payment (%s, %s)', strtoupper($paymentOption), strtoupper($paymentMethod)),
+            ]);
+
+            $link->increment('current_registrations');
+
+            Audit::log([
+                'organization_id' => $tournament->organization_id,
+                'user_id' => $team->id,
+                'user_name' => $data['manager_name'],
+                'user_role' => 'TEAM_MANAGER',
+                'action' => 'REGISTERED_TEAM_PUBLIC',
+                'entity_type' => 'Team',
+                'entity_id' => $team->id,
+                'details' => sprintf(
+                    'Team [%s] registered for tournament [%s]. Ground Fee Paid: ₹%s',
+                    $team->name,
+                    $tournament->name,
+                    $payment['payment']->paid_amount
+                ),
+                'ip_address' => $request->ip(),
+            ]);
+
+            return ['team' => $team, ...$payment];
+        });
+    }
+
+    /**
      * The registration a verified payment already paid for, if this request
      * is a retry of one that succeeded. Matched on the payment id *and* the
      * manager's number, so a payment id alone never reveals someone else's
@@ -492,13 +559,17 @@ class TeamController extends Controller
             return null;
         }
 
-        $payment = RegistrationPayment::query()->where('transaction_id', $paymentId)->first();
+        // The ledger remembers which team a payment made, even after a later
+        // instalment replaced the id on the team's payment row.
+        $teamId = $this->gateway->spentOn($paymentId)
+            ?? RegistrationPayment::query()->where('transaction_id', $paymentId)->value('team_id');
+        $team = $teamId ? Team::find($teamId) : null;
+        $payment = $team ? RegistrationPayment::query()->where('team_id', $team->id)->first() : null;
 
         if (! $payment) {
             return null;
         }
 
-        $team = Team::find($payment->team_id);
         $phone = preg_replace('/\D+/', '', (string) $request->input('manager_phone', ''));
 
         // Not the same entry: fall through, and the normal path refuses the
@@ -533,7 +604,7 @@ class TeamController extends Controller
      * organizer's audit trail with the reference they need to refund it, and
      * the refusal tells the payer exactly that.
      */
-    private function recordOrphanedPayment(Request $request, string $token, JsonResponse &$error): void
+    private function recordOrphanedPayment(Request $request, string $token, JsonResponse &$error, bool $alreadyVerified = false): void
     {
         $paymentId = (string) $request->input('razorpay_payment_id', '');
         $orderId = (string) $request->input('razorpay_order_id', '');
@@ -559,7 +630,11 @@ class TeamController extends Controller
                 ? (float) ($amount['partialAmount'] ?: $amount['totalFee'])
                 : (float) $amount['fullAmount'];
 
-            if (! $this->gateway->verify('registration', $orderId, $paymentId, $signature, $expected)) {
+            // A payment that already bought an entry is a replay, not money owed back.
+            // `alreadyVerified`: checked moments ago in register() — and the
+            // demo gateway spends an order on its first verify.
+            if ($this->gateway->isSpent($paymentId)
+                || (! $alreadyVerified && ! $this->gateway->verify('registration', $orderId, $paymentId, $signature, $expected, $this->registrationOrderContext($tournament)))) {
                 return;
             }
         } catch (\Throwable) {
@@ -618,9 +693,12 @@ class TeamController extends Controller
             ->where('tournament_id', $tournamentId)
             ->get()
             ->keyBy('team_id');
+        // Oldest first, so `keyBy` keeps each team's latest receipt.
         $receipts = RegistrationReceipt::query()
             ->whereIn('team_id', $teamIds)
             ->where('tournament_id', $tournamentId)
+            ->orderBy('issued_at')
+            ->orderBy('id')
             ->get()
             ->keyBy('team_id');
 
@@ -660,7 +738,7 @@ class TeamController extends Controller
             ->keyBy('id');
         $players = Player::query()->whereIn('team_id', $teamIds)->orderBy('jersey_number')->get()->groupBy('team_id');
         $payments = RegistrationPayment::query()->whereIn('team_id', $teamIds)->get()->keyBy('team_id');
-        $receipts = RegistrationReceipt::query()->whereIn('team_id', $teamIds)->get()->keyBy('team_id');
+        $receipts = RegistrationReceipt::query()->whereIn('team_id', $teamIds)->orderBy('issued_at')->orderBy('id')->get()->keyBy('team_id');
 
         $matches = GameMatch::query()
             ->where(fn ($q) => $q->whereIn('team_a_id', $teamIds)->orWhereIn('team_b_id', $teamIds))
@@ -718,7 +796,7 @@ class TeamController extends Controller
     {
         $alreadyIn = Team::query()
             ->where('manager_user_id', $request->user()->id)
-            ->where('status', '!=', 'withdrawn')
+            ->holdingPlace()
             ->pluck('tournament_id');
 
         $links = RegistrationLink::query()
@@ -735,7 +813,7 @@ class TeamController extends Controller
 
         $entries = Team::query()
             ->whereIn('tournament_id', $tournaments->keys())
-            ->where('status', '!=', 'withdrawn')
+            ->holdingPlace()
             ->selectRaw('tournament_id, count(*) as total')
             ->groupBy('tournament_id')
             ->pluck('total', 'tournament_id');
@@ -934,26 +1012,36 @@ class TeamController extends Controller
 
         // The order was opened for exactly this amount; a stale order (the
         // organizer recorded cash meanwhile) no longer matches and is refused.
-        if (! $this->gateway->verify('registration', $data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'], $amount)) {
+        // …and opened for this team's balance, not another team's of the same size.
+        if (! $this->gateway->verify('registration', $data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature'], $amount, [
+            'team_id' => $team->id,
+            'purpose' => 'ground_fee_balance',
+        ])) {
             return response()->json(['error' => 'Payment verification failed. Please try again.'], 400);
         }
 
-        if (RegistrationPayment::query()->where('transaction_id', $data['razorpay_payment_id'])->exists()) {
+        $result = DB::transaction(function () use ($data, $team, $tournament, $amount, $due) {
+            if (! $this->gateway->spend($data['razorpay_payment_id'], 'registration', 'ground_fee_balance', $team->id)) {
+                return null;
+            }
+
+            return $this->payments->processPayment([
+                'teamId' => $team->id,
+                'tournamentId' => $tournament->id,
+                'organizationId' => $team->organization_id,
+                'paymentMethod' => $data['payment_method'],
+                'paymentOption' => $amount < $due ? 'partial' : 'full',
+                'customAmount' => $amount,
+                'transactionId' => $data['razorpay_payment_id'],
+                'notes' => $amount < $due
+                    ? 'Half of the ground fee paid online by the team manager'
+                    : 'Ground fee balance paid online by the team manager',
+            ]);
+        });
+
+        if (! $result) {
             return response()->json(['error' => 'This payment has already been recorded.'], 409);
         }
-
-        $result = $this->payments->processPayment([
-            'teamId' => $team->id,
-            'tournamentId' => $tournament->id,
-            'organizationId' => $team->organization_id,
-            'paymentMethod' => $data['payment_method'],
-            'paymentOption' => $amount < $due ? 'partial' : 'full',
-            'customAmount' => $amount,
-            'transactionId' => $data['razorpay_payment_id'],
-            'notes' => $amount < $due
-                ? 'Half of the ground fee paid online by the team manager'
-                : 'Ground fee balance paid online by the team manager',
-        ]);
 
         Audit::log([
             'organization_id' => $team->organization_id,
@@ -1037,7 +1125,8 @@ class TeamController extends Controller
             'team' => $team,
             'players' => $players,
             'payment' => RegistrationPayment::query()->where('team_id', $team->id)->first(),
-            'receipt' => RegistrationReceipt::query()->where('team_id', $team->id)->first(),
+            'receipt' => RegistrationReceipt::query()->where('team_id', $team->id)
+                ->orderByDesc('issued_at')->orderByDesc('id')->first(),
             'tournament' => Tournament::find($team->tournament_id),
         ]);
     }
@@ -1061,7 +1150,40 @@ class TeamController extends Controller
         ]);
 
         $previousStatus = $team->status;
+        $tournament = Tournament::find($team->tournament_id);
+        $nextStatus = $data['status'] ?? $previousStatus;
+
+        // Taking a place back — approving, or reinstating a rejected or
+        // withdrawn side — needs one free. Approving past the size the
+        // tournament was advertised at used to be allowed.
+        $takesPlace = in_array($nextStatus, Team::HOLDS_PLACE, true) && ! in_array($previousStatus, Team::HOLDS_PLACE, true);
+        $approving = $nextStatus === 'approved' && $previousStatus !== 'approved';
+
+        if ($tournament && ($takesPlace || $approving)) {
+            $others = Team::query()->where('tournament_id', $tournament->id)->whereKeyNot($team->id);
+            $full = $takesPlace
+                ? (clone $others)->holdingPlace()->count() >= $tournament->max_teams
+                : (clone $others)->where('status', 'approved')->count() >= $tournament->max_teams;
+
+            if ($full) {
+                return response()->json([
+                    'error' => "This tournament already has its {$tournament->max_teams} teams. Reject or withdraw another entry, or raise the team limit, first.",
+                ], 409);
+            }
+        }
+
         $team->fill($data)->save();
+
+        if ($team->status !== $previousStatus && $tournament) {
+            // The link's count and the table both follow who is in.
+            RegistrationLink::query()->where('tournament_id', $tournament->id)->update([
+                'current_registrations' => Team::query()->where('tournament_id', $tournament->id)->holdingPlace()->count(),
+            ]);
+
+            $tournament->sport_code === 'football'
+                ? $this->scoring->recalculateFootballStandings($tournament->id)
+                : $this->scoring->recalculateCricketStandings($tournament->id);
+        }
 
         // Only on the change, so re-saving an approved team to set its group
         // does not tell the manager they are in all over again.
@@ -1204,6 +1326,17 @@ class TeamController extends Controller
         );
     }
 
+    /**
+     * What a registration checkout is opened for (see paymentOrder), and what
+     * a payment presented for this tournament's entry must have been for.
+     *
+     * @return array<string, string>
+     */
+    private function registrationOrderContext(Tournament $tournament): array
+    {
+        return ['tournament_id' => $tournament->id, 'purpose' => 'ground_fee'];
+    }
+
     private function currency(float $amount): string
     {
         $symbol = \App\Models\PlatformSetting::query()->value('currency_symbol') ?: '₹';
@@ -1211,9 +1344,23 @@ class TeamController extends Controller
         return $symbol.number_format($amount, 0);
     }
 
-    public function receipt(string $id): JsonResponse
+    public function receipt(Request $request, string $id): JsonResponse
     {
-        $receipt = RegistrationReceipt::query()->where('team_id', $id)->first();
+        $team = Team::find($id);
+
+        if (! $team || ! (
+            $this->isOrganizationStaff($request, $team->organization_id)
+            || $team->manager_user_id === $request->user()->id
+        )) {
+            return response()->json(['error' => 'Receipt not found'], 404);
+        }
+
+        // The latest instalment's receipt carries the running totals.
+        $receipt = RegistrationReceipt::query()
+            ->where('team_id', $id)
+            ->orderByDesc('issued_at')
+            ->orderByDesc('id')
+            ->first();
 
         if (! $receipt) {
             return response()->json(['error' => 'Receipt not found'], 404);
@@ -1258,6 +1405,19 @@ class TeamController extends Controller
             ]);
         } catch (ValidationException) {
             return response()->json(['error' => 'Player name and jersey number are required'], 400);
+        }
+
+        // The same squad rules a registration is held to.
+        $squad = Player::query()->where('team_id', $team->id);
+        $settings = Tournament::find($team->tournament_id)?->settings ?? [];
+        $maxPlayers = (int) ($settings['squad_max_players'] ?? 0);
+
+        if ($maxPlayers > 0 && (clone $squad)->count() >= $maxPlayers) {
+            return response()->json(['error' => "This squad already has the maximum of {$maxPlayers} players."], 422);
+        }
+
+        if ((clone $squad)->where('jersey_number', (int) $data['jersey_number'])->exists()) {
+            return response()->json(['error' => "Number {$data['jersey_number']} is already taken in this squad."], 422);
         }
 
         $player = Player::create([

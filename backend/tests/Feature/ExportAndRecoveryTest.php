@@ -129,6 +129,18 @@ class ExportAndRecoveryTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/,\d{11,},/', $body);
     }
 
+    public function test_a_negative_goal_difference_stays_a_number(): void
+    {
+        $cell = new \ReflectionMethod(\App\Services\CsvWriter::class, 'cell');
+        $writer = new \App\Services\CsvWriter;
+
+        $this->assertSame('-3', $cell->invoke($writer, -3));
+        $this->assertSame('-0.25', $cell->invoke($writer, '-0.25'));
+        // Still escaped: a formula, and a phone number written with its +.
+        $this->assertSame("'-2+3", $cell->invoke($writer, '-2+3'));
+        $this->assertSame("'+919447098765", $cell->invoke($writer, '+919447098765'));
+    }
+
     public function test_fee_collection_and_squads_stay_with_the_organizer(): void
     {
         // Both carry phone numbers, so no login means no file.

@@ -9,6 +9,7 @@ use App\Models\Venue;
 use App\Services\Fixtures\BracketService;
 use App\Services\Fixtures\FixtureBuilder;
 use App\Support\Ids;
+use App\Support\LocalTime;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Tests\TestCase;
@@ -116,11 +117,9 @@ class BracketTest extends TestCase
         $this->assertCount(2, $played);
 
         // The byes belong to the two best seeds, and each is already through.
-        $this->assertSame(
+        $this->assertEqualsCanonicalizing(
             [$teams[0]->id, $teams[1]->id],
-            $byes->pluck('winner_team_id')->sort()->values()->all() === [$teams[0]->id, $teams[1]->id]
-                ? [$teams[0]->id, $teams[1]->id]
-                : $byes->pluck('winner_team_id')->sort()->values()->all()
+            $byes->pluck('winner_team_id')->values()->all()
         );
         $this->assertStringContainsString('Bye', (string) $byes->first()->result_summary);
     }
@@ -265,7 +264,7 @@ class BracketTest extends TestCase
         [$tournament] = $this->tournamentWith(4, 'league');
 
         $first = fn () => collect($this->builder->build($tournament, $this->teamsOf($tournament)))
-            ->map(fn (GameMatch $m) => Carbon::parse($m->scheduled_at))->sort()->first();
+            ->map(fn (GameMatch $m) => Carbon::parse($m->scheduled_at)->setTimezone(LocalTime::zone()))->sort()->first();
 
         // No time set: the afternoon default.
         $this->assertSame('2027-03-01 15:00', $first()->format('Y-m-d H:i'));
@@ -413,6 +412,61 @@ class BracketTest extends TestCase
         );
     }
 
+    public function test_three_groups_never_pair_a_group_with_itself_in_round_one(): void
+    {
+        [$tournament] = $this->tournamentWith(6, 'league_knockout');
+        $matches = collect($this->builder->build($tournament, $this->teamsOf($tournament), ['groups' => 3]));
+
+        foreach ($matches->where('bracket_round', 1) as $match) {
+            $a = $match->advance_from['a'] ?? null;
+            $b = $match->advance_from['b'] ?? null;
+
+            if ($a && $b) {
+                $this->assertNotSame($a['group'], $b['group'], 'two sides from one group met in round one');
+            }
+        }
+    }
+
+    public function test_a_group_seed_given_a_bye_goes_through_once_its_group_is_played(): void
+    {
+        [$tournament] = $this->tournamentWith(6, 'league_knockout');
+        $matches = collect($this->builder->build($tournament, $this->teamsOf($tournament), ['groups' => 3]));
+
+        foreach ($matches->whereNull('bracket_round') as $match) {
+            $this->completeMatch($match->fresh(), $match->team_a_id);
+        }
+
+        $byes = GameMatch::query()->where('tournament_id', $tournament->id)
+            ->where('bracket_round', 1)->where('result_summary', 'like', 'Bye%')->get();
+
+        $this->assertNotEmpty($byes);
+
+        foreach ($byes as $bye) {
+            $this->assertNotEmpty($bye->winner_team_id, 'a bye must name the team it sends through');
+        }
+
+        foreach (GameMatch::query()->where('tournament_id', $tournament->id)->where('bracket_round', 2)->get() as $next) {
+            $fedByBye = collect(['a', 'b'])->filter(fn ($slot) => $byes->pluck('id')->contains($next->advance_from[$slot]['match_id'] ?? null));
+
+            foreach ($fedByBye as $slot) {
+                $this->assertNotSame('', (string) $next->{"team_{$slot}_id"}, 'the bye winner never reached the next round');
+            }
+        }
+    }
+
+    public function test_cricket_group_standings_carry_their_group(): void
+    {
+        [$tournament] = $this->tournamentWith(4, 'group_stage');
+        $tournament->forceFill(['sport_code' => 'cricket', 'sport_id' => 'sport-cricket'])->save();
+        $this->builder->build($tournament, $this->teamsOf($tournament), ['groups' => 2]);
+
+        app(\App\Services\ScoringEngine::class)->recalculateCricketStandings($tournament->id);
+
+        $groups = \App\Models\Standing::query()->where('tournament_id', $tournament->id)->pluck('group_name')->unique()->sort()->values()->all();
+
+        $this->assertSame(['Group A', 'Group B'], $groups);
+    }
+
     /* ------------------------------------------------- Grounds and clocks */
 
     public function test_a_ground_never_hosts_two_matches_at_the_same_time(): void
@@ -450,9 +504,11 @@ class BracketTest extends TestCase
             'start_date' => $start->toDateTimeString(),
         ]));
 
+        // Stored as UTC; read back on the organizers' clock it is what they asked for.
         $first = Carbon::parse($matches->first()->scheduled_at);
 
-        $this->assertSame($start->format('Y-m-d H:i'), $first->format('Y-m-d H:i'));
+        $this->assertStringEndsWith('Z', $matches->first()->scheduled_at);
+        $this->assertSame($start->format('Y-m-d H:i'), LocalTime::format($first, 'Y-m-d H:i'));
     }
 
     public function test_a_bare_date_kicks_off_in_the_afternoon_not_at_midnight(): void
@@ -463,7 +519,7 @@ class BracketTest extends TestCase
             'start_date' => '2027-02-20',
         ]));
 
-        $this->assertSame('15:00', Carbon::parse($matches->first()->scheduled_at)->format('H:i'));
+        $this->assertSame('15:00', LocalTime::format(Carbon::parse($matches->first()->scheduled_at), 'H:i'));
     }
 
     /* ---------------------------------------------------------------- API */

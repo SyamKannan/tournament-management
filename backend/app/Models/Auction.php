@@ -5,12 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * A tournament player auction. `bidHistory` serialises as the `bid_history`
- * array the live auction arena and TV screens read, newest bid first.
+ * A tournament player auction. `bid_history` is the bidding on the player
+ * currently on the hammer, newest bid first — what the live arena and TV
+ * screens show. Earlier players' bids stay in `auction_bids` (they used to be
+ * wiped every time a new player was called); `bids()` reads all of them.
  */
 class Auction extends BaseModel
 {
-    protected $with = ['bidHistory'];
+    protected $appends = ['bid_history'];
 
     protected $casts = [
         'team_purse' => 'float',
@@ -23,9 +25,19 @@ class Auction extends BaseModel
         'accelerated_round_active' => 'boolean',
     ];
 
-    public function bidHistory(): HasMany
+    public function bids(): HasMany
     {
         return $this->hasMany(AuctionBid::class)->orderByDesc('sequence');
+    }
+
+    /** @return \Illuminate\Support\Collection<int, AuctionBid> */
+    public function getBidHistoryAttribute()
+    {
+        if (! $this->current_player_id) {
+            return collect();
+        }
+
+        return $this->bids()->where('player_id', $this->current_player_id)->get();
     }
 
     public function players(): HasMany

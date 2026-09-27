@@ -24,6 +24,19 @@ class Team extends BaseModel
         'legal_accepted' => 'array',
     ];
 
+    /**
+     * Entries that take up one of a tournament's places. A rejected or
+     * withdrawn team has given its place back: counting it kept registration
+     * "full" after the organizer had turned sides away.
+     */
+    public const HOLDS_PLACE = ['pending', 'changes_required', 'approved', 'suspended'];
+
+    /** @param  \Illuminate\Database\Eloquent\Builder<self>  $query */
+    public function scopeHoldingPlace($query)
+    {
+        return $query->whereIn('status', self::HOLDS_PLACE);
+    }
+
     public function tournament(): BelongsTo
     {
         return $this->belongsTo(Tournament::class);

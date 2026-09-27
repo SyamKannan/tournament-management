@@ -17,7 +17,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
@@ -63,7 +62,9 @@ class AuthController extends Controller
 
             if (in_array($status, ['suspended', 'cancelled'], true)) {
                 return response()->json([
-                    'error' => 'This organization is suspended. Please contact platform support.',
+                    'error' => $status === 'suspended'
+                        ? 'This organization is suspended. Please contact platform support.'
+                        : 'This organization’s account is closed. Please contact platform support.',
                 ], 403);
             }
         }
@@ -77,6 +78,10 @@ class AuthController extends Controller
      */
     public function switchDemoRole(Request $request): JsonResponse
     {
+        // Hands out a real token for any role, super admin included, with no
+        // password — so it exists only where the header switcher does.
+        abort_unless(config('app.demo_role_switcher') && ! app()->isProduction(), 404);
+
         $role = (string) $request->input('role');
         $organizationId = $request->input('organizationId');
 
@@ -131,7 +136,7 @@ class AuthController extends Controller
         $resets->request($data['identifier']);
 
         return response()->json([
-            'message' => 'If that phone number or email belongs to an account, a code is on its way by SMS.',
+            'message' => 'If that phone number or email belongs to an account, a code is on its way by SMS. If more than one account uses this number, enter your email instead.',
         ]);
     }
 
@@ -415,13 +420,19 @@ class AuthController extends Controller
             'name' => ['sometimes', 'string', 'max:255'],
             'phone' => ['sometimes', 'string', 'max:64'],
             'avatar' => ['sometimes', 'nullable', 'string'],
-            'email' => [
-                'sometimes', 'email', 'max:255',
-                Rule::unique('users', 'email')->ignore($user->id),
-            ],
+            'email' => ['sometimes', 'email', 'max:255'],
             'current_password' => ['required_with:new_password', 'string'],
             'new_password' => ['sometimes', 'string', 'min:6'],
         ]);
+
+        // Sign-in matches on a lowercased email, so "A@x.com" must count as
+        // taken when "a@x.com" exists — a plain unique rule compares exactly.
+        if (isset($data['email']) && $this->emailTaken($data['email'], $user->id)) {
+            return response()->json([
+                'error' => 'Another account already uses this email address.',
+                'errors' => ['email' => ['Another account already uses this email address.']],
+            ], 422);
+        }
 
         $passwordChanged = isset($data['new_password']);
 
@@ -497,9 +508,12 @@ class AuthController extends Controller
         ];
     }
 
-    private function emailTaken(string $email): bool
+    private function emailTaken(string $email, ?string $exceptUserId = null): bool
     {
-        return User::query()->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])->exists();
+        return User::query()
+            ->whereRaw('LOWER(email) = ?', [mb_strtolower(trim($email))])
+            ->when($exceptUserId, fn ($query) => $query->whereKeyNot($exceptUserId))
+            ->exists();
     }
 
     private function passwordMatches(User $user, string $password): bool

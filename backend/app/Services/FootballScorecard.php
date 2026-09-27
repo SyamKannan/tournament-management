@@ -32,8 +32,8 @@ class FootballScorecard
         $name = fn (?string $playerId) => $playerId ? ($names[$playerId] ?? null) : null;
 
         $sides = [
-            $match->team_a_id => $this->emptySide($match->team_a_id, (int) ($state?->team_a_score ?? 0)),
-            $match->team_b_id => $this->emptySide($match->team_b_id, (int) ($state?->team_b_score ?? 0)),
+            $match->team_a_id => $this->emptySide($match->team_a_id, (int) ($state?->team_a_score ?? 0), $state?->team_a_penalties),
+            $match->team_b_id => $this->emptySide($match->team_b_id, (int) ($state?->team_b_score ?? 0), $state?->team_b_penalties),
         ];
 
         foreach ($events as $event) {
@@ -49,6 +49,13 @@ class FootballScorecard
                 'player_id' => $event->player_id ?: null,
                 'name' => $name($event->player_id),
             ];
+
+            // Shoot-out kicks are listed on their own, in order, not as goals.
+            if ($event->period === 'penalties' && in_array($event->event_type, ['penalty_goal', 'penalty_missed'], true)) {
+                $sides[$teamId]['shootout'][] = [...$base, 'scored' => $event->event_type === 'penalty_goal'];
+
+                continue;
+            }
 
             switch ($event->event_type) {
                 case 'goal':
@@ -98,15 +105,18 @@ class FootballScorecard
     }
 
     /** @return array<string, mixed> */
-    private function emptySide(string $teamId, int $score): array
+    private function emptySide(string $teamId, int $score, ?int $penalties = null): array
     {
         return [
             'team_id' => $teamId,
             'score' => $score,
+            // Null when no shoot-out was taken.
+            'penalties' => $penalties,
             'goals' => [],
             'cards' => [],
             'substitutions' => [],
             'missed_penalties' => [],
+            'shootout' => [],
         ];
     }
 }

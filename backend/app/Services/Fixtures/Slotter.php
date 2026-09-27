@@ -3,6 +3,7 @@
 namespace App\Services\Fixtures;
 
 use App\Models\Venue;
+use App\Support\LocalTime;
 use Illuminate\Support\Carbon;
 
 /**
@@ -76,7 +77,8 @@ class Slotter
 
         return [
             'venue_id' => $this->venues[$indexInRound % $venueCount],
-            'scheduled_at' => $kickoff->format('Y-m-d\TH:i:s.v\Z'),
+            // The start is local time; stored as the UTC moment it really is.
+            'scheduled_at' => LocalTime::stored($kickoff),
         ];
     }
 

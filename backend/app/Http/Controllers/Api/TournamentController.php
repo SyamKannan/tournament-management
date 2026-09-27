@@ -9,10 +9,14 @@ use App\Models\CricketMatchState;
 use App\Models\FootballMatchState;
 use App\Models\GameMatch;
 use App\Models\Organization;
+use App\Models\Player;
 use App\Models\RegistrationLink;
+use App\Models\RegistrationPayment;
+use App\Models\RegistrationReceipt;
 use App\Models\Sponsor;
 use App\Models\Sport;
 use App\Models\Standing;
+use App\Models\Subscription;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\Venue;
@@ -26,6 +30,7 @@ use App\Support\Audit;
 use App\Support\Cached;
 use App\Support\Ids;
 use App\Support\TournamentStage;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -48,7 +53,8 @@ class TournamentController extends Controller
     {
         $tournament = Tournament::query()->where('slug', $slug)->first();
 
-        if (! $tournament) {
+        // A draft isn't published — same rule as the bracket and the stats.
+        if (! $tournament || $tournament->status === 'draft') {
             return response()->json(['error' => 'Tournament not found'], 404);
         }
 
@@ -74,7 +80,8 @@ class TournamentController extends Controller
             ),
             'matches' => $this->withMatchContext($matches),
             'standings' => Standing::query()->where('tournament_id', $tournament->id)->get(),
-            'sponsors' => Sponsor::query()->where('organization_id', $tournament->organization_id)->get(),
+            // A sponsor's phone and email are the organizer's business contacts, not the public's.
+            'sponsors' => Sponsor::query()->where('organization_id', $tournament->organization_id)->get()->makeHidden(['phone', 'email']),
             'announcements' => Announcement::query()
                 ->where('organization_id', $tournament->organization_id)
                 ->where('tournament_id', $tournament->id)
@@ -126,7 +133,7 @@ class TournamentController extends Controller
             return [
                 ...$tournament->toArray(),
                 'organization_name' => $organizations->get($tournament->organization_id)?->name,
-                'teams_count' => $teams->where('status', '!=', 'withdrawn')->count(),
+                'teams_count' => $teams->whereIn('status', Team::HOLDS_PLACE)->count(),
                 'approved_teams_count' => $teams->where('status', 'approved')->count(),
                 'registration_link_token' => $link?->token,
                 'stage' => $stages[$tournament->id],
@@ -155,6 +162,21 @@ class TournamentController extends Controller
             return response()->json(['error' => 'Organization ID is required'], 400);
         }
 
+        // With admin approval switched on, a new club waits in `pending` — it
+        // can sign in, look around and pay for a plan, but not start taking
+        // entries from the public until the platform has let it in. Nothing
+        // enforced that before: pending changed nothing but a label.
+        $orgStatus = Organization::query()->whereKey($organizationId)->value('status');
+
+        if (in_array($orgStatus, ['pending', 'expired'], true)) {
+            return response()->json([
+                'error' => $orgStatus === 'pending'
+                    ? 'Your organization is waiting for platform approval. You can host tournaments once it is approved.'
+                    : 'Your organization’s account has expired. Renew your plan to host tournaments again.',
+                'code' => 'ORGANIZATION_'.strtoupper($orgStatus),
+            ], 403);
+        }
+
         $limit = $this->billing->checkLimit($organizationId, 'tournaments');
 
         if (! $limit['allowed']) {
@@ -181,10 +203,12 @@ class TournamentController extends Controller
             'state' => ['nullable', 'string', 'max:255'],
             'logo' => ['nullable', 'string'],
             'banner' => ['nullable', 'string'],
-            'start_date' => ['nullable', 'string'],
-            'end_date' => ['nullable', 'string'],
-            'registration_opening' => ['nullable', 'string'],
-            'registration_closing' => ['nullable', 'string'],
+            'start_date' => ['nullable', 'date'],
+            // Compared only when there is a start to compare with; with none,
+            // Laravel would compare against the literal text "start_date".
+            'end_date' => ['nullable', 'date', ...($request->filled('start_date') ? ['after_or_equal:start_date'] : [])],
+            'registration_opening' => ['nullable', 'date'],
+            'registration_closing' => ['nullable', 'date'],
             'format' => ['nullable', 'string', 'in:league,knockout,group_stage,league_knockout'],
             'max_teams' => ['nullable', 'integer', 'min:2', $this->maxTeamsRule($teamLimit)],
             'ground_fee' => ['nullable', 'numeric', 'min:0'],
@@ -197,17 +221,33 @@ class TournamentController extends Controller
             'phone' => ['nullable', 'string', 'max:64'],
             'whatsapp' => ['nullable', 'string', 'max:64'],
             'settings' => ['nullable', 'array'],
+            ...$this->settingsRules(),
             'has_auction' => ['nullable', 'boolean'],
-        ]);
+        ], $this->validationMessages());
 
         $sportCode = $data['sport_code'];
         $football = $sportCode === 'football';
         $today = now()->format('Y-m-d');
         $slug = Ids::slug($data['name']).'-'.Ids::token(4);
         $paymentConfig = $data['payment_config'] ?? [];
-        $settings = $data['settings'] ?? [];
+        // Raw input: `validated()` keeps only keys with a rule of their own, and
+        // normaliseSettings() below decides what a setting may be.
+        $settings = (array) $request->input('settings', []);
 
         [$tournament, $link] = DB::transaction(function () use ($request, $data, $organizationId, $sportCode, $football, $today, $slug, $paymentConfig, $settings, $user) {
+            // Checked again under a lock on the club's subscription: two
+            // "Create" taps at once both passed the check above, and the free
+            // plan's one tournament became two.
+            Subscription::query()->where('organization_id', $organizationId)->lockForUpdate()->first();
+            $limit = $this->billing->checkLimit($organizationId, 'tournaments');
+
+            if (! $limit['allowed']) {
+                throw new HttpResponseException(response()->json([
+                    'error' => $limit['reason'] ?? 'Tournament creation limit reached for your current subscription plan.',
+                    'limit' => $limit,
+                ], 403));
+            }
+
             $tournament = Tournament::create([
                 'id' => Ids::timestamped('tourney'),
                 'organization_id' => $organizationId,
@@ -229,7 +269,8 @@ class TournamentController extends Controller
                 'district' => $data['district'] ?? '',
                 'state' => $data['state'] ?? 'Kerala',
                 'start_date' => $data['start_date'] ?? $today,
-                'end_date' => $data['end_date'] ?? $today,
+                // A one-day event when no end is given, never an end before the start.
+                'end_date' => $data['end_date'] ?? ($data['start_date'] ?? $today),
                 'registration_opening' => $data['registration_opening'] ?? $today,
                 // Entries close when the organizer says, else when play starts — never
                 // "today", which shut registration at midnight on the day it opened.
@@ -344,31 +385,67 @@ class TournamentController extends Controller
             'municipality' => ['sometimes', 'nullable', 'string', 'max:255'],
             'district' => ['sometimes', 'nullable', 'string', 'max:255'],
             'state' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'start_date' => ['sometimes', 'string'],
-            'end_date' => ['sometimes', 'string'],
-            'registration_opening' => ['sometimes', 'string'],
-            'registration_closing' => ['sometimes', 'string'],
+            'start_date' => ['sometimes', 'nullable', 'date'],
+            'end_date' => ['sometimes', 'nullable', 'date'],
+            'registration_opening' => ['sometimes', 'nullable', 'date'],
+            'registration_closing' => ['sometimes', 'nullable', 'date'],
             'format' => ['sometimes', 'string', 'in:league,knockout,group_stage,league_knockout'],
             'max_teams' => ['sometimes', 'integer', 'min:2', $this->maxTeamsRule($teamLimit)],
             'ground_fee' => ['sometimes', 'numeric', 'min:0'],
             'payment_config' => ['sometimes', 'array'],
+            'payment_config.allow_partial' => ['sometimes', 'boolean'],
+            'payment_config.enabled_methods' => ['sometimes', 'array', 'min:1'],
+            'payment_config.enabled_methods.*' => ['string', 'in:'.implode(',', Tournament::PAYMENT_METHODS)],
             'prize_money' => ['sometimes', 'numeric', 'min:0'],
             'runner_up_prize' => ['sometimes', 'numeric', 'min:0'],
             'contact_person' => ['sometimes', 'string', 'max:255'],
             'phone' => ['sometimes', 'string', 'max:64'],
             'whatsapp' => ['sometimes', 'string', 'max:64'],
-            'status' => ['sometimes', 'string', 'in:draft,registration_open,registration_closed,upcoming,ongoing,completed,cancelled'],
+            // Calling a tournament off goes through cancel(): it also stops the
+            // matches, closes the link and tells the teams. A bare status
+            // change here did none of that.
+            'status' => ['sometimes', 'string', 'in:draft,registration_open,registration_closed,upcoming,ongoing,completed'],
             'settings' => ['sometimes', 'array'],
-        ]);
+            ...$this->settingsRules(),
+        ], $this->validationMessages());
+
+        // A cleared date keeps the one on file rather than blanking it.
+        foreach (['start_date', 'end_date', 'registration_opening'] as $dateField) {
+            if (array_key_exists($dateField, $data) && $data[$dateField] === null) {
+                unset($data[$dateField]);
+            }
+        }
+
+        $start = $data['start_date'] ?? $tournament->start_date;
+        $end = $data['end_date'] ?? $tournament->end_date;
+
+        if ($start && $end && strtotime((string) $end) < strtotime((string) $start)) {
+            return response()->json([
+                'error' => 'The end date cannot be before the start date.',
+                'errors' => ['end_date' => ['The end date cannot be before the start date.']],
+            ], 422);
+        }
+
+        // Like `settings`, one JSON column: merge the keys sent over what is
+        // stored, so a partial update cannot drop the accepted methods.
+        if (array_key_exists('payment_config', $data)) {
+            $merged = [...($tournament->payment_config ?? []), ...$data['payment_config']];
+            $merged['enabled_methods'] = array_values(array_intersect(
+                (array) ($merged['enabled_methods'] ?? Tournament::PAYMENT_METHODS),
+                Tournament::PAYMENT_METHODS,
+            )) ?: Tournament::PAYMENT_METHODS;
+            $merged['allow_partial'] = (bool) ($merged['allow_partial'] ?? true);
+            $data['payment_config'] = $merged;
+        }
 
         // `settings` is one JSON column, so assigning it replaces the lot: a PUT
         // carrying only `total_overs` used to drop the squad sizes, the half
         // length and the table points with it, and the engine then silently ran
         // on its own defaults. Merge over what is stored, then re-normalise, so
         // a partial update changes only the keys it names.
-        if (array_key_exists('settings', $data)) {
+        if ($request->has('settings')) {
             $data['settings'] = $this->normaliseSettings(
-                [...($tournament->settings ?? []), ...$data['settings']],
+                [...($tournament->settings ?? []), ...(array) $request->input('settings', [])],
                 $tournament->sport_code === 'football'
             );
         }
@@ -412,7 +489,39 @@ class TournamentController extends Controller
             return $denied;
         }
 
-        $tournament->delete();
+        // Money taken and matches played are history someone will ask about —
+        // a refund, a result. Cancelling keeps them; deleting would not.
+        $collected = RegistrationPayment::query()->where('tournament_id', $tournament->id)->where('paid_amount', '>', 0)->exists();
+        $played = GameMatch::query()->where('tournament_id', $tournament->id)
+            ->whereNotIn('status', ['scheduled', 'cancelled'])
+            ->where(fn ($q) => $q->where('result_summary', 'not like', 'Bye%')->orWhereNull('result_summary'))
+            ->exists();
+
+        if ($collected || $played) {
+            return response()->json([
+                'error' => $collected
+                    ? 'Teams have already paid for this tournament, so it cannot be deleted. Cancel it instead — that keeps the payment records for refunds.'
+                    : 'Matches in this tournament have already been played, so it cannot be deleted. Cancel it instead.',
+            ], 409);
+        }
+
+        DB::transaction(function () use ($tournament) {
+            // Nothing below has a foreign key to the tournament, so each goes by
+            // hand; teams, matches, links and posters cascade from the delete.
+            $teamIds = Team::query()->where('tournament_id', $tournament->id)->pluck('id');
+
+            Player::query()->where('tournament_id', $tournament->id)->orWhereIn('team_id', $teamIds)->delete();
+            RegistrationReceipt::query()->where('tournament_id', $tournament->id)->delete();
+            RegistrationPayment::query()->where('tournament_id', $tournament->id)->delete();
+            Standing::query()->where('tournament_id', $tournament->id)->delete();
+            Auction::query()->where('tournament_id', $tournament->id)->delete();
+            Announcement::query()->where('tournament_id', $tournament->id)->delete();
+
+            $tournament->delete();
+        });
+
+        // The mass deletes above fire no model events.
+        Cached::flush(Cached::tournament($tournament->id), Cached::org($tournament->organization_id));
 
         $user = $request->user();
         Audit::log([
@@ -627,13 +736,24 @@ class TournamentController extends Controller
         $data = $request->validate([
             'action' => ['nullable', 'string', 'in:regenerate'],
             'status' => ['nullable', 'string', 'in:active,disabled,expired'],
-            'customToken' => ['nullable', 'string', 'max:255'],
+            // It goes into a URL path and must name one tournament only.
+            'customToken' => ['nullable', 'string', 'min:4', 'max:120', 'regex:/^[A-Za-z0-9][A-Za-z0-9_-]*$/'],
+        ], [
+            'customToken.regex' => 'Use only letters, numbers, dashes and underscores in the link name.',
         ]);
 
         $link = RegistrationLink::query()->where('tournament_id', $tournament->id)->first();
 
         if (($data['action'] ?? null) === 'regenerate') {
             $token = $data['customToken'] ?? $tournament->slug.'-reg-'.Ids::token(4);
+
+            // Another tournament's link with the same name would send its teams here.
+            if (RegistrationLink::query()->where('token', $token)->where('tournament_id', '!=', $tournament->id)->exists()) {
+                return response()->json([
+                    'error' => 'That link name is already in use. Choose another one.',
+                    'errors' => ['customToken' => ['That link name is already in use.']],
+                ], 422);
+            }
 
             if ($link) {
                 $link->token = $token;
@@ -647,7 +767,7 @@ class TournamentController extends Controller
                     'token' => $token,
                     'status' => 'active',
                     'max_teams' => $tournament->max_teams,
-                    'current_registrations' => Team::query()->where('tournament_id', $tournament->id)->count(),
+                    'current_registrations' => Team::query()->where('tournament_id', $tournament->id)->holdingPlace()->count(),
                     'deadline' => $tournament->registration_closing ?: null,
                 ]);
             }
@@ -752,6 +872,45 @@ class TournamentController extends Controller
      * points are sport-aware — 3/1/0 is football, cricket runs 2 for a win and
      * 1 for a tie or no result.
      */
+    /**
+     * The settings the engine reads, each in a range a match can be played
+     * with: zero overs or a one-player side made a match that could never
+     * start or never end.
+     *
+     * @return array<string, array<int, string>>
+     */
+    private function settingsRules(): array
+    {
+        return [
+            'settings.squad_min_players' => ['sometimes', 'nullable', 'integer', 'min:2', 'max:30'],
+            'settings.squad_max_players' => ['sometimes', 'nullable', 'integer', 'min:2', 'max:40'],
+            'settings.max_substitutes' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:20'],
+            'settings.match_duration_minutes' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:240'],
+            'settings.half_duration_minutes' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:120'],
+            'settings.extra_time_minutes' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:60'],
+            'settings.total_overs' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:50'],
+            'settings.powerplay_overs' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:50'],
+            'settings.max_overs_per_bowler' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:50'],
+            'settings.playing_xi_count' => ['sometimes', 'nullable', 'integer', 'min:2', 'max:11'],
+            'settings.points_win' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:10'],
+            'settings.points_draw' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:10'],
+            'settings.points_loss' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:10'],
+            'settings.google_maps_url' => ['sometimes', 'nullable', 'string', 'max:1000', 'regex:#^https?://#i'],
+            'settings.latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
+            'settings.longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
+        ];
+    }
+
+    /** @return array<string, string> */
+    private function validationMessages(): array
+    {
+        return [
+            'end_date.after_or_equal' => 'The end date cannot be before the start date.',
+            'settings.total_overs.min' => 'An innings needs at least one over.',
+            'settings.google_maps_url.regex' => 'The map link must start with https://.',
+        ];
+    }
+
     private function normaliseSettings(array $settings, bool $football): array
     {
         return [

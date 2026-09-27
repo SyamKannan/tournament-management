@@ -16,6 +16,16 @@ class AuctionPlayer extends BaseModel
 
     const UPDATED_AT = null;
 
+    /**
+     * Contact details stay out of every serialization unless the organizer's
+     * view asks for them (`makeVisible(self::CONTACT_FIELDS)`). Auction events
+     * go to anonymous WebSocket rooms, so a default of "visible" put every
+     * registrant's phone number on the stadium screen's socket.
+     */
+    public const CONTACT_FIELDS = ['mobile', 'email'];
+
+    protected $hidden = self::CONTACT_FIELDS;
+
     protected $casts = [
         'age' => 'integer',
         'base_price' => 'float',

@@ -634,6 +634,8 @@ export interface FootballEvent {
   player_id: string;
   event_type: FootballEventType;
   minute: number;
+  /** The period it happened in; `penalties` marks a shoot-out kick, which is not a goal. */
+  period?: FootballPeriod | null;
   assist_player_id?: string | null;
   sub_in_player_id?: string | null;
   sub_out_player_id?: string | null;
@@ -695,10 +697,13 @@ export interface FootballCardSubstitution {
 export interface FootballScorecardSide {
   team_id: string;
   score: number;
+  /** Shoot-out kicks scored; null when there was no shoot-out. */
+  penalties?: number | null;
   goals: FootballCardGoal[];
   cards: FootballCardBooking[];
   substitutions: FootballCardSubstitution[];
   missed_penalties: { event_id: string; minute: number; player_id: string | null; name: string | null }[];
+  shootout?: { event_id: string; minute: number; player_id: string | null; name: string | null; scored: boolean }[];
 }
 
 export interface CricketDelivery {

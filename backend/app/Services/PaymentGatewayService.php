@@ -7,6 +7,7 @@ use App\Support\Ids;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Resolves which checkout collects money for each of the two payment flows
@@ -127,6 +128,7 @@ class PaymentGatewayService
             Cache::put($this->razorpayCacheKey($order['order_id']), [
                 'flow' => $flow,
                 'amount' => (int) $order['amount'],
+                'notes' => $notes,
             ], now()->addHours(self::RAZORPAY_ORDER_TTL_HOURS));
 
             return [...$common, ...$order];
@@ -140,6 +142,7 @@ class PaymentGatewayService
             'amount' => $amountMinor,
             'currency' => $currency ?: 'INR',
             'methods' => $offered,
+            'notes' => $notes,
         ], now()->addMinutes(self::DEMO_ORDER_TTL_MINUTES));
 
         return [...$common, 'order_id' => $orderId, 'amount' => $amountMinor, 'currency' => $currency ?: 'INR'];
@@ -152,8 +155,14 @@ class PaymentGatewayService
      * opened for, so a result from a part-payment order can't be presented as
      * settling the full fee. On the demo gateway the order is then spent, so
      * the same signed result can't be replayed onto a second registration.
+     *
+     * `$context` names what the order must have been opened for (e.g. the
+     * tournament, or the club and plan): without it, a payment made for one
+     * tournament's fee could enter a team in another's with the same price.
+     *
+     * @param  array<string, string>|null  $context  note keys the order must carry with these values
      */
-    public function verify(string $flow, ?string $orderId, ?string $paymentId, ?string $signature, ?float $expectedAmount = null): bool
+    public function verify(string $flow, ?string $orderId, ?string $paymentId, ?string $signature, ?float $expectedAmount = null, ?array $context = null): bool
     {
         if (! $orderId || ! $paymentId || ! $signature) {
             return false;
@@ -172,7 +181,7 @@ class PaymentGatewayService
             // The order is not spent here: a payment lost to a dropped
             // connection must verify again, and each flow refuses a payment
             // id it has already recorded.
-            return $this->razorpayOrderMatches($config, $flow, $orderId, $expectedAmount);
+            return $this->razorpayOrderMatches($config, $flow, $orderId, $expectedAmount, $context);
         }
 
         if (app()->isProduction() || ! hash_equals($this->demoSignature($flow, $orderId, $paymentId), $signature)) {
@@ -189,6 +198,10 @@ class PaymentGatewayService
             return false;
         }
 
+        if (! $this->notesMatch($order['notes'] ?? [], $context)) {
+            return false;
+        }
+
         Cache::forget($this->demoCacheKey($orderId));
 
         return true;
@@ -201,7 +214,7 @@ class PaymentGatewayService
      *
      * @param  array{provider: string, key_id: string, key_secret: string}  $config
      */
-    private function razorpayOrderMatches(array $config, string $flow, string $orderId, ?float $expectedAmount): bool
+    private function razorpayOrderMatches(array $config, string $flow, string $orderId, ?float $expectedAmount, ?array $context = null): bool
     {
         $order = Cache::get($this->razorpayCacheKey($orderId));
 
@@ -212,14 +225,60 @@ class PaymentGatewayService
                 return false;
             }
 
-            $order = ['flow' => $remote['notes']['kk_flow'] ?? $flow, 'amount' => $remote['amount']];
+            $order = ['flow' => $remote['notes']['kk_flow'] ?? $flow, 'amount' => $remote['amount'], 'notes' => (array) ($remote['notes'] ?? [])];
         }
 
         if ($order['flow'] !== $flow) {
             return false;
         }
 
-        return $expectedAmount === null || $order['amount'] === (int) round($expectedAmount * 100);
+        if ($expectedAmount !== null && (int) $order['amount'] !== (int) round($expectedAmount * 100)) {
+            return false;
+        }
+
+        return $this->notesMatch((array) ($order['notes'] ?? []), $context);
+    }
+
+    /** @param  array<string, mixed>  $notes */
+    private function notesMatch(array $notes, ?array $context): bool
+    {
+        foreach ($context ?? [] as $key => $value) {
+            if ((string) ($notes[$key] ?? '') !== (string) $value) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Record that a verified payment has bought something. False when it
+     * already had — a signed result never expires, so this is the only thing
+     * that stops the same payment being presented twice.
+     */
+    public function spend(string $paymentId, string $flow, string $purpose, string $referenceId): bool
+    {
+        // An ignored conflict rather than a caught unique-key error: this runs
+        // inside the caller's transaction, and on PostgreSQL a failed statement
+        // aborts the whole transaction even when PHP catches the exception.
+        return DB::table('gateway_payments')->insertOrIgnore([
+            'payment_id' => $paymentId,
+            'flow' => $flow,
+            'purpose' => $purpose,
+            'reference_id' => $referenceId,
+            'created_at' => now(),
+        ]) === 1;
+    }
+
+    public function isSpent(string $paymentId): bool
+    {
+        return DB::table('gateway_payments')->where('payment_id', $paymentId)->exists();
+    }
+
+    /** What a spent payment went to (a team id, an organization id), or null. */
+    public function spentOn(string $paymentId): ?string
+    {
+        return DB::table('gateway_payments')->where('payment_id', $paymentId)->value('reference_id');
     }
 
     private function razorpayCacheKey(string $orderId): string

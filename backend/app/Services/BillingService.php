@@ -48,21 +48,25 @@ class BillingService
             return ['allowed' => false, 'reason' => 'Plan not found.', 'current' => 0, 'max' => 0];
         }
 
+        $counts = $this->meteredCounts($organizationId, $subscription, $plan);
+
         [$current, $max, $label] = match ($resource) {
             'tournaments' => [
-                Tournament::query()->where('organization_id', $organizationId)->where('status', '!=', 'cancelled')->count(),
+                $counts['tournaments'],
                 $plan->tournament_limit,
-                'Tournament limit reached (%d/%d). Upgrade your plan to host more.',
+                $plan->id === self::FREE_PLAN_ID
+                    ? 'Tournament limit reached (%d/%d): the free plan covers one tournament. Choose a paid plan to host more.'
+                    : 'Tournament limit reached for this billing period (%d/%d). Upgrade your plan to host more.',
             ],
             'teams' => [
-                Team::query()->where('organization_id', $organizationId)->where('status', '!=', 'withdrawn')->count(),
+                $counts['teams'],
                 $plan->team_limit,
                 'Team limit reached (%d/%d). Upgrade your plan.',
             ],
             'players' => [
-                Player::query()->where('organization_id', $organizationId)->count(),
+                $counts['players'],
                 $plan->player_limit,
-                'Player limit reached (%d/%d). Upgrade your plan.',
+                'Player limit reached for this billing period (%d/%d). Upgrade your plan.',
             ],
             'ads' => [
                 Advertisement::query()->where('organization_id', $organizationId)->count(),
@@ -112,6 +116,15 @@ class BillingService
         };
     }
 
+    /** How much of a metered plan limit is in use — the count checkLimit() compares. */
+    public function usedFor(string $organizationId, string $resource): int
+    {
+        $subscription = $this->activeSubscription($organizationId);
+        $plan = $subscription ? Plan::find($subscription->plan_id) : null;
+
+        return (int) ($this->meteredCounts($organizationId, $subscription, $plan)[$resource] ?? 0);
+    }
+
     public function hasFeature(string $organizationId, string $feature): bool
     {
         $subscription = $this->activeSubscription($organizationId);
@@ -134,9 +147,7 @@ class BillingService
         $plan = $subscription ? Plan::find($subscription->plan_id) : null;
 
         $counts = [
-            'tournaments' => Tournament::query()->where('organization_id', $organizationId)->where('status', '!=', 'cancelled')->count(),
-            'teams' => Team::query()->where('organization_id', $organizationId)->where('status', '!=', 'withdrawn')->count(),
-            'players' => Player::query()->where('organization_id', $organizationId)->count(),
+            ...$this->meteredCounts($organizationId, $subscription, $plan),
             'ads' => Advertisement::query()->where('organization_id', $organizationId)->count(),
             'storage' => $this->storageUsedMb($organizationId),
         ];
@@ -192,17 +203,29 @@ class BillingService
 
         return DB::transaction(function () use ($plan, $organization, $organizationId, $paymentMethod, $verifiedTransactionReference) {
             $isRecurring = $plan->billing_type === 'recurring';
-            $durationDays = match ($plan->billing_interval) {
-                'yearly' => 365,
-                'quarterly' => 90,
-                default => 30,
-            };
+            $durationDays = $this->periodDays($plan);
 
             $now = now();
-            $endDate = $now->copy()->addDays($durationDays)->format('Y-m-d\TH:i:s.v\Z');
-            $startDate = $now->format('Y-m-d\TH:i:s.v\Z');
+            $subscription = Subscription::query()->where('organization_id', $organizationId)->lockForUpdate()->first();
 
-            $subscription = Subscription::query()->where('organization_id', $organizationId)->first();
+            // Renewing the plan a club is already on, before it runs out, adds a
+            // period after the one paid for — the days left are theirs. A change
+            // of plan starts the new plan today.
+            $periodFrom = $now->copy();
+            $renewing = $subscription
+                && $subscription->status === 'active'
+                && $subscription->plan_id === $plan->id
+                && ($currentEnd = $this->periodEnd($subscription))
+                && $currentEnd->isFuture();
+
+            if ($renewing) {
+                $periodFrom = $currentEnd->copy();
+            }
+
+            $endDate = $periodFrom->copy()->addDays($durationDays)->format('Y-m-d\TH:i:s.v\Z');
+            // A renewal keeps its period start, so what the period's limits
+            // count (meteredCounts) doesn't reset mid-period.
+            $startDate = $renewing ? $subscription->start_date : $now->format('Y-m-d\TH:i:s.v\Z');
 
             $attributes = [
                 'plan_id' => $plan->id,
@@ -388,6 +411,104 @@ class BillingService
         $bytes = (int) Upload::query()->where('organization_id', $organizationId)->sum('bytes');
 
         return (int) floor($bytes / 1048576);
+    }
+
+    /**
+     * What counts against a plan's tournament, team and player limits.
+     *
+     * A paid plan's limits are per billing period: the tournaments created
+     * since it (re)started, not every tournament the club has ever run — that
+     * used to lock out clubs with a few seasons behind them for good. The free
+     * plan is one tournament for the life of the club, cancelled ones
+     * included, so cancelling cannot hand its slot back.
+     *
+     * `teams` is the largest field among those tournaments, because the plan's
+     * team limit caps each tournament's size (TournamentController::maxTeamsRule).
+     *
+     * @return array{tournaments: int, teams: int, players: int}
+     */
+    private function meteredCounts(string $organizationId, ?Subscription $subscription, ?Plan $plan): array
+    {
+        $query = Tournament::query()->where('organization_id', $organizationId);
+
+        if ($plan?->id !== self::FREE_PLAN_ID) {
+            $query->where('status', '!=', 'cancelled');
+
+            if ($since = $this->periodStart($subscription, $plan)) {
+                $query->where('created_at', '>=', $since);
+            }
+        }
+
+        $tournamentIds = $query->pluck('id');
+
+        $largestField = $tournamentIds->isEmpty() ? 0 : (int) Team::query()
+            ->whereIn('tournament_id', $tournamentIds)
+            ->holdingPlace()
+            ->selectRaw('tournament_id, COUNT(*) as total')
+            ->groupBy('tournament_id')
+            ->pluck('total')
+            ->max();
+
+        return [
+            'tournaments' => $tournamentIds->count(),
+            'teams' => $largestField,
+            'players' => $tournamentIds->isEmpty() ? 0 : Player::query()->whereIn('tournament_id', $tournamentIds)->count(),
+        ];
+    }
+
+    private function periodEnd(Subscription $subscription): ?\Illuminate\Support\Carbon
+    {
+        if (! $subscription->end_date) {
+            return null;
+        }
+
+        try {
+            return \Illuminate\Support\Carbon::parse($subscription->end_date);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * When the period being metered began. A club that renews early has a
+     * paid-up end date a period or more ahead; the period running today is the
+     * one that ends at the first period boundary after now.
+     */
+    private function periodStart(?Subscription $subscription, ?Plan $plan = null): ?\Illuminate\Support\Carbon
+    {
+        if (! $subscription || ! $subscription->start_date) {
+            return null;
+        }
+
+        try {
+            $started = \Illuminate\Support\Carbon::parse($subscription->start_date);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $end = $this->periodEnd($subscription);
+
+        if (! $end || ! $plan) {
+            return $started;
+        }
+
+        $days = $this->periodDays($plan);
+        $start = $end->copy()->subDays($days);
+
+        while ($start->isFuture()) {
+            $start->subDays($days);
+        }
+
+        return $start->greaterThan($started) ? $start : $started;
+    }
+
+    private function periodDays(Plan $plan): int
+    {
+        return match ($plan->billing_interval) {
+            'yearly' => 365,
+            'quarterly' => 90,
+            default => 30,
+        };
     }
 
     private function activeSubscription(string $organizationId): ?Subscription

@@ -48,12 +48,20 @@ class CsvWriter
      * both wrong here and the classic CSV injection route — a team name typed as
      * `=HYPERLINK(...)` should never execute in the organizer's spreadsheet.
      */
-    private function cell(string|int|float|null $value): string
+    private function cell(string|int|float|bool|null $value): string
     {
-        $value = (string) ($value ?? '');
+        $value = is_bool($value) ? ($value ? 'Yes' : 'No') : (string) ($value ?? '');
 
         if ($value === '') {
             return '';
+        }
+
+        // A plain signed number — a goal difference of -3, a net run rate of
+        // -0.25 — is data, not a formula, and must stay a number in Excel.
+        // (Not a long one: "+919447098765" is a phone number, and is left to
+        // the 11-digit rule below so Excel doesn't turn it into 9.19E+11.)
+        if (in_array($value[0], ['+', '-'], true) && is_numeric($value) && strlen(preg_replace('/\D/', '', $value)) < 11) {
+            return $value;
         }
 
         if (in_array($value[0], ['=', '+', '-', '@', "\t", "\r"], true)) {

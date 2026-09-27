@@ -76,7 +76,8 @@ To act for a club, a super admin impersonates its organizer.
 
 **Auth.** Two accepted credentials: `Authorization: Bearer <jwt>` (HS256, 7-day expiry,
 `JWT_SECRET`) and the `x-demo-role` / `x-demo-org-id` header pair used by the client's
-role switcher (no login needed in dev). `TokenService` issues/verifies JWTs, and
+role switcher (no login needed in dev; `POST /api/auth/switch-demo-role` mints real tokens for any role, so it
+404s unless `app.demo_role_switcher` is on outside production). `TokenService` issues/verifies JWTs, and
 `authenticate()` is the only way in — it applies both revocation paths, so don't check a
 token with bare `decode()`:
 - one token, by its `jti`, denylisted in `revoked_tokens` (`POST /api/auth/logout`, and
@@ -216,7 +217,9 @@ that loaded ten things is already "too many attempts". Never add one.
 (`BillingService::storageUsedMb`), enforced in `UploadController` and reported by
 `usage()`. Only uploads with an `organization_id` count: uploading is public (registration
 sends a photo before anyone has an account), and a team must never be turned away from
-registering because the club is near its limit.
+registering because the club is near its limit. Uncounted uploads have their own ceilings instead:
+a folder allow-list (`UploadController::FOLDERS`, unknown → `profiles`), 4 MB and 30/day for `support`
+screenshots, 150/day per address for anonymous uploads.
 
 **Caching (Redis).** `Support\Cached` is a read-through cache for the public, computed-on-request
 reads: the tournament hub, fixture list, bracket, platform catalogue (plans/sports/footer) and every
@@ -260,13 +263,34 @@ Chrome off a download path.
 - `TournamentPaymentService` — what teams pay organizers to enter a tournament (ground
   fees, partial payments, receipts).
 
+Both flows verify a checkout with `PaymentGatewayService::verify(..., $amount, $context)`: the order must
+be for that amount *and* carry that context in its notes (`tournament_id`+`purpose` for a registration,
+`team_id` for a balance, `organization_id`+`plan_id` for a plan), and a verified payment id is claimed
+once in `gateway_payments` via `spend()` inside the write's transaction. `registration_payments.transaction_id`
+holds only the latest instalment, so never use it as the "already used" check. Public registration accepts
+only `Tournament::PAYMENT_METHODS` — cash is recorded by the organizer (`record-payment`), never self-declared.
+Plan limits are per billing period (tournaments created since the period began; the free plan counts every
+tournament ever, cancelled included); `BillingService::usedFor()` is the count `checkLimit()` compares.
+
 **Live scoring.** `ScoringEngine` keeps one mutable state row per match plus an
 append-only event log (`football_events`, `cricket_deliveries` tables — real rows, not
 JSON, specifically so undo is "delete last row and reverse its effect"). Each action
 writes to the log, folds into state, updates career stats, and recomputes the
 tournament table. The log tables are re-serialized into `events` / `deliveries` /
 `bid_history` arrays in API responses, so response shape stays stable regardless of
-storage.
+storage. (`bid_history` is the bidding on the player currently on the hammer; `Auction::bids()` has it all.)
+- The cricket state row is made on first read, often before the toss; while no ball is bowled,
+  `cricketState()` re-syncs its batting side and overs to the toss and settings.
+- A football event records its `period`. Kicks in `penalties` go to `team_*_penalties`, never the score or
+  anyone's goals, and decide a level match in `concludeFootballMatch`.
+- Standings count only approved teams (`rankStandings` drops the rest), exclude knockout rounds once a
+  league/group stage exists (`tableMatches`), and take a finished match's result from `winner_team_id`
+  (walkovers, corrections, shoot-outs), a live one from its score.
+- "Holds a place" in a tournament is `Team::HOLDS_PLACE` / `holdingPlace()` — rejected and withdrawn don't.
+
+**Times.** `scheduled_at` is stored in UTC (`…Z`). Anything a person types or reads as a time of day — the
+tournament's `start_time`, a registration deadline, the kick-off printed in an SMS — is in
+`app.local_timezone` (`APP_LOCAL_TIMEZONE`, default `Asia/Kolkata`); go through `Support\LocalTime`.
 
 **Player stats are never stored.** `PlayerStatsService` derives every number (runs,
 wickets, goals, matches, clean sheets, player-of-the-match awards) from the scoring logs,
@@ -389,7 +413,9 @@ non-enumeration, follow-ups by reference, rate limit, attachments),
 `LegalTermsTest` (signup and team-link acceptance, the 403 gate and its open routes, minor vs major versions,
 super admin and impersonation exemptions, admin publishing and acceptance list),
 `CachingTest` (hits, invalidation by scoring/edits/reorder, staff/public separation, after-commit
-flush, Redis outage; one test runs against a live Redis if `REDIS_TEST_HOST`:`REDIS_TEST_PORT` answers).
+flush, Redis outage; one test runs against a live Redis if `REDIS_TEST_HOST`:`REDIS_TEST_PORT` answers),
+`SecurityRegressionTest` (demo-role endpoint, self-declared fees, cross-tournament payments, public contact
+leaks, player-record takeover by phone, cross-club resets and opt-ins).
 
 No client-side test suite exists — `npm run typecheck` is the only automated client
 check.

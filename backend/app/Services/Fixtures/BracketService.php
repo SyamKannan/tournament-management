@@ -52,6 +52,21 @@ class BracketService
         // semi that reads its winner, or the semi sees a stale empty slot and
         // the whole bracket takes several passes to settle.
         foreach ($waiting->sortBy([['bracket_round', 'asc'], ['bracket_position', 'asc']]) as $match) {
+            // A bye is stored already finished, but when its seed is a group
+            // position the team isn't known until that group is played out.
+            // It is filled — and its walkover winner named — from the same
+            // source as any other slot, or the next round never gets a side.
+            if ($this->isBye($match)) {
+                $standings ??= $this->groupTables($tournamentId);
+
+                if ($this->syncBye($match, $byId, $standings)) {
+                    $byId->put($match->id, $match);
+                    $changed++;
+                }
+
+                continue;
+            }
+
             if ($this->isUnderWay($match)) {
                 continue;
             }
@@ -294,6 +309,34 @@ class BracketService
     }
 
     /** A match nobody should be moved out from under. */
+    /** A first-round slot with an entrant on one side only. */
+    private function isBye(GameMatch $match): bool
+    {
+        $a = $match->advance_from['a'] ?? null;
+        $b = $match->advance_from['b'] ?? null;
+
+        return (int) $match->bracket_round === 1 && (($a === null) !== ($b === null));
+    }
+
+    private function syncBye(GameMatch $match, Collection $byId, array $standings): bool
+    {
+        $slot = ($match->advance_from['a'] ?? null) !== null ? 'a' : 'b';
+        $column = $slot === 'a' ? 'team_a_id' : 'team_b_id';
+        $resolved = $this->resolve($match->advance_from[$slot], $byId, $standings);
+
+        if ($resolved === (string) $match->{$column} && $resolved === (string) $match->winner_team_id) {
+            return false;
+        }
+
+        $match->{$column} = $resolved;
+        $match->winner_team_id = $resolved !== '' ? $resolved : null;
+        $match->status = 'completed';
+        $match->result_summary = 'Bye — through to the next round';
+        $match->save();
+
+        return true;
+    }
+
     private function isUnderWay(GameMatch $match): bool
     {
         return ! in_array($match->status, ['scheduled', 'cancelled'], true);
